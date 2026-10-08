@@ -201,3 +201,15 @@ def test_original_mvp_project_migrates_without_losing_source(media):
     assert 0 <= restored['edit_plan']['visual_overlays'][0]['x'] <= 1
     _, output = get_result(restored)
     assert output.exists()
+
+
+def test_frontend_assets_are_versioned_and_revalidated():
+    response = client.get('/frontend/index.html')
+    assert response.status_code == 200
+    assert 'no-cache' in response.headers['cache-control']
+    assert '/frontend/styles.css?v=studio-20261008-2' in response.text
+    assert '/frontend/app.js?v=studio-20261008-2' in response.text
+    css = client.get('/frontend/styles.css?v=studio-20261008-2')
+    assert css.status_code == 200 and 'no-cache' in css.headers['cache-control']
+    assert '#f6f7fb' in css.text
+    assert client.get('/frontend/vendor/lucide.min.js?v=0.468.0').status_code == 200

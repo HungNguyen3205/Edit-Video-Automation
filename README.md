@@ -90,3 +90,7 @@ See `AUDIT.md` and `PROJECT_STATUS.md` for verified results and remaining limita
 ### Existing MVP projects
 
 Existing schema-v1 projects are migrated when opened: source metadata is probed, legacy pixel overlay coordinates are converted, and sources/captions remain in place. Back up `data` before switching branches. Generated timing is clamped when trimming; incompatible manual timing is reported for correction.
+
+### UI appears unstyled or still dark after updating
+
+New HTML must load the matching CSS/JS. Frontend assets now use versioned absolute URLs and `Cache-Control: no-cache, must-revalidate` so the browser revalidates them. Update the complete branch, restart `python main.py`, then hard-reload the page (Ctrl+Shift+R on Windows). If the issue remains, check that `/frontend/styles.css?v=studio-20261008-2` responds with the new light stylesheet and that the running server points to this checkout.

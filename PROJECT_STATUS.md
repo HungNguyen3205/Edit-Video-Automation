@@ -26,3 +26,7 @@ Rule-based automation, not expert-level semantic editing. No face tracking, stoc
 - Video reference (360×640, 62.855 seconds): local Whisper tiny generated 35 source caption segments; auto plan generated 8 titles and 7 zoom windows; rendered a 12-second preview with no pipeline error. Recognition plus preview took about 16.75 seconds on this environment, not a guarantee for other machines.
 - Browser automation: create project → upload the reference → auto-edit without recognition → generate full MP4 → download link; no page JavaScript exceptions. No horizontal overflow at 1440px or 390px widths.
 - MP4 media decoding verified through FFmpeg. The test Chromium headless binary lacks H.264 support, so in-browser MP4 playback could not be verified there; standard H.264/AAC MP4 is intended for current Chrome/Edge/Safari. The UI reports unsupported playback and provides the downloadable output.
+
+## Follow-up: stale frontend asset fix
+
+The reported screenshot shows new HTML styled with the original dark CSS. Added versioned absolute CSS/JS/icon URLs and frontend revalidation headers. 13 tests now pass, including the frontend asset regression. Browser verification requested the versioned CSS and confirmed the light root background and fixed sidebar even with the legacy unversioned CSS intercepted.

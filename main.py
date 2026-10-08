@@ -24,7 +24,15 @@ PROJECTS_DIR, ASSETS_DIR, OUTPUTS_DIR = [DATA_DIR / name for name in ('projects'
 for directory in (PROJECTS_DIR, ASSETS_DIR, OUTPUTS_DIR):
     directory.mkdir(parents=True, exist_ok=True)
 app = FastAPI(title='DANAVA Video Studio')
-app.mount('/frontend', StaticFiles(directory=BASE_DIR / 'frontend'), name='frontend')
+class FrontendFiles(StaticFiles):
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        # Revalidate the UI on reload; old CSS/JS must not accompany new HTML.
+        response.headers['Cache-Control'] = 'no-cache, must-revalidate'
+        return response
+
+
+app.mount('/frontend', FrontendFiles(directory=BASE_DIR / 'frontend'), name='frontend')
 app.mount('/assets', StaticFiles(directory=ASSETS_DIR), name='assets')
 app.mount('/outputs', StaticFiles(directory=OUTPUTS_DIR), name='outputs')
 LOCK = threading.RLock()
