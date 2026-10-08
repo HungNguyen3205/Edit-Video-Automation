@@ -1,26 +1,28 @@
-# PROJECT STATUS
+# Project status
 
-## Sprint hiện tại
-**Sprint 7 — ỔN ĐỊNH, HIỆU NĂNG VÀ BÀN GIAO (HOÀN TẤT MVP)**
+## Implemented on feature/auto-edit-studio
 
-## Chức năng hoàn thành
-- **Sprint 1 (Nền tảng):** API Upload MP4, đọc `ffprobe`, `render_task` với `ffmpeg`.
-- **Sprint 2 (Timeline):** JSON Schema `edit_plan`, giao diện chỉnh sửa thời lượng Clip.
-- **Sprint 3 (Phụ đề):** Tích hợp Whisper, tạo file SRT tự động, thêm tab `Subtitles`, burn subtitle qua `filter_complex`.
-- **Sprint 4 (Nhấn mạnh):** Cấu trúc Auto-Edit chèn keyframe overlay cơ bản.
-- **Sprint 5 (Lồng Ảnh/Video):** Tab `Assets`, Timeline hỗ trợ nhiều Track (`track-main` và `track-overlay`), backend render ghép đa input.
-- **Sprint 6 (Tự động):** Nút Auto Edit tự động sắp xếp tài nguyên phụ vào clip.
-- **Sprint 7 (Bàn giao):** File README.md hướng dẫn cài đặt, phân tách kiến trúc rõ ràng Backend/Frontend theo đúng yêu cầu không Database, dễ copy.
+- Backend auto-edit → MP4 pipeline with no required image.
+- Immutable job snapshot, single heavy worker, real render progress, cancellation and restart recovery.
+- Local optional Whisper, reused model, SRT import/export and editable source-time captions.
+- Timed easing zoom, fading headline/source text, properly sized/timed image and video overlays.
+- Multi-clip video/audio concat including silent sources; preserved source aspect.
+- Revision validation, safe asset lookup, unique outputs and stale-result protection.
+- Vietnamese responsive studio with local Lucide icons, guided steps and expandable editing.
 
-## Kiểm tra đã chạy
-- Giao diện HTML/JS hoạt động chuẩn, các tab chuyển đổi mượt mà.
-- API Upload và Save Edit Plan thành công.
-- Background Tasks (Transcribe & Render) được thiết lập không block server chính.
+## Verification
 
-## Lỗi và giới hạn
-- Model `whisper-tiny` có thể cài đặt chậm tuỳ cấu hình máy.
-- Giao diện Editor hiện tại ưu tiên nhập số (Start, Duration) hơn là kéo thả phức tạp bằng JS do giới hạn của Vanilla JS trong MVP. Cần bổ sung thư viện drag/drop nếu muốn kéo mượt.
+- Real FFmpeg regression suite: see final verification summary below.
+- Frontend JavaScript syntax checked with Node.
+- Model-dependent recognition is not covered by the deterministic test suite.
 
-## Bước tiếp theo (Ngoài phạm vi Sprints)
-- Thêm Preview thực tế bằng WebGL/Canvas trên Frontend để mô phỏng chính xác vị trí ảnh lồng/chữ mà không cần Render MP4.
-- Hỗ trợ chọn điểm neo (Anchor) linh hoạt cho hiệu ứng Zoom.
+## Limits
+
+Rule-based automation, not expert-level semantic editing. No face tracking, stock search, music mixing or automatic filler removal. Recognition cancellation is cooperative between stages. One local server process only. Original footage is played separately from actual rendered preview; it does not simulate effects live. Read README.md and AUDIT.md before deployment.
+
+## Verified in this session
+
+- 12 FFmpeg/API regression tests passed on Linux CPU.
+- Video reference (360×640, 62.855 seconds): local Whisper tiny generated 35 source caption segments; auto plan generated 8 titles and 7 zoom windows; rendered a 12-second preview with no pipeline error. Recognition plus preview took about 16.75 seconds on this environment, not a guarantee for other machines.
+- Browser automation: create project → upload the reference → auto-edit without recognition → generate full MP4 → download link; no page JavaScript exceptions. No horizontal overflow at 1440px or 390px widths.
+- MP4 media decoding verified through FFmpeg. The test Chromium headless binary lacks H.264 support, so in-browser MP4 playback could not be verified there; standard H.264/AAC MP4 is intended for current Chrome/Edge/Safari. The UI reports unsupported playback and provides the downloadable output.

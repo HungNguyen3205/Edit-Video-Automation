@@ -1,126 +1,296 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DANAVA Auto Editor</title>
-    <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-    <div id="app">
-        <!-- Sidebar / Navigation -->
-        <nav class="sidebar">
-            <h1>DANAVA Editor</h1>
-            <button id="btn-home">Projects</button>
-        </nav>
-
-        <!-- Main Content -->
-        <main class="main-content" id="main-content">
-            <!-- Project List View -->
-            <div id="view-projects">
-                <h2>Projects</h2>
-                <div class="project-actions">
-                    <input type="text" id="new-project-name" placeholder="New Project Name">
-                    <button id="btn-create-project" class="primary">Create Project</button>
-                </div>
-                <div id="project-list" class="grid-list"></div>
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#f6f7fb" />
+    <title>DANAVA · Video Studio</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <aside class="sidebar">
+      <a class="brand" href="/" aria-label="DANAVA Video Studio"
+        ><span class="brand-mark"><i data-lucide="clapperboard"></i></span
+        ><span>DANAVA<small>VIDEO STUDIO</small></span></a
+      >
+      <span class="nav-label">KHÔNG GIAN SÁNG TẠO</span>
+      <button id="btn-home" class="nav-item active">
+        <i data-lucide="layout-grid"></i>Dự án của tôi
+      </button>
+      <div class="sidebar-bottom">
+        <span class="local-dot"></span><strong>Xử lý tại máy</strong>
+        <p>Video của bạn được xử lý trên máy/server đang chạy tool.</p>
+        <span class="version">STUDIO / 02</span>
+      </div>
+    </aside>
+    <main>
+      <header class="topbar">
+        <span>Không gian của bạn <span class="crumb">/ Video Studio</span></span
+        ><span class="badge"
+          ><i data-lucide="shield-check"></i>Không dùng API AI</span
+        >
+      </header>
+      <section id="view-projects" class="page">
+        <div class="eyebrow">TỪ Ý TƯỞNG ĐẾN VIDEO</div>
+        <div class="home-heading">
+          <div>
+            <h1>Video hay, bắt đầu<br />từ một bản dựng tốt.</h1>
+            <p>Tải video. Chọn phong cách. Để Studio tạo bản dựng đầu tiên.</p>
+          </div>
+          <div class="hero-art" aria-hidden="true">
+            <div class="art-card">
+              <i data-lucide="play"></i><span>TALKING HEAD</span>
+              <div class="art-caption">Kể câu chuyện của bạn.</div>
             </div>
-
-            <!-- Single Project View -->
-            <div id="view-single-project" class="hidden">
-                <div class="header-actions">
-                    <h2 id="project-title">Project Name</h2>
-                    <div>
-                        <button id="btn-auto-edit" style="background:#ff9800; color:#000; font-weight:bold;">⚡ Auto Edit (Sprint 6)</button>
-                        <button id="btn-export" class="primary">Render MP4</button>
-                    </div>
-                </div>
-
-                <div class="editor-layout">
-                    <!-- Resources / Tabs -->
-                    <div class="panel resources">
-                        <div class="tabs">
-                            <button class="tab-btn active" onclick="switchTab('tab-video')">Source</button>
-                            <button class="tab-btn" onclick="switchTab('tab-subs')">Subtitles</button>
-                            <button class="tab-btn" onclick="switchTab('tab-assets')">Assets</button>
-                        </div>
-                        
-                        <!-- Video Source Tab -->
-                        <div id="tab-video" class="tab-content active">
-                            <div id="upload-area" class="drop-zone">
-                                <p>Upload Main Video (MP4)</p>
-                                <input type="file" id="file-upload" accept="video/mp4,video/quicktime,video/webm" hidden>
-                            </div>
-                            <div id="video-info" class="hidden">
-                                <p><strong>Name:</strong> <span id="v-name"></span></p>
-                                <p><strong>Duration:</strong> <span id="v-duration"></span>s</p>
-                            </div>
-                        </div>
-
-                        <!-- Subtitles Tab -->
-                        <div id="tab-subs" class="tab-content hidden">
-                            <button id="btn-transcribe" class="primary" style="width:100%; margin-bottom:10px;">🎙️ Auto Transcribe (Whisper)</button>
-                            <div id="transcribe-status">Status: Idle</div>
-                            <div id="subtitles-list" style="margin-top:10px; max-height:200px; overflow-y:auto; font-size:0.9em;"></div>
-                        </div>
-
-                        <!-- Assets Tab -->
-                        <div id="tab-assets" class="tab-content hidden">
-                            <button id="btn-upload-asset" style="width:100%; margin-bottom:10px;">Upload Image/Video</button>
-                            <input type="file" id="asset-upload" accept="image/*,video/*" hidden>
-                            <div id="assets-list" class="assets-grid"></div>
-                        </div>
-                    </div>
-
-                    <!-- Player -->
-                    <div class="panel player">
-                        <div id="toast-container" class="hidden" style="position: absolute; top: 10px; right: 10px; padding: 10px 20px; border-radius: 4px; color: #fff; z-index: 100;"></div>
-                        <div class="player-wrapper" style="position: relative; display: flex; justify-content: center; align-items: center; background: #000; height: 100%;">
-                            <video id="main-player" controls style="max-height: 100%; max-width: 100%;"></video>
-                            <div id="preview-overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; display: flex; justify-content: center; align-items: center;"></div>
-                        </div>
-                    </div>
-
-                    <!-- Status -->
-                    <div class="panel status-panel">
-                        <h3>Export Status</h3>
-                        <div id="export-status">Idle</div>
-                        <a id="download-link" class="hidden btn" href="" download>Download MP4</a>
-                        
-                        <div class="clip-editor hidden" id="clip-editor">
-                            <h4>Edit Object</h4>
-                            <div class="input-group">
-                                <label>Start (s):</label>
-                                <input type="number" id="clip-start" step="0.1" min="0">
-                            </div>
-                            <div class="input-group">
-                                <label>Duration (s):</label>
-                                <input type="number" id="clip-duration" step="0.1" min="0.1">
-                            </div>
-                            <button id="btn-save-clip" class="primary" style="margin-top: 10px;">Save changes</button>
-                        </div>
-                    </div>
-
-                    <!-- Timeline -->
-                    <div class="panel timeline-panel">
-                        <div class="timeline-controls">
-                            <button id="btn-play">Play / Pause</button>
-                            <span id="time-display">00:00.0 / 00:00.0</span>
-                        </div>
-                        <div class="timeline-tracks" id="timeline-container">
-                            <div class="track video-track" id="track-overlay">
-                                <!-- Image/Video overlays -->
-                            </div>
-                            <div class="track video-track" id="track-main">
-                                <!-- Main Video Clips -->
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            <span class="art-pill"
+              ><i data-lucide="sparkles"></i>Zoom · Chữ · Phụ đề</span
+            >
+          </div>
+        </div>
+        <form id="create-form" class="create-card">
+          <span class="create-icon"><i data-lucide="plus"></i></span>
+          <div>
+            <strong>Tạo video mới</strong>
+            <p>Đặt tên để dễ tìm lại bản dựng.</p>
+          </div>
+          <label class="sr-only" for="new-project-name">Tên dự án</label
+          ><input
+            id="new-project-name"
+            placeholder="Ví dụ: Giới thiệu DANAVA Studio"
+            maxlength="120"
+          /><button class="primary" id="btn-create-project" type="submit">
+            Tạo dự án <i data-lucide="arrow-right"></i>
+          </button>
+        </form>
+        <div class="section-heading">
+          <h2>Dự án gần đây <span id="project-count">0</span></h2>
+          <span>Lưu tại máy của bạn</span>
+        </div>
+        <div id="project-list" class="project-grid"></div>
+        <div id="health-banner" class="notice hidden"></div>
+      </section>
+      <section id="view-editor" class="page hidden">
+        <div class="editor-heading">
+          <div>
+            <button class="back-link" id="btn-back">
+              <i data-lucide="arrow-left"></i>Dự án của tôi
+            </button>
+            <h1 id="project-title"></h1>
+          </div>
+          <span class="badge" id="save-state">Đã lưu</span>
+        </div>
+        <ol class="steps">
+          <li id="step-upload">
+            <span>01</span>
+            <div>
+              <strong>Tải video</strong><small>Video chính & minh họa</small>
             </div>
-        </main>
-    </div>
-
-    <script src="app.js?v=2"></script>
-</body>
+          </li>
+          <li id="step-edit">
+            <span>02</span>
+            <div>
+              <strong>Chọn cách dựng</strong><small>Phong cách & phụ đề</small>
+            </div>
+          </li>
+          <li id="step-result">
+            <span>03</span>
+            <div>
+              <strong>Xem & xuất</strong><small>Kiểm tra bản dựng</small>
+            </div>
+          </li>
+        </ol>
+        <div class="studio-grid">
+          <div class="workspace">
+            <section class="panel viewer-panel">
+              <div class="panel-heading">
+                <h2><i data-lucide="monitor-play"></i>Xem video</h2>
+                <div class="segmented" role="group" aria-label="Chọn video xem">
+                  <button id="show-source" class="selected">Video gốc</button
+                  ><button id="show-result" disabled>Bản dựng</button>
+                </div>
+              </div>
+              <div class="viewer">
+                <video
+                  id="main-player"
+                  controls
+                  playsinline
+                  preload="metadata"
+                  class="hidden"
+                ></video>
+                <div id="player-empty">
+                  <span class="empty-icon"><i data-lucide="film"></i></span>
+                  <h3>Câu chuyện của bạn bắt đầu ở đây</h3>
+                  <p>Tải video vào để tạo bản dựng đầu tiên.</p>
+                </div>
+              </div>
+              <div class="viewer-footer">
+                <span id="viewer-label">Chưa có video</span
+                ><span id="video-meta">—</span>
+              </div>
+            </section>
+            <section class="panel">
+              <div class="panel-heading">
+                <h2><i data-lucide="folder-open"></i>Tài nguyên</h2>
+                <label class="secondary file-button"
+                  ><i data-lucide="plus"></i>Thêm minh họa<input
+                    id="asset-upload"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime,video/webm,video/x-matroska"
+                    multiple
+                /></label>
+              </div>
+              <label id="upload-area" class="drop-zone" tabindex="0"
+                ><i data-lucide="upload-cloud"></i
+                ><strong>Kéo video vào đây hoặc chọn file</strong
+                ><span>MP4, MOV, WEBM, MKV · Một video là đủ để bắt đầu</span
+                ><input
+                  id="file-upload"
+                  type="file"
+                  accept="video/mp4,video/quicktime,video/webm,video/x-matroska"
+              /></label>
+              <div id="assets-list" class="assets-grid"></div>
+              <p class="muted helper">
+                Ảnh/video minh họa là tùy chọn. Gắn từ khóa để gợi ý chèn theo
+                lời nói.
+              </p>
+            </section>
+            <details class="panel advanced" id="advanced">
+              <summary>
+                <span
+                  ><i data-lucide="sliders-horizontal"></i>Chỉnh bản dựng chi
+                  tiết</span
+                ><span>Video · Phụ đề · Chữ · Minh họa</span>
+              </summary>
+              <div class="advanced-body">
+                <div class="tabs" role="group" aria-label="Chỉnh bản dựng">
+                  <button data-tab="clips" class="selected">Cắt video</button
+                  ><button data-tab="subtitles">Phụ đề</button
+                  ><button data-tab="text_overlays">Chữ nổi bật</button
+                  ><button data-tab="visual_overlays">Minh họa</button>
+                </div>
+                <p id="tab-help" class="helper muted"></p>
+                <div class="edit-toolbar">
+                  <button id="add-item" class="secondary small">
+                    Thêm đối tượng</button
+                  ><button id="btn-transcribe" class="secondary small">
+                    <i data-lucide="mic"></i>Tạo phụ đề</button
+                  ><label id="srt-label" class="secondary small file-button"
+                    >Nhập SRT<input
+                      id="srt-upload"
+                      type="file"
+                      accept=".srt" /></label
+                  ><a id="download-srt" class="text-link">Tải SRT</a>
+                </div>
+                <div id="edit-list"></div>
+                <div class="advanced-footer">
+                  <span id="edit-message" class="muted"
+                    >Thay đổi được lưu khi bạn bấm Lưu.</span
+                  ><button id="btn-save" class="primary small">
+                    <i data-lucide="save"></i>Lưu chỉnh sửa
+                  </button>
+                </div>
+              </div>
+            </details>
+          </div>
+          <aside class="controls">
+            <section class="panel settings">
+              <div class="panel-heading">
+                <h2><i data-lucide="wand-sparkles"></i>Cách dựng của bạn</h2>
+              </div>
+              <div class="preset-card">
+                <span class="preset-icon"><i data-lucide="speech"></i></span>
+                <div>
+                  <strong>Talking Head</strong
+                  ><small>Người nói · chữ nổi bật · zoom nhẹ</small>
+                </div>
+                <i data-lucide="check-circle-2"></i>
+              </div>
+              <label class="field-label">Nhịp hiệu ứng</label>
+              <div
+                class="intensity segmented"
+                role="group"
+                aria-label="Nhịp hiệu ứng"
+              >
+                <button data-intensity="gentle">Nhẹ</button
+                ><button data-intensity="balanced" class="selected">Vừa</button
+                ><button data-intensity="bold">Nổi bật</button>
+              </div>
+              <p class="helper muted">
+                Studio giữ lời nói gốc, thêm nhịp hình và gợi ý chữ từ phụ đề.
+              </p>
+              <label class="field-label" for="headline"
+                >Tiêu đề mở đầu <span>Tùy chọn</span></label
+              ><input
+                id="headline"
+                maxlength="120"
+                placeholder="Một câu ngắn để thu hút người xem"
+              />
+              <div class="toggle-row">
+                <div>
+                  <strong>Phụ đề tự động</strong
+                  ><small>Nhận dạng tiếng Việt tại máy</small>
+                </div>
+                <input
+                  id="auto-subs"
+                  type="checkbox"
+                  role="switch"
+                  checked
+                  aria-label="Phụ đề tự động"
+                />
+              </div>
+              <div id="model-note" class="notice"></div>
+              <label class="field-label" for="output-ratio">Khung hình</label
+              ><select id="output-ratio">
+                <option value="original">Giữ tỷ lệ video gốc</option>
+                <option value="portrait">Dọc 9:16 · Reels / TikTok</option>
+                <option value="landscape">Ngang 16:9 · YouTube</option>
+                <option value="square">Vuông 1:1</option>
+              </select>
+              <p class="helper muted">
+                Khác tỷ lệ sẽ thêm viền, giữ trọn hình. Không kéo méo hoặc tự
+                cắt mặt.
+              </p>
+              <button id="btn-auto-edit" class="primary auto-button">
+                <i data-lucide="sparkles"></i>Tự động dựng & xuất</button
+              ><span class="button-note"
+                >Một video là đủ · Không cần thêm ảnh</span
+              >
+            </section>
+            <section class="panel result-panel">
+              <div class="panel-heading">
+                <h2><i data-lucide="download"></i>Kết quả</h2>
+                <span id="status-badge" class="status-badge">Chưa dựng</span>
+              </div>
+              <p id="job-phase">Bản dựng sẽ xuất hiện tại đây.</p>
+              <progress
+                id="job-progress"
+                max="100"
+                class="hidden"
+                aria-label="Tiến trình dựng video"
+              ></progress>
+              <p id="job-error" class="error hidden"></p>
+              <p id="job-warnings" class="notice hidden"></p>
+              <div class="result-actions">
+                <button id="btn-preview" class="secondary">
+                  <i data-lucide="play"></i>Xem thử 12 giây</button
+                ><button id="btn-export" class="secondary">
+                  <i data-lucide="film"></i>Xuất bản đã chỉnh</button
+                ><button id="btn-cancel" class="danger hidden">
+                  Hủy tác vụ</button
+                ><a id="download-link" class="primary hidden" download
+                  ><i data-lucide="download"></i>Tải video MP4</a
+                >
+              </div>
+              <p id="result-note" class="helper muted">
+                Xem thử và MP4 dùng cùng một bản dựng.
+              </p>
+            </section>
+          </aside>
+        </div>
+      </section>
+    </main>
+    <div id="toast" role="status" aria-live="polite" class="hidden"></div>
+    <script src="vendor/lucide.min.js"></script>
+    <script src="app.js"></script>
+  </body>
 </html>

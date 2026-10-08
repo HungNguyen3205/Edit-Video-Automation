@@ -1,0 +1,3 @@
+-r requirements.txt
+# Optional local recognition. First use downloads a model; subsequent runs reuse it.
+openai-whisper==20250625
