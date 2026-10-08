@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DANAVA Auto Editor</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Sidebar / Navigation -->
+        <nav class="sidebar">
+            <h1>DANAVA Editor</h1>
+            <button id="btn-home">Projects</button>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content" id="main-content">
+            <!-- Project List View -->
+            <div id="view-projects">
+                <h2>Projects</h2>
+                <div class="project-actions">
+                    <input type="text" id="new-project-name" placeholder="New Project Name">
+                    <button id="btn-create-project" class="primary">Create Project</button>
+                </div>
+                <div id="project-list" class="grid-list"></div>
+            </div>
+
+            <!-- Single Project View -->
+            <div id="view-single-project" class="hidden">
+                <div class="header-actions">
+                    <h2 id="project-title">Project Name</h2>
+                    <div>
+                        <button id="btn-auto-edit" style="background:#ff9800; color:#000; font-weight:bold;">⚡ Auto Edit (Sprint 6)</button>
+                        <button id="btn-export" class="primary">Render MP4</button>
+                    </div>
+                </div>
+
+                <div class="editor-layout">
+                    <!-- Resources / Tabs -->
+                    <div class="panel resources">
+                        <div class="tabs">
+                            <button class="tab-btn active" onclick="switchTab('tab-video')">Source</button>
+                            <button class="tab-btn" onclick="switchTab('tab-subs')">Subtitles</button>
+                            <button class="tab-btn" onclick="switchTab('tab-assets')">Assets</button>
+                        </div>
+                        
+                        <!-- Video Source Tab -->
+                        <div id="tab-video" class="tab-content active">
+                            <div id="upload-area" class="drop-zone">
+                                <p>Upload Main Video (MP4)</p>
+                                <input type="file" id="file-upload" accept="video/mp4,video/quicktime,video/webm" hidden>
+                            </div>
+                            <div id="video-info" class="hidden">
+                                <p><strong>Name:</strong> <span id="v-name"></span></p>
+                                <p><strong>Duration:</strong> <span id="v-duration"></span>s</p>
+                            </div>
+                        </div>
+
+                        <!-- Subtitles Tab -->
+                        <div id="tab-subs" class="tab-content hidden">
+                            <button id="btn-transcribe" class="primary" style="width:100%; margin-bottom:10px;">🎙️ Auto Transcribe (Whisper)</button>
+                            <div id="transcribe-status">Status: Idle</div>
+                            <div id="subtitles-list" style="margin-top:10px; max-height:200px; overflow-y:auto; font-size:0.9em;"></div>
+                        </div>
+
+                        <!-- Assets Tab -->
+                        <div id="tab-assets" class="tab-content hidden">
+                            <button id="btn-upload-asset" style="width:100%; margin-bottom:10px;">Upload Image/Video</button>
+                            <input type="file" id="asset-upload" accept="image/*,video/*" hidden>
+                            <div id="assets-list" class="assets-grid"></div>
+                        </div>
+                    </div>
+
+                    <!-- Player -->
+                    <div class="panel player">
+                        <div id="toast-container" class="hidden" style="position: absolute; top: 10px; right: 10px; padding: 10px 20px; border-radius: 4px; color: #fff; z-index: 100;"></div>
+                        <div class="player-wrapper" style="position: relative; display: flex; justify-content: center; align-items: center; background: #000; height: 100%;">
+                            <video id="main-player" controls style="max-height: 100%; max-width: 100%;"></video>
+                            <div id="preview-overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; display: flex; justify-content: center; align-items: center;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Status -->
+                    <div class="panel status-panel">
+                        <h3>Export Status</h3>
+                        <div id="export-status">Idle</div>
+                        <a id="download-link" class="hidden btn" href="" download>Download MP4</a>
+                        
+                        <div class="clip-editor hidden" id="clip-editor">
+                            <h4>Edit Object</h4>
+                            <div class="input-group">
+                                <label>Start (s):</label>
+                                <input type="number" id="clip-start" step="0.1" min="0">
+                            </div>
+                            <div class="input-group">
+                                <label>Duration (s):</label>
+                                <input type="number" id="clip-duration" step="0.1" min="0.1">
+                            </div>
+                            <button id="btn-save-clip" class="primary" style="margin-top: 10px;">Save changes</button>
+                        </div>
+                    </div>
+
+                    <!-- Timeline -->
+                    <div class="panel timeline-panel">
+                        <div class="timeline-controls">
+                            <button id="btn-play">Play / Pause</button>
+                            <span id="time-display">00:00.0 / 00:00.0</span>
+                        </div>
+                        <div class="timeline-tracks" id="timeline-container">
+                            <div class="track video-track" id="track-overlay">
+                                <!-- Image/Video overlays -->
+                            </div>
+                            <div class="track video-track" id="track-main">
+                                <!-- Main Video Clips -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="app.js?v=2"></script>
+</body>
+</html>

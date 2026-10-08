@@ -1,0 +1,55 @@
+:root {
+    --bg-color: #121212;
+    --panel-bg: #1e1e1e;
+    --text-color: #e0e0e0;
+    --primary: #bb86fc;
+    --primary-hover: #9c27b0;
+    --border: #333;
+}
+
+body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg-color); color: var(--text-color); }
+#app { display: flex; height: 100vh; }
+.sidebar { width: 250px; background: var(--panel-bg); border-right: 1px solid var(--border); padding: 20px; }
+.sidebar h1 { font-size: 1.5rem; color: var(--primary); margin-bottom: 2rem; }
+button { background: transparent; border: 1px solid var(--border); color: var(--text-color); padding: 10px 15px; cursor: pointer; border-radius: 4px; transition: all 0.2s; }
+button:hover { background: #333; }
+button.primary { background: var(--primary); color: #000; font-weight: bold; border: none; }
+button.primary:hover { background: var(--primary-hover); color: #fff; }
+.main-content { flex: 1; padding: 20px; overflow-y: auto; }
+.hidden { display: none !important; }
+.grid-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; margin-top: 20px; }
+.project-card { background: var(--panel-bg); border: 1px solid var(--border); padding: 15px; border-radius: 8px; cursor: pointer; }
+.project-card:hover { border-color: var(--primary); }
+.header-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.editor-layout { display: grid; grid-template-columns: 320px 1fr 250px; grid-template-rows: auto 250px; gap: 20px; height: calc(100% - 80px); }
+.panel { background: var(--panel-bg); border-radius: 8px; padding: 15px; border: 1px solid var(--border); overflow: hidden; display: flex; flex-direction: column; }
+.drop-zone { border: 2px dashed var(--border); border-radius: 8px; padding: 40px 20px; text-align: center; cursor: pointer; }
+.drop-zone:hover { background: #2a2a2a; }
+video { width: 100%; max-height: 100%; background: #000; border-radius: 4px; object-fit: contain; flex: 1; }
+a.btn { display: inline-block; background: #4caf50; color: white; padding: 10px 15px; text-decoration: none; border-radius: 4px; margin-top: 10px; text-align: center; }
+
+/* Tabs */
+.tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 10px; }
+.tab-btn { flex: 1; border: none; border-bottom: 2px solid transparent; border-radius: 0; padding: 10px; }
+.tab-btn.active { border-bottom-color: var(--primary); color: var(--primary); }
+
+.sub-item { background: #111; padding: 8px; margin-bottom: 5px; border-radius: 4px; font-size: 0.85em;}
+
+.assets-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.asset-item { background: #111; padding: 5px; border: 1px solid var(--border); border-radius: 4px; text-align: center; font-size: 0.8em; word-break: break-all;}
+
+.timeline-panel { grid-column: 1 / -1; display: flex; flex-direction: column; }
+.timeline-controls { display: flex; align-items: center; gap: 15px; margin-bottom: 10px; }
+.timeline-tracks { flex: 1; background: #111; border: 1px solid var(--border); position: relative; overflow-x: auto; overflow-y: auto; }
+.track { height: 50px; background: #1a1a1a; margin-bottom: 5px; position: relative; border-bottom: 1px solid #333; }
+.track::before { content: "Track"; position: sticky; left: 0; background: #000; z-index: 10; padding: 0 5px; line-height: 50px; font-size: 0.8em; border-right: 1px solid #333;}
+#track-overlay::before { content: "Overlay"; }
+#track-main::before { content: "Main Video"; }
+
+.clip { position: absolute; height: 100%; background: var(--primary); color: #000; line-height: 50px; padding: 0 10px; cursor: pointer; border-radius: 4px; white-space: nowrap; overflow: hidden; box-sizing: border-box; font-weight: 600; font-size: 0.9rem; border: 2px solid transparent; }
+.clip.overlay-clip { background: #ff9800; }
+.clip.active { border-color: #fff; }
+
+.clip-editor { margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border); }
+.input-group { display: flex; flex-direction: column; margin-bottom: 10px; }
+.input-group input { background: #111; border: 1px solid var(--border); color: #fff; padding: 8px; border-radius: 4px; margin-top: 5px; }
