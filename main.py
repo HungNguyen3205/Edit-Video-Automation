@@ -133,7 +133,7 @@ def migrate_legacy(project):
 for path in PROJECTS_DIR.glob('*.json'):
     try:
         p = json.loads(path.read_text(encoding='utf-8'))
-        if p.get('job', {}).get('status') in ('queued', 'running'):
+        if p.get('job') and p['job'].get('status') in ('queued', 'running'):
             p['job'].update(status='failed', phase='Tác vụ bị gián đoạn; hãy thử lại.', error='Ứng dụng đã khởi động lại.')
             p['export_status'] = 'failed'
             save_project(p['id'], p)

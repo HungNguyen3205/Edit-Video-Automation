@@ -191,11 +191,10 @@ async function openProject(id) {
 function updatePlanner() {
   const ai = $("planner").value === "ai";
   show("ai-controls", ai);
-  show("btn-ai-preview", ai);
   show("rules-controls", !ai);
   $("ai-note").textContent = health?.ai?.available
     ? `Ollama sẵn sàng · ${health.ai.model}. ${health.ai.vision ? "Có phân tích khung hình mẫu." : "Đọc lời thoại và phân tích mốc cảnh/âm thanh."}`
-    : `Chưa có model AI. Cài Ollama, chạy: ollama pull ${health?.ai?.model || "qwen3:4b"}. Sau đó tải lại trang. Chọn chế độ quy tắc nếu muốn dựng trước.`;
+    : `Chưa có model AI. Cài Ollama, chạy: ollama pull ${health?.ai?.model || "qwen3:4b"}. Sau đó tải lại trang.`;
 }
 function updateModelNote() {
   const has = !!health?.whisper;
@@ -510,14 +509,14 @@ async function savePlan() {
   $("save-state").textContent = "Đã lưu";
   updateStatus();
 }
-async function startJob(mode, preview = false) {
+async function startJob(mode, preview = false, forcePlanner = null) {
   if (!project?.video) throw new Error("Tải video chính trước khi bắt đầu.");
   if (busy()) return;
   if (dirty) await savePlan();
   const id = project.id;
   const options = {
     intensity,
-    planner: $("planner").value,
+    planner: forcePlanner || $("planner").value,
     prompt: $("edit-prompt").value.trim(),
     music_asset_id: $("music-asset").value,
     headline: $("headline").value.trim(),
@@ -547,8 +546,9 @@ function updateStatus() {
     "btn-preview",
     "btn-transcribe",
     "btn-save",
+    "btn-rules-edit",
   ])
-    $(id).disabled = running || !hasVideo;
+    if ($(id)) $(id).disabled = running || !hasVideo;
   $("file-upload").disabled = running;
   $("asset-upload").disabled = running;
   $("srt-upload").disabled = running;
@@ -690,8 +690,11 @@ $("planner").onchange = updatePlanner;
 $("prompt-example").onclick = () => {
   $("edit-prompt").value = "Dựng video đủ wow cho Reels: mở đầu thu hút từ lời nói, bỏ khoảng im lặng dài, zoom ở ý quan trọng, chữ ngắn dễ đọc, thêm whoosh nhẹ và nhạc nền nhỏ nếu có. Giữ nguyên ý, không lạm dụng hiệu ứng.";
 };
-$("btn-ai-preview").onclick = errorWrap(() => startJob("auto-edit", true));
-$("btn-auto-edit").onclick = errorWrap(() => startJob("auto-edit"));
+$("btn-ai-preview").onclick = errorWrap(() => startJob("auto-edit", true, "ai"));
+$("btn-auto-edit").onclick = errorWrap(() => startJob("auto-edit", false, "ai"));
+if ($("btn-rules-edit")) {
+  $("btn-rules-edit").onclick = errorWrap(() => startJob("auto-edit", false, "rules"));
+}
 $("btn-preview").onclick = errorWrap(() => startJob("export", true));
 $("btn-export").onclick = errorWrap(() => startJob("export"));
 $("btn-transcribe").onclick = errorWrap(() => startJob("transcribe"));

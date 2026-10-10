@@ -273,7 +273,7 @@ PlayResY: {h}
 WrapStyle: 0
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,DejaVu Sans,{font_size},&H00FFFFFF,&H00FFFFFF,&H00212121,&H80212121,-1,0,0,0,100,100,0,0,3,2,0,2,{round(w*.07)},{round(w*.07)},{round(h*.07)},1
+Style: Default,Arial,{font_size},&H00FFFFFF,&H00FFFFFF,&H00212121,&H80212121,-1,0,0,0,100,100,0,0,3,2,0,2,{round(w*.07)},{round(w*.07)},{round(h*.07)},1
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 '''
@@ -355,7 +355,7 @@ def compile_render(plan, asset_dir, work_dir, output, preview=False):
         filters.append(f"[{current}][ov{i}]overlay=x={x}:y={y}:eof_action=pass:repeatlast=0:enable='gte(t,{start})*lt(t,{end})'[layer{i}]")
         current = f'layer{i}'
     fontfile = os.getenv('VIDEO_FONT_FILE')
-    font = f"fontfile='{filter_path(fontfile)}'" if fontfile else "font='DejaVu Sans'"
+    font = f"fontfile='{filter_path(fontfile)}'" if fontfile else "font='Arial'"
     for i, title in enumerate(plan.get('text_overlays', [])):
         path = work_dir / f'title{i}.txt'
         start, end = title['timeline_start'], title['timeline_start'] + title['duration']
