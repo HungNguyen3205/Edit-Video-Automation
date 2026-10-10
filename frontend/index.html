@@ -301,6 +301,13 @@
                 <span id="status-badge" class="status-badge">Chưa dựng</span>
               </div>
               <div id="director-summary" class="notice hidden"></div>
+              <div id="ai-feedback" class="hidden" style="margin-bottom: 16px; display: flex; gap: 8px; flex-wrap: wrap;">
+                <button class="secondary small" onclick="sendFeedback('👍 Thích bản này (Lưu làm mẫu)')">👍 Thích bản này</button>
+                <button class="secondary small" onclick="sendFeedback('Làm ít hiệu ứng hơn. Tiết chế lại.')">Ít hiệu ứng hơn</button>
+                <button class="secondary small" onclick="sendFeedback('Chữ cần ngắn gọn hơn nữa.')">Chữ gọn hơn</button>
+                <button class="secondary small" onclick="sendFeedback('Nhịp điệu quá chậm. Cần cắt thật nhanh và dồn dập.')">Nhịp nhanh hơn</button>
+                <button class="secondary small" onclick="sendFeedback('Bị mất quá nhiều lời nói. Hãy giữ lại nhiều nội dung hơn.')">Giữ nhiều nội dung hơn</button>
+              </div>
               <p id="job-phase">Bản dựng sẽ xuất hiện tại đây.</p>
               <progress
                 id="job-progress"

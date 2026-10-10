@@ -125,18 +125,21 @@ def analyse(plan, asset_dir, work, event):
 
 
 SYSTEM = '''You are an expert, highly creative Vietnamese video editor specializing in viral Reels/TikTok videos.
-Return ONLY the required JSON edit decision schema.
-Make the video highly engaging, dynamic, and punchy.
-Aggressively use `titles` (short punchy text, 2-5 words), `zooms` (subtle or dramatic), and `sounds` (whoosh/impact/chime) synced with key moments, energetic beats, and impactful speech to maximize viewer retention.
-All cuts.start/end refer to the INPUT timeline; cuts are kept ranges IN OUTPUT ORDER. Keep sentences coherent.
-Every title/zoom/illustration/sound start/duration refers to the FINAL OUTPUT timeline after cuts.
-Use only given asset IDs for illustrations. Audio assets cannot be illustrations.
-Never invent spoken words, facts, stock footage or assets. Titles MUST be very short and paraphrase the transcript.
-Use silence/scene cues for cut candidates. Do not cut pauses in the middle of a sentence.
-The only sounds supported are whoosh, impact, and chime (short synthesized accents), at most 4 seconds each. Use them generously to emphasize titles, zooms, and transitions.
-Music is available only when a music asset ID is supplied.
-Do not output captions: source captions will be remapped automatically.
-summary and warnings must be in Vietnamese. Explain actual decisions enthusiastically.
+Return ONLY the required JSON edit decision schema. Make the video highly engaging, dynamic, and punchy.
+
+EFFECT REGISTRY:
+1. `titles` (Text Overlay): Short punchy text (2-5 words). DO NOT overlap titles (they will collide).
+2. `zooms` (Keyframe): Scale up video (1.0 to 1.5x) to punch-in on key moments. Use subtle (1.1) or dramatic (1.4).
+3. `illustrations` (PIP/Full Overlay): Add B-roll images/videos. `mode` can be `pip` (picture-in-picture) or `full`.
+4. `sounds` (Audio Track): Supported kinds: `whoosh` (for fast transitions/zooms), `impact` (for heavy titles), `chime` (for positive/insightful moments). Max 4 seconds. Max volume 2.0.
+
+RULES:
+- All cuts.start/end refer to the INPUT timeline. Cuts are kept ranges IN OUTPUT ORDER. Keep sentences coherent.
+- Every effect (titles, zooms, illustrations, sounds) start/duration refers to the FINAL OUTPUT timeline (AFTER cuts).
+- Use only given asset IDs for illustrations.
+- Never invent spoken words, facts, or assets. Titles MUST paraphrase the transcript.
+- Music is available only when a music_asset_id is supplied. Source captions are remapped automatically (don't output them).
+- summary and warnings must be in Vietnamese.
 '''
 
 
@@ -269,6 +272,15 @@ def direct(plan, prompt, asset_dir, work, event, music_asset_id='', headline='',
             result = apply_direction(plan, decision, music_asset_id)
             if duration_policy in ('preserve', 'trim_silence') and length(result) < 3.0 and length(plan) > 10.0:
                 raise ValueError(f"Error: Result duration is {length(result)}s but input is {length(plan)}s. You deleted the whole video! You MUST output cuts that span the entire input video.")
+            
+            # Kiểm tra chất lượng: Không chồng lớp chữ
+            title_times = []
+            for t in decision.titles:
+                for start, end in title_times:
+                    if not (t.start >= end or t.start + t.duration <= start):
+                        raise ValueError(f"Titles overlap! '{t.text}' overlaps with another title. Prevent overlapping text.")
+                title_times.append((t.start, t.start + t.duration))
+
             result['director']['prompt'] = prompt
             if not plan.get('subtitles'):
                 result['director']['warnings'].append('Không có lời thoại nhận dạng; AI chưa hiểu đầy đủ nội dung nói. Cài Whisper hoặc nhập SRT.')

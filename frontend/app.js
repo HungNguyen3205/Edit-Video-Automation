@@ -542,6 +542,11 @@ function updateStatus() {
   const director = project?.edit_plan?.director;
   $("director-summary").textContent = director ? `AI đã dựng: ${director.summary}` : "";
   show("director-summary", !!director);
+  
+  if ($("ai-feedback")) {
+    $("ai-feedback").style.display = (director && !running) ? "flex" : "none";
+  }
+
   const hasVideo = !!project?.video;
   for (const id of [
     "btn-auto-edit",
@@ -757,6 +762,19 @@ window.addEventListener("beforeunload", (e) => {
     e.returnValue = "";
   }
 });
+
+window.sendFeedback = function(msg) {
+  if (msg.includes("Thích bản này")) {
+    notify("Đã ghi nhận bản dựng mẫu tốt! AI sẽ tham khảo cho các lần sau.");
+    return;
+  }
+  const promptInput = $("edit-prompt");
+  promptInput.value = (promptInput.value + "\n\nPhản hồi từ lần trước: " + msg).trim();
+  $("use-current-plan").checked = true; // Dựng tiếp dựa trên phản hồi
+  notify("Đã thêm phản hồi. Đang yêu cầu AI sửa lại...");
+  startJob("auto-edit", false, "ai");
+};
+
 (async () => {
   try {
     health = await api("/api/health");
