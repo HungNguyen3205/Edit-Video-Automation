@@ -263,9 +263,21 @@ def ass_time(s):
     return f'{cs // 360000}:{cs // 6000 % 60:02}:{cs // 100 % 60:02}.{cs % 100:02}'
 
 
-def write_ass(path, subs, w, h):
+def write_ass(path, subs, w, h, visual_style='clean_expert'):
     font_size = max(14, round(w * .04))
     wrap = max(16, min(48, round(w / font_size * 1.65)))
+    
+    # ASS colors are &HAABBGGRR (Alpha, Blue, Green, Red) in hex.
+    if visual_style == 'dynamic_reels':
+        # Vàng (Primary), Đen (Outline), BorderStyle=1 (Outline)
+        font_size = max(18, round(w * .05))
+        style_line = f"Style: Default,Arial,{font_size},&H0000FFFF,&H0000FFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,3,1,2,{round(w*.07)},{round(w*.07)},{round(h*.10)},1"
+    elif visual_style == 'danava_brand':
+        # Trắng (Primary), Tím (Background Box), BorderStyle=3 (Opaque box) - Tím là ED3A7C -> BGR = 7C3AED (nhưng opacity 50% = 80) -> &H80ED3A7C
+        style_line = f"Style: Default,Arial,{font_size},&H00FFFFFF,&H00FFFFFF,&H00212121,&H80ED3A7C,-1,0,0,0,100,100,0,0,3,2,0,2,{round(w*.07)},{round(w*.07)},{round(h*.07)},1"
+    else: # clean_expert
+        style_line = f"Style: Default,Arial,{font_size},&H00FFFFFF,&H00FFFFFF,&H00212121,&H80212121,-1,0,0,0,100,100,0,0,3,2,0,2,{round(w*.07)},{round(w*.07)},{round(h*.07)},1"
+
     header = f'''[Script Info]
 ScriptType: v4.00+
 PlayResX: {w}
@@ -273,7 +285,7 @@ PlayResY: {h}
 WrapStyle: 0
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial,{font_size},&H00FFFFFF,&H00FFFFFF,&H00212121,&H80212121,-1,0,0,0,100,100,0,0,3,2,0,2,{round(w*.07)},{round(w*.07)},{round(h*.07)},1
+{style_line}
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 '''
@@ -290,7 +302,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     path.write_text(header + ''.join(events), encoding='utf-8')
 
 
-def compile_render(plan, asset_dir, work_dir, output, preview=False):
+def compile_render(plan, asset_dir, work_dir, output, preview=False, visual_style='clean_expert'):
     """Compile contiguous A/V clips, timed zoom, titles, overlays and captions."""
     settings = plan['output_settings']
     w, h, fps = settings['width'], settings['height'], settings.get('fps', 30)
@@ -349,7 +361,7 @@ def compile_render(plan, asset_dir, work_dir, output, preview=False):
         ow = w if full else max(2, int(w * ov.get('width', .38)) // 2 * 2)
         oh = h if full else max(2, min(int(h * .45), round(ow * a['metadata']['height'] / a['metadata']['width'])) // 2 * 2)
         start, end = ov['timeline_start'], ov['timeline_start'] + ov['duration']
-        filters.append(f'[{len(clips)+i}:v]{fit(ow,oh)},fps={fps},setpts=PTS-STARTPTS+{start}/TB[ov{i}]')
+        filters.append(f'[{len(clips)+i}:v]{fit(ow,oh)},fps={fps},format=rgba,setpts=PTS-STARTPTS+{start}/TB,fade=t=in:st={start}:d=0.2:alpha=1,fade=t=out:st={end-0.2}:d=0.2:alpha=1[ov{i}]')
         x = 0 if full else min(round(ov.get('x', .05) * w), w-ow)
         y = 0 if full else min(round(ov.get('y', .08) * h), h-oh)
         filters.append(f"[{current}][ov{i}]overlay=x={x}:y={y}:eof_action=pass:repeatlast=0:enable='gte(t,{start})*lt(t,{end})'[layer{i}]")
@@ -364,12 +376,21 @@ def compile_render(plan, asset_dir, work_dir, output, preview=False):
         line_width = max(12, int(w*.85 / (size*.65)))
         path.write_text('\n'.join(textwrap.wrap(title['text'], width=line_width)), encoding='utf-8')
         alpha = f'min(1,min((t-{start})/0.18,({end}-t)/0.18))'
-        filters.append(f"[{current}]drawtext={font}:textfile='{filter_path(path)}':expansion=none:fontsize={size}:fontcolor=0xFFE08A:borderw=2:bordercolor=black:box=1:boxcolor=black@0.5:boxborderw=8:x=(w-tw)/2:y=h*0.14:alpha='{alpha}':enable='gte(t,{start})*lt(t,{end})'[title{i}]")
+        
+        # Style cho title
+        if visual_style == 'dynamic_reels':
+            text_style = f"fontcolor=yellow:borderw=4:bordercolor=black"
+        elif visual_style == 'danava_brand':
+            text_style = f"fontcolor=white:borderw=2:bordercolor=black:box=1:boxcolor=0x7C3AED@0.8:boxborderw=8"
+        else: # clean_expert
+            text_style = f"fontcolor=white:borderw=1:bordercolor=black:box=1:boxcolor=black@0.6:boxborderw=8"
+            
+        filters.append(f"[{current}]drawtext={font}:textfile='{filter_path(path)}':expansion=none:fontsize={size}:{text_style}:x=(w-tw)/2:y=h*0.14:alpha='{alpha}':enable='gte(t,{start})*lt(t,{end})'[title{i}]")
         current = f'title{i}'
     subs = mapped_subtitles(plan)
     if subs:
         path = work_dir / 'captions.ass'
-        write_ass(path, subs, w, h)
+        write_ass(path, subs, w, h, visual_style)
         filters.append(f"[{current}]subtitles=filename='{filter_path(path)}'[captions]")
         current = 'captions'
     audio = 'audio'

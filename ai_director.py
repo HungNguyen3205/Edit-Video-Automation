@@ -229,7 +229,7 @@ def apply_direction(plan, direction, music_asset_id=''):
     return validate(p, plan['assets'])
 
 
-def direct(plan, prompt, asset_dir, work, event, music_asset_id='', headline='', duration_policy='preserve', target_duration=0.0):
+def direct(plan, prompt, asset_dir, work, event, music_asset_id='', headline='', duration_policy='preserve', target_duration=0.0, visual_style='clean_expert'):
     cues, frames = analyse(plan, asset_dir, work, event)
     
     policy_desc = ''
@@ -240,8 +240,17 @@ def direct(plan, prompt, asset_dir, work, event, music_asset_id='', headline='',
     elif duration_policy == 'summarize':
         policy_desc = f'Summarize the video. Keep only the best parts. Target duration: {target_duration} seconds.'
 
+    style_desc = ''
+    if visual_style == 'dynamic_reels':
+        style_desc = 'Use lots of zooms, pop-in titles, and heavy sound effects. Very fast-paced.'
+    elif visual_style == 'clean_expert':
+        style_desc = 'Keep it minimal, clean, professional. Use subtle zooms and gentle chimes. Minimal titles.'
+    else:
+        style_desc = 'Professional layout with brand colors. Balanced effects.'
+
     context = {'brief': prompt, 'headline': headline, 'input_duration': length(plan),
                'duration_policy': policy_desc,
+               'visual_style': style_desc,
                'clips': plan['video_clips'], 'transcript': mapped_subtitles(plan),
                'assets': [{k: a.get(k) for k in ('id', 'type', 'original_name', 'keywords', 'metadata')} for a in plan['assets']],
                'music_asset_id': music_asset_id or None, 'cues': cues,

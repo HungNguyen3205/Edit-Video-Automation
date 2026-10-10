@@ -294,6 +294,7 @@ class Options(BaseModel):
     use_current_plan: bool = False
     duration_policy: str = Field('preserve', pattern='^(preserve|trim_silence|summarize)$')
     target_duration: float = Field(0.0, ge=0)
+    visual_style: str = Field('clean_expert', pattern='^(clean_expert|dynamic_reels|danava_brand)$')
 
 
 def job_update(project_id, **changes):
@@ -348,7 +349,7 @@ def run_job(project_id, job_id, snapshot, options, mode):
                     if mode == 'auto':
                         if options.planner == 'ai':
                             job_update(project_id, phase='AI đang phân tích nội dung và lập kế hoạch theo prompt…')
-                            plan = direct(plan, options.prompt, ASSETS_DIR, work, event, options.music_asset_id, options.headline, options.duration_policy, options.target_duration)
+                            plan = direct(plan, options.prompt, ASSETS_DIR, work, event, options.music_asset_id, options.headline, options.duration_policy, options.target_duration, options.visual_style)
                             warnings.extend(plan['director']['warnings'])
                         else:
                             job_update(project_id, phase='Tạo nhịp zoom, chữ và minh họa theo quy tắc')
@@ -372,7 +373,7 @@ def run_job(project_id, job_id, snapshot, options, mode):
                     raise InterruptedError('Đã hủy tác vụ.')
                 filename = f'{project_id}_{job_id}.mp4'
                 output = OUTPUTS_DIR / filename
-                cmd, duration = compile_render(plan, ASSETS_DIR, work, output, options.preview)
+                cmd, duration = compile_render(plan, ASSETS_DIR, work, output, options.preview, visual_style=options.visual_style)
                 job_update(project_id, phase='Đang render bản xem thử' if options.preview else 'Đang render MP4', progress=0, warnings=warnings)
                 log_path = work / 'ffmpeg.log'
                 with log_path.open('w+', encoding='utf-8') as log:

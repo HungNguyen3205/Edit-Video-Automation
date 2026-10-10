@@ -524,7 +524,8 @@ async function startJob(mode, preview = false, forcePlanner = null) {
     preview,
     use_current_plan: $("use-current-plan") ? $("use-current-plan").checked : false,
     duration_policy: $("duration-policy") ? $("duration-policy").value : "preserve",
-    target_duration: $("target-duration") ? (parseFloat($("target-duration").value) || 0.0) : 0.0
+    target_duration: $("target-duration") ? (parseFloat($("target-duration").value) || 0.0) : 0.0,
+    visual_style: $("visual-style") ? $("visual-style").value : "clean_expert"
   };
   const updated = await api(
     `/api/projects/${id}/${mode}`,

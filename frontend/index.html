@@ -110,6 +110,11 @@
               <div style="padding: 0 16px 16px 16px;">
                 <textarea id="edit-prompt" rows="4" maxlength="4000" style="width: 100%; resize: vertical; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; font-size: 14px; background: #fff;" placeholder="Ví dụ: Dựng video này thật cuốn hút cho Reels. Mở đầu hấp dẫn, bỏ khoảng im lặng dài, zoom ở ý quan trọng, thêm chữ ngắn, âm thanh nhấn và nhạc nền nhỏ. Giữ đúng nội dung lời nói."></textarea>
                 <div style="display: flex; gap: 10px; margin-top: 12px; align-items: center; flex-wrap: wrap;">
+                  <select id="visual-style" style="padding: 6px; border-radius: 4px; border: 1px solid #ddd; font-size: 13px; font-weight: bold; color: #7c3aed;">
+                    <option value="clean_expert">Clean Expert (Gọn gàng, tinh tế)</option>
+                    <option value="dynamic_reels">Dynamic Reels (Năng động, nhanh)</option>
+                    <option value="danava_brand">DANAVA Brand (Màu thương hiệu)</option>
+                  </select>
                   <select id="duration-policy" style="padding: 6px; border-radius: 4px; border: 1px solid #ddd; font-size: 13px;">
                     <option value="preserve">Giữ nội dung (Chỉ cắt khoảng lặng)</option>
                     <option value="trim_silence">Bỏ im lặng (Cắt triệt để)</option>
