@@ -270,8 +270,14 @@ def direct(plan, prompt, asset_dir, work, event, music_asset_id='', headline='',
         try:
             decision = Direction.model_validate_json(raw)
             result = apply_direction(plan, decision, music_asset_id)
-            if duration_policy in ('preserve', 'trim_silence') and length(result) < 3.0 and length(plan) > 10.0:
-                raise ValueError(f"Error: Result duration is {length(result)}s but input is {length(plan)}s. You deleted the whole video! You MUST output cuts that span the entire input video.")
+            
+            # Validation mạnh tay hơn với thời lượng
+            if duration_policy == 'preserve' and length(result) < length(plan) * 0.9:
+                raise ValueError(f"CRITICAL ERROR: 'preserve' policy requires keeping the ENTIRE video. Input is {length(plan)}s, but you output {length(result)}s. You MUST output cuts that cover the full {length(plan)}s.")
+            elif duration_policy == 'trim_silence' and length(result) < length(plan) * 0.4:
+                raise ValueError(f"Error: You deleted too much content. Only cut true silence. Input is {length(plan)}s, output is {length(result)}s.")
+            elif length(result) < 3.0 and length(plan) > 10.0:
+                raise ValueError(f"Error: Result duration is {length(result)}s. Too short! Must be at least 3 seconds.")
             
             # Kiểm tra chất lượng: Không chồng lớp chữ
             title_times = []

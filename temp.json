@@ -1,0 +1,141 @@
+﻿{
+  "id": "13c11448-fd9d-4c24-ba9d-d8bbbb7581cc",
+  "name": "Video má»›i",
+  "video": {
+    "asset_id": "ee7b2d41-354d-44f4-bc63-5aaa0fa50eae",
+    "filename": "ee7b2d41-354d-44f4-bc63-5aaa0fa50eae.mp4",
+    "original_name": "c24179da-9e0b-40d4-9293-d483a44cafd5_output.mp4",
+    "metadata": {
+      "width": 720,
+      "height": 1280,
+      "duration": 37.3,
+      "has_audio": true,
+      "rotation": 0
+    },
+    "thumbnail": "ee7b2d41-354d-44f4-bc63-5aaa0fa50eae_thumb.jpg"
+  },
+  "revision": 2,
+  "export_status": "succeeded",
+  "transcribe_status": "succeeded",
+  "output_path": "/outputs/13c11448-fd9d-4c24-ba9d-d8bbbb7581cc_95c531ab-7d03-43f3-a8b4-51d9c227f42c.mp4",
+  "preview_path": null,
+  "edit_plan": {
+    "schema_version": 2,
+    "assets": [
+      {
+        "thumbnail": "ee7b2d41-354d-44f4-bc63-5aaa0fa50eae_thumb.jpg",
+        "id": "ee7b2d41-354d-44f4-bc63-5aaa0fa50eae",
+        "filename": "ee7b2d41-354d-44f4-bc63-5aaa0fa50eae.mp4",
+        "original_name": "c24179da-9e0b-40d4-9293-d483a44cafd5_output.mp4",
+        "type": "video",
+        "metadata": {
+          "width": 720,
+          "height": 1280,
+          "duration": 37.3,
+          "has_audio": true,
+          "rotation": 0
+        },
+        "keywords": ""
+      }
+    ],
+    "video_clips": [
+      {
+        "id": "d0155360-c067-412c-b355-6e02032f3ce8",
+        "asset_id": "ee7b2d41-354d-44f4-bc63-5aaa0fa50eae",
+        "source_in": 0.0,
+        "source_out": 11.0,
+        "duration": 11.0,
+        "timeline_start": 0
+      }
+    ],
+    "audio_tracks": [
+      {
+        "id": "83fa1d82-f31e-40ff-b5ca-803b8cf75fc3",
+        "origin": "auto",
+        "timeline_start": 0.0,
+        "duration": 0.3,
+        "kind": "whoosh",
+        "volume": 0.15
+      }
+    ],
+    "subtitles": [
+      {
+        "id": "3015c9de-5ad7-4476-98d5-22a1da65b2fe",
+        "asset_id": "ee7b2d41-354d-44f4-bc63-5aaa0fa50eae",
+        "start": 0.0,
+        "end": 11.0,
+        "text": "cho má»™t ngÆ°á»i vá»«a rá»“i, Dana Vassulushin Ä‘Ã£ lÃ  má»™t cÃ¡i báº¡n trá»Ÿ lÃ½ ai ai,"
+      },
+      {
+        "id": "5f774db1-1fe2-434c-a76c-2327535d0f5b",
+        "asset_id": "ee7b2d41-354d-44f4-bc63-5aaa0fa50eae",
+        "start": 11.0,
+        "end": 19.0,
+        "text": "nÃªn lÃ  Anna, vÃ  Ä‘Ã¢y lÃ  má»™t trong nhá»¯ng cÃ¡i thá»­ nghiá»‡m cá»§a Dana Vassulushin."
+      },
+      {
+        "id": "8b0901d3-ea74-4557-9538-6ba78d064505",
+        "asset_id": "ee7b2d41-354d-44f4-bc63-5aaa0fa50eae",
+        "start": 19.0,
+        "end": 29.0,
+        "text": "Má»i ngÆ°á»i muá»‘n vá» xÃ¢y dá»±ng thÆ°Æ¡ng hiá»‡u, thÃ¬ cÅ©ng cÃ³ thá»ƒ lÃ  dÃ¹ng cÃ¡i chiáº¿n lÆ°á»£c nÃ y Ä‘á»ƒ lÃ m sao Ä‘á»ƒ cho Ä‘Æ°a thÃ´ng Ä‘iá»‡p cá»§a cÃ¡c giáº£nh nghiá»‡p"
+      },
+      {
+        "id": "5b0e5123-a6c5-48c5-884f-c742ff468ee7",
+        "asset_id": "ee7b2d41-354d-44f4-bc63-5aaa0fa50eae",
+        "start": 29.0,
+        "end": 37.0,
+        "text": "Ä‘á»ƒ cÃ³ thá»ƒ vá»›i láº¡i nhiá»u ngÆ°á»i hÆ¡n. Má»i ngÆ°á»i cÃ³ thá»ƒ cháº¿t cÃ¡i Anna, vÃ  trá»Ÿ lÃ½ nhÆ° tháº¿ nÃ y nhÃ©."
+      }
+    ],
+    "text_overlays": [
+      {
+        "id": "bf4fd80a-8f4b-492c-9500-52318d9a8064",
+        "origin": "auto",
+        "timeline_start": 0.0,
+        "duration": 1.0,
+        "text": "Dana Vassulushin"
+      }
+    ],
+    "visual_overlays": [],
+    "effect_keyframes": [
+      {
+        "id": "7c502c95-7bff-4199-8348-c12352730613",
+        "origin": "auto",
+        "timeline_start": 1.0,
+        "duration": 0.5,
+        "scale": 1.2
+      }
+    ],
+    "output_settings": {
+      "width": 606,
+      "height": 1080,
+      "fps": 30,
+      "fit": "contain",
+      "source_volume": 0.8
+    },
+    "director": {
+      "engine": "ollama",
+      "model": "qwen3:4b",
+      "summary": "Tá»‘i Æ°u hÃ³a video Reels Ä‘á»ƒ Ä‘áº¡t hiá»‡u á»©ng wow: báº¯t Ä‘áº§u máº¡nh máº½ tá»« lá»i nÃ³i, loáº¡i bá» khoáº£ng im láº·ng dÃ i, táº­p trung zoom vÃ o Ã½ chÃ­nh, chá»¯ ngáº¯n dá»… Ä‘á»c, thÃªm whoosh nháº¹ vÃ  nháº¡c ná»n nhá» (náº¿u cÃ³). Giá»¯ nguyÃªn Ã½, khÃ´ng láº¡m dá»¥ng hiá»‡u á»©ng. Äáº£m báº£o cÃ¡c cáº¯t ghÃ©p máº¡ch láº¡c, khÃ´ng cáº¯t giá»¯a cÃ¢u.",
+      "warnings": [
+        "Model Ä‘ang Ä‘á»c lá»i thoáº¡i vÃ  má»‘c cáº£nh/Ã¢m thanh; chÆ°a phÃ¢n tÃ­ch hÃ¬nh áº£nh báº±ng model thá»‹ giÃ¡c."
+      ],
+      "prompt": "Dá»±ng video Ä‘á»§ wow cho Reels: má»Ÿ Ä‘áº§u thu hÃºt tá»« lá»i nÃ³i, bá» khoáº£ng im láº·ng dÃ i, zoom á»Ÿ Ã½ quan trá»ng, chá»¯ ngáº¯n dá»… Ä‘á»c, thÃªm whoosh nháº¹ vÃ  nháº¡c ná»n nhá» náº¿u cÃ³. Giá»¯ nguyÃªn Ã½, khÃ´ng láº¡m dá»¥ng hiá»‡u á»©ng."
+    }
+  },
+  "job": {
+    "id": "95c531ab-7d03-43f3-a8b4-51d9c227f42c",
+    "status": "succeeded",
+    "phase": "Video hoÃ n chá»‰nh Ä‘Ã£ sáºµn sÃ ng",
+    "progress": 100,
+    "error": null,
+    "warnings": [
+      "Model Ä‘ang Ä‘á»c lá»i thoáº¡i vÃ  má»‘c cáº£nh/Ã¢m thanh; chÆ°a phÃ¢n tÃ­ch hÃ¬nh áº£nh báº±ng model thá»‹ giÃ¡c."
+    ],
+    "mode": "auto",
+    "preview": false
+  },
+  "updated_at": "2026-10-10T12:11:39.009075+00:00",
+  "output_revision": 2
+}
