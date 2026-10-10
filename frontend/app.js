@@ -178,12 +178,24 @@ async function openProject(id) {
       b.classList.toggle("selected", b.dataset.intensity === intensity),
     );
   $("auto-subs").checked = !!health?.whisper;
+  $("edit-prompt").value = draft.director?.prompt || "";
+  $("planner").value = draft.director?.engine === "ollama" || !draft.preset ? "ai" : "rules";
+  updatePlanner();
   updateModelNote();
   renderAssets();
   renderEditList();
   setPlayer("source");
   updateStatus();
   poll();
+}
+function updatePlanner() {
+  const ai = $("planner").value === "ai";
+  show("ai-controls", ai);
+  show("btn-ai-preview", ai);
+  show("rules-controls", !ai);
+  $("ai-note").textContent = health?.ai?.available
+    ? `Ollama sẵn sàng · ${health.ai.model}. ${health.ai.vision ? "Có phân tích khung hình mẫu." : "Đọc lời thoại và phân tích mốc cảnh/âm thanh."}`
+    : `Chưa có model AI. Cài Ollama, chạy: ollama pull ${health?.ai?.model || "qwen3:4b"}. Sau đó tải lại trang. Chọn chế độ quy tắc nếu muốn dựng trước.`;
 }
 function updateModelNote() {
   const has = !!health?.whisper;
@@ -272,21 +284,35 @@ async function uploadFile(file, role) {
 function renderAssets() {
   $("assets-list").replaceChildren();
   show("upload-area", !project?.video);
+  const selectedMusic = $("music-asset").value;
+  $("music-asset").replaceChildren();
+  const none = node("option", "", "Không có nhạc nền");
+  none.value = "";
+  $("music-asset").append(none);
+  for (const a of (draft?.assets || []).filter(a => a.type === "audio")) {
+    const option = node("option", "", a.original_name);
+    option.value = a.id;
+    $("music-asset").append(option);
+  }
+  $("music-asset").value = selectedMusic || draft.audio_tracks?.find(t => t.kind === "music")?.asset_id || "";
   const main = new Set((draft?.video_clips || []).map((c) => c.asset_id));
   for (const a of draft?.assets || []) {
     const card = node("div", "asset-card");
-    const media = node(a.type === "image" ? "img" : "video");
+    const media = node(a.type === "image" ? "img" : a.type === "audio" ? "audio" : "video");
     media.src = `/assets/${a.filename}`;
     if (a.type === "image") media.alt = a.original_name;
     else {
-      media.muted = true;
+      media.controls = a.type === "audio";
+      media.muted = a.type !== "audio";
       media.preload = "metadata";
       if (a.thumbnail) media.poster = `/assets/${a.thumbnail}`;
     }
     card.append(media, node("strong", "", a.original_name));
     if (main.has(a.id))
       card.append(node("span", "helper muted", "Video chính"));
-    else {
+    else if (a.type === "audio") {
+      card.append(node("span", "helper muted", "Nhạc nền · chọn trong phần yêu cầu AI"));
+    } else {
       const input = node("input");
       input.placeholder = "Từ khóa: ứng dụng, lịch lớp";
       input.value = a.keywords || "";
@@ -491,6 +517,9 @@ async function startJob(mode, preview = false) {
   const id = project.id;
   const options = {
     intensity,
+    planner: $("planner").value,
+    prompt: $("edit-prompt").value.trim(),
+    music_asset_id: $("music-asset").value,
     headline: $("headline").value.trim(),
     transcribe: $("auto-subs").checked,
     preview,
@@ -507,9 +536,13 @@ async function startJob(mode, preview = false) {
 function updateStatus() {
   const job = project?.job;
   const running = busy();
+  const director = project?.edit_plan?.director;
+  $("director-summary").textContent = director ? `AI đã dựng: ${director.summary}` : "";
+  show("director-summary", !!director);
   const hasVideo = !!project?.video;
   for (const id of [
     "btn-auto-edit",
+    "btn-ai-preview",
     "btn-export",
     "btn-preview",
     "btn-transcribe",
@@ -653,6 +686,11 @@ $("btn-save").onclick = errorWrap(async () => {
   renderEditList();
   notify("Đã lưu chỉnh sửa.");
 });
+$("planner").onchange = updatePlanner;
+$("prompt-example").onclick = () => {
+  $("edit-prompt").value = "Dựng video đủ wow cho Reels: mở đầu thu hút từ lời nói, bỏ khoảng im lặng dài, zoom ở ý quan trọng, chữ ngắn dễ đọc, thêm whoosh nhẹ và nhạc nền nhỏ nếu có. Giữ nguyên ý, không lạm dụng hiệu ứng.";
+};
+$("btn-ai-preview").onclick = errorWrap(() => startJob("auto-edit", true));
 $("btn-auto-edit").onclick = errorWrap(() => startJob("auto-edit"));
 $("btn-preview").onclick = errorWrap(() => startJob("export", true));
 $("btn-export").onclick = errorWrap(() => startJob("export"));

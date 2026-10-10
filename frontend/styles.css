@@ -1167,3 +1167,11 @@ progress::-webkit-progress-value {
     scroll-behavior: auto !important;
   }
 }
+
+#edit-prompt { width: 100%; resize: vertical; min-height: 140px; line-height: 1.6; }
+#director-summary { margin: 0 20px 16px; white-space: pre-wrap; }
+.asset-card audio { width: 100%; height: 45px; }
+
+#ai-controls select { width: 100%; }
+#prompt-example { margin: 8px 0 12px; background: transparent; }
+#ai-note { overflow-wrap: anywhere; }

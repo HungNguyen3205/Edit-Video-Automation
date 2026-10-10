@@ -1,28 +1,21 @@
-# Project status
+# Trạng thái DANAVA Video Studio
 
-## Implemented on feature/auto-edit-studio
+## Đã triển khai
 
-- Backend auto-edit → MP4 pipeline with no required image.
-- Immutable job snapshot, single heavy worker, real render progress, cancellation and restart recovery.
-- Local optional Whisper, reused model, SRT import/export and editable source-time captions.
-- Timed easing zoom, fading headline/source text, properly sized/timed image and video overlays.
-- Multi-clip video/audio concat including silent sources; preserved source aspect.
-- Revision validation, safe asset lookup, unique outputs and stale-result protection.
-- Vietnamese responsive studio with local Lucide icons, guided steps and expandable editing.
+- AI Director gọi model Ollama tại máy bằng JSON schema; nhận prompt tiếng Việt, transcript, clip/tài nguyên và mốc scene/silence. Có gửi ảnh mẫu khi cấu hình model thị giác.
+- AI chọn đoạn giữ/thứ tự và điểm cắt, zoom/chữ/minh họa/âm thanh; kế hoạch không hợp lệ được sửa một lần rồi báo lỗi. Không fallback thành quy tắc khi người dùng chọn AI.
+- Compiler dựng MP4 thật; phụ đề và chỉnh sửa thủ công được ánh xạ lại sau cắt. Nhạc tải lên có fade/lặp, ducking theo lời nói, limiter; whoosh/impact/chime tổng hợp tại máy.
+- UI có prompt/gợi ý, trạng thái model, nhạc nền, dựng thử và giải thích quyết định. Chế độ quy tắc được ghi rõ.
 
-## Verification
+## Kết quả kiểm tra
 
-- Real FFmpeg regression suite: see final verification summary below.
-- Frontend JavaScript syntax checked with Node.
-- Model-dependent recognition is not covered by the deterministic test suite.
+- 21 tests qua, gồm kiểm thử FFmpeg thực tế và HTTP streaming với máy chủ Ollama giả lập.
+- `node --check frontend/app.js` qua. DOM interaction test qua: mở dự án, gợi ý prompt, báo thiếu model, chuyển chế độ, xuất thật và link tải; không lỗi JS. Chưa kiểm tra layout bằng trình duyệt do không tải được Chromium trong môi trường này.
+- Không có Ollama/model/Whisper cài trong môi trường kiểm thử; chưa kiểm chứng chất lượng quyết định với model thật hoặc nhận dạng giọng nói thật. Kiểm thử HTTP/schema dùng response kiểm soát và không được coi là AI inference thật.
 
-## Limits
+## Giới hạn còn lại
 
-Rule-based automation, not expert-level semantic editing. No face tracking, stock search, music mixing or automatic filler removal. Recognition cancellation is cooperative between stages. One local server process only. Original footage is played separately from actual rendered preview; it does not simulate effects live. Read README.md and AUDIT.md before deployment.
-
-## Verified in this session
-
-- 12 FFmpeg/API regression tests passed on Linux CPU.
-- Video reference (360×640, 62.855 seconds): local Whisper tiny generated 35 source caption segments; auto plan generated 8 titles and 7 zoom windows; rendered a 12-second preview with no pipeline error. Recognition plus preview took about 16.75 seconds on this environment, not a guarantee for other machines.
-- Browser automation: create project → upload the reference → auto-edit without recognition → generate full MP4 → download link; no page JavaScript exceptions. No horizontal overflow at 1440px or 390px widths.
-- MP4 media decoding verified through FFmpeg. The test Chromium headless binary lacks H.264 support, so in-browser MP4 playback could not be verified there; standard H.264/AAC MP4 is intended for current Chrome/Edge/Safari. The UI reports unsupported playback and provides the downloadable output.
+- Mặc định hiểu nội dung qua transcript, chưa nhìn hình. Thị giác tùy chọn chỉ lấy tối đa 8 ảnh mẫu và chưa kiểm thử model thật.
+- Phân tích scene/silence tối đa 120s mỗi clip. Không tạo nhạc nền, ảnh hay stock tự động. Không speed ramp/face tracking/chuyển cảnh phức tạp.
+- Chạy AI lại dùng timeline hiện tại; xem bản thử để kiểm tra ý nghĩa lời nói sau cắt. Không có undo phiên dựng tự động.
+- Một worker, lưu file cục bộ, chưa dành cho nhiều người dùng/public hosting.

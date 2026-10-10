@@ -7,6 +7,9 @@ import re
 import subprocess
 import textwrap
 import uuid
+import random
+import struct
+import wave
 from pathlib import Path
 
 
@@ -28,6 +31,43 @@ def probe(path):
         w, h = h, w
     duration = float(info.get('format', {}).get('duration', video.get('duration', 0)) or 0)
     return {'width': w, 'height': h, 'duration': duration, 'has_audio': any(s['codec_type'] == 'audio' for s in info['streams']), 'rotation': rotation}
+
+
+def probe_audio(path):
+    result = subprocess.run(['ffprobe', '-v', 'error', '-show_streams', '-show_format', '-of', 'json', str(path)], capture_output=True, text=True, timeout=30)
+    if result.returncode:
+        raise ValueError('Không đọc được file âm thanh.')
+    info = json.loads(result.stdout)
+    if not any(stream['codec_type'] == 'audio' for stream in info['streams']):
+        raise ValueError('File không có âm thanh.')
+    duration = float(info.get('format', {}).get('duration', 0))
+    if not math.isfinite(duration) or duration <= 0:
+        raise ValueError('Thời lượng âm thanh không hợp lệ.')
+    return {'duration': duration, 'has_audio': True}
+
+
+def synth_sound(path, kind, duration):
+    """Small original procedural accents; no downloaded/copyrighted sound packs."""
+    rate = 48000
+    rng = random.Random(17)
+    duration = min(duration, 4)
+    samples = bytearray()
+    for i in range(round(rate * duration)):
+        t = i / rate
+        phase = t / duration
+        if kind == 'whoosh':
+            value = rng.uniform(-1, 1) * math.sin(math.pi * phase) ** 2 * .6
+        elif kind == 'impact':
+            value = (math.sin(2 * math.pi * (65*t + 25*t*t)) + .25*rng.uniform(-1, 1)) * math.exp(-10*phase) * .65
+        else:
+            value = (math.sin(2*math.pi*880*t) + .4*math.sin(2*math.pi*1320*t)) * math.exp(-5*phase) * .45
+        value *= min(1, t / .01, (duration-t) / .02)
+        samples += struct.pack('<h', round(max(-1, min(1, value))*32767))
+    with wave.open(str(path), 'wb') as output:
+        output.setnchannels(1)
+        output.setsampwidth(2)
+        output.setframerate(rate)
+        output.writeframes(samples)
 
 
 def length(plan):
@@ -87,8 +127,8 @@ def validate(plan, trusted_assets):
                     raise ValueError('Chữ nhấn mạnh cần 1–160 ký tự.')
             elif key == 'visual_overlays':
                 a = assets.get(item.get('asset_id'))
-                if not a:
-                    raise ValueError('Minh họa phải thuộc dự án.')
+                if not a or a['type'] not in ('image', 'video'):
+                    raise ValueError('Minh họa phải là ảnh/video thuộc dự án.')
                 for field, default in [('x', .05), ('y', .08), ('width', .38)]:
                     finite(item.get(field, default), 0 if field != 'width' else .1, 1, field)
                 if item.get('mode', 'pip') not in ('pip', 'full'):
@@ -100,7 +140,27 @@ def validate(plan, trusted_assets):
             else:
                 finite(item.get('scale', 1.08), 1, 1.2, 'Mức zoom')
     p['assets'] = copy.deepcopy(trusted_assets)
-    p['audio_tracks'] = []  # MVP: source audio only; never claim unsupported music mixing.
+    tracks = p.setdefault('audio_tracks', [])
+    if not isinstance(tracks, list) or len(tracks) > 100:
+        raise ValueError('Cần tối đa 100 đối tượng âm thanh.')
+    for track in tracks:
+        finite(track.get('timeline_start'), 0, max(0, cursor - .001), 'Âm thanh bắt đầu')
+        finite(track.get('duration'), .04, cursor, 'Thời lượng âm thanh')
+        finite(track.get('volume', .15), 0, 1, 'Âm lượng')
+        if track['timeline_start'] + track['duration'] > cursor + .02:
+            raise ValueError('Âm thanh vượt timeline.')
+        if track.get('kind') == 'music':
+            a = assets.get(track.get('asset_id'))
+            if not a or a['type'] != 'audio':
+                raise ValueError('Nhạc nền phải là file âm thanh đã tải lên dự án.')
+            finite(track.get('source_in', 0), 0, a['metadata']['duration'] - .001, 'Điểm đầu nhạc')
+            if not isinstance(track.get('loop', True), bool):
+                raise ValueError('Lặp nhạc phải là boolean.')
+            if not track.get('loop', True) and track.get('source_in', 0) + track['duration'] > a['metadata']['duration'] + .02:
+                raise ValueError('Nhạc vượt thời lượng nguồn.')
+        elif track.get('kind') not in ('whoosh', 'impact', 'chime') or track['duration'] > 4:
+            raise ValueError('Hiệu ứng âm thanh chỉ hỗ trợ whoosh/impact/chime, tối đa 4 giây.')
+    finite(settings.get('source_volume', 1), 0, 1.5, 'Âm lượng tiếng gốc')
     return p
 
 
@@ -123,7 +183,7 @@ def auto_plan(plan, intensity='balanced', headline=''):
     interval, zoom = presets.get(intensity, presets['balanced'])
     total = length(p)
     # Preserve manual edits; replace only generated objects on reruns.
-    for key in ('effect_keyframes', 'text_overlays', 'visual_overlays'):
+    for key in ('effect_keyframes', 'text_overlays', 'visual_overlays', 'audio_tracks'):
         p[key] = [x for x in p.get(key, []) if x.get('origin') != 'auto']
     shortest = min(a['metadata']['width'] for a in p['assets'] if a['type'] == 'video')
     zoom = min(zoom, 1.06) if shortest < 480 else zoom
@@ -144,7 +204,7 @@ def auto_plan(plan, intensity='balanced', headline=''):
     if headline.strip():
         p['text_overlays'].insert(0, {'id': uid(), 'origin': 'auto', 'timeline_start': 0, 'duration': min(3, total), 'text': headline.strip()[:120]})
     main_ids = {c['asset_id'] for c in p['video_clips']}
-    candidates = [a for a in p['assets'] if a['id'] not in main_ids and a.get('keywords')]
+    candidates = [a for a in p['assets'] if a['type'] in ('image', 'video') and a['id'] not in main_ids and a.get('keywords')]
     used = set()
     for sub in mapped:
         if any(abs(sub['start'] - t) < 6 for t in used):
@@ -156,6 +216,8 @@ def auto_plan(plan, intensity='balanced', headline=''):
         if duration >= .3:
             p['visual_overlays'].append({'id': uid(), 'origin': 'auto', 'asset_id': a['id'], 'timeline_start': sub['start'], 'duration': duration, 'mode': 'pip', 'x': .05, 'y': .1, 'width': .4})
             used.add(sub['start'])
+    p.pop('director', None)
+    p['output_settings']['source_volume'] = 1
     p['preset'] = intensity
     return p
 
@@ -248,6 +310,17 @@ def compile_render(plan, asset_dir, work_dir, output, preview=False):
             cmd += ['-loop', '1', '-framerate', str(fps), '-t', str(ov['duration']), '-i', str(asset_dir / a['filename'])]
         else:
             cmd += ['-ss', str(ov.get('source_in', 0)), '-t', str(ov['duration']), '-i', str(asset_dir / a['filename'])]
+    tracks = plan.get('audio_tracks', [])
+    for i, track in enumerate(tracks):
+        if track['kind'] == 'music':
+            a = assets[track['asset_id']]
+            if track.get('loop', True):
+                cmd += ['-stream_loop', '-1']
+            cmd += ['-ss', str(track.get('source_in', 0)), '-t', str(track['duration']), '-i', str(asset_dir / a['filename'])]
+        else:
+            path = work_dir / f'sound{i}.wav'
+            synth_sound(path, track['kind'], track['duration'])
+            cmd += ['-i', str(path)]
     filters = []
     def fit(width, height, mode='contain'):
         if mode == 'cover':
@@ -299,5 +372,29 @@ def compile_render(plan, asset_dir, work_dir, output, preview=False):
         write_ass(path, subs, w, h)
         filters.append(f"[{current}]subtitles=filename='{filter_path(path)}'[captions]")
         current = 'captions'
-    cmd += ['-filter_complex', ';'.join(filters), '-map', f'[{current}]', '-map', '[audio]', '-t', str(total), '-c:v', 'libx264', '-preset', 'ultrafast' if preview else 'fast', '-crf', '25' if preview else '20', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', '-threads', '2', '-progress', 'pipe:1', '-nostats', str(output)]
+    audio = 'audio'
+    if tracks or settings.get('source_volume', 1) != 1:
+        filters.append(f'[audio]volume={settings.get("source_volume", 1)}[voice]')
+        music_count = sum(t['kind'] == 'music' for t in tracks)
+        if music_count:
+            filters.append('[voice]asplit=' + str(music_count+1) + '[dry]' + ''.join(f'[duck{i}]' for i in range(music_count)))
+            audio = 'dry'
+        else:
+            audio = 'voice'
+        mixed = [audio]
+        duck = 0
+        for i, track in enumerate(tracks):
+            idx = len(clips) + len(overlays) + i
+            d, start = track['duration'], track['timeline_start']
+            fade = min(.25, d/3)
+            filters.append(f'[{idx}:a]asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo,apad,atrim=duration={d},volume={track.get("volume", .15)},afade=t=in:d={fade},afade=t=out:st={d-fade}:d={fade},adelay={round(start*1000)}:all=1[track{i}]')
+            if track['kind'] == 'music':
+                filters.append(f'[track{i}][duck{duck}]sidechaincompress=threshold=0.025:ratio=8:attack=15:release=300[ducked{i}]')
+                mixed.append(f'ducked{i}')
+                duck += 1
+            else:
+                mixed.append(f'track{i}')
+        filters.append(''.join(f'[{label}]' for label in mixed) + f'amix=inputs={len(mixed)}:duration=first:normalize=0,alimiter=limit=0.95:latency=1[mixed]')
+        audio = 'mixed'
+    cmd += ['-filter_complex', ';'.join(filters), '-map', f'[{current}]', '-map', f'[{audio}]' , '-t', str(total), '-c:v', 'libx264', '-preset', 'ultrafast' if preview else 'fast', '-crf', '25' if preview else '20', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', '-threads', '2', '-progress', 'pipe:1', '-nostats', str(output)]
     return cmd, total

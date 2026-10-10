@@ -132,10 +132,10 @@
               <div class="panel-heading">
                 <h2><i data-lucide="folder-open"></i>Tài nguyên</h2>
                 <label class="secondary file-button"
-                  ><i data-lucide="plus"></i>Thêm minh họa<input
+                  ><i data-lucide="plus"></i>Thêm tài nguyên<input
                     id="asset-upload"
                     type="file"
-                    accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime,video/webm,video/x-matroska"
+                    accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime,video/webm,video/x-matroska,audio/mpeg,audio/wav,audio/mp4,audio/aac,audio/ogg,audio/flac,.mp3,.wav,.m4a,.aac,.ogg,.flac"
                     multiple
                 /></label>
               </div>
@@ -197,14 +197,21 @@
               <div class="panel-heading">
                 <h2><i data-lucide="wand-sparkles"></i>Cách dựng của bạn</h2>
               </div>
-              <div class="preset-card">
-                <span class="preset-icon"><i data-lucide="speech"></i></span>
-                <div>
-                  <strong>Talking Head</strong
-                  ><small>Người nói · chữ nổi bật · zoom nhẹ</small>
-                </div>
-                <i data-lucide="check-circle-2"></i>
+              <label class="field-label" for="planner">Cách lập bản dựng</label>
+              <select id="planner">
+                <option value="ai">AI theo yêu cầu · Ollama tại máy</option>
+                <option value="rules">Hiệu ứng theo quy tắc · không dùng AI</option>
+              </select>
+              <div id="ai-controls">
+                <label class="field-label" for="edit-prompt">Anh muốn video như thế nào?</label>
+                <textarea id="edit-prompt" rows="6" maxlength="4000" placeholder="Dựng video đủ wow cho Reels: mở đầu thu hút từ lời nói, bỏ khoảng im lặng dài, zoom ở ý quan trọng, chữ ngắn dễ đọc, thêm whoosh nhẹ và nhạc nền nhỏ. Giữ nguyên ý, không lạm dụng hiệu ứng."></textarea>
+                <button id="prompt-example" class="text-link" type="button">Dùng yêu cầu gợi ý</button>
+                <p id="ai-note" class="notice"></p>
+                <label class="field-label" for="music-asset">Nhạc nền <span>Tùy chọn</span></label>
+                <select id="music-asset"><option value="">Không có nhạc nền</option></select>
+                <p class="helper muted">Tải nhạc bằng nút Thêm tài nguyên. AI tự chọn âm lượng; nhạc nhỏ lại khi có lời nói. Âm thanh nhấn có sẵn: whoosh, impact, chime.</p>
               </div>
+              <div id="rules-controls">
               <label class="field-label">Nhịp hiệu ứng</label>
               <div
                 class="intensity segmented"
@@ -218,6 +225,7 @@
               <p class="helper muted">
                 Studio giữ lời nói gốc, thêm nhịp hình và gợi ý chữ từ phụ đề.
               </p>
+              </div>
               <label class="field-label" for="headline"
                 >Tiêu đề mở đầu <span>Tùy chọn</span></label
               ><input
@@ -250,6 +258,7 @@
                 Khác tỷ lệ sẽ thêm viền, giữ trọn hình. Không kéo méo hoặc tự
                 cắt mặt.
               </p>
+              <button id="btn-ai-preview" class="secondary auto-button">AI dựng thử 12 giây</button>
               <button id="btn-auto-edit" class="primary auto-button">
                 <i data-lucide="sparkles"></i>Tự động dựng & xuất</button
               ><span class="button-note"
@@ -261,6 +270,7 @@
                 <h2><i data-lucide="download"></i>Kết quả</h2>
                 <span id="status-badge" class="status-badge">Chưa dựng</span>
               </div>
+              <div id="director-summary" class="notice hidden"></div>
               <p id="job-phase">Bản dựng sẽ xuất hiện tại đây.</p>
               <progress
                 id="job-progress"

@@ -1,5 +1,12 @@
 # Audit: auto-edit pipeline and usability
 
+## Current update — prompt-driven local director
+
+The previous fixed-interval planner and discarded audio tracks were the remaining causes of rigid edits. `ai_director.py` now calls local Ollama with a constrained decision schema using the creative brief, timestamped transcript, scene/silence cues and optional sampled vision frames. Validated cut decisions compile to source clips; source captions and manual timed objects are remapped. Uploaded music is mixed with source audio and ducked; original procedural accents are synthesized locally. The UI distinguishes AI and rules modes and reports unavailable models/errors honestly.
+
+21 tests passed with real FFmpeg renders and controlled HTTP/model responses. Real Ollama inference and vision-model quality are not verified in this environment. The historical observations below refer to the earlier implementation, not the current AI director.
+
+
 ## Root causes in commit 167df5a
 
 | Finding | User-visible consequence | Change |
@@ -21,7 +28,7 @@
 
 Light, responsive workspace with project cards, source/result switch, optional illustrations, preset rhythm, optional headline, model notice, worker status, preview/export actions and expandable edits. Lucide 0.468.0 is bundled locally with its license. Custom components use native buttons, inputs, details, focus states and live status messages. Existing FastAPI/vanilla JS stack is retained; adding many overlapping UI frameworks would increase dependencies without improving this flow.
 
-## Remaining gap to an expert editor
+## Historical remaining gap before the AI director
 
 The planner is intentionally deterministic. It extracts caption words and places user-tagged illustrations; it does not understand visual meaning or narrative emphasis. A higher-quality local semantic planner, face-safe crop, beat-aware pacing, audio cleanup and evaluated style templates are future work. The branch addresses the broken pipeline and usability, without claiming those advanced capabilities are already done.
 

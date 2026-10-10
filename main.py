@@ -16,7 +16,9 @@ from fastapi.responses import RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from editing import auto_plan, compile_render, mapped_subtitles, parse_srt, probe, srt_content, uid, validate
+from editing import auto_plan, compile_render, mapped_subtitles, parse_srt, probe, probe_audio, srt_content, uid, validate
+
+from ai_director import direct, ai_health
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.getenv('VIDEO_DATA_DIR', BASE_DIR / 'data')).resolve()
@@ -146,7 +148,7 @@ def root():
 
 @app.get('/api/health')
 def health():
-    return {'ffmpeg': bool(shutil.which('ffmpeg')), 'ffprobe': bool(shutil.which('ffprobe')), 'whisper': importlib.util.find_spec('whisper') is not None, 'model': os.getenv('WHISPER_MODEL', 'base'), 'font_file': bool(os.getenv('VIDEO_FONT_FILE'))}
+    return {'ffmpeg': bool(shutil.which('ffmpeg')), 'ffprobe': bool(shutil.which('ffprobe')), 'whisper': importlib.util.find_spec('whisper') is not None, 'model': os.getenv('WHISPER_MODEL', 'base'), 'font_file': bool(os.getenv('VIDEO_FONT_FILE')), 'ai': ai_health()}
 
 
 @app.get('/api/projects')
@@ -176,8 +178,9 @@ def upload(project_id: str, file: UploadFile = File(...), role: str = Form('auto
     ext = Path(file.filename or '').suffix.lower()
     videos = {'.mp4', '.mov', '.webm', '.mkv'}
     images = {'.png', '.jpg', '.jpeg', '.webp'}
-    if ext not in videos | images:
-        raise HTTPException(415, 'Hỗ trợ MP4/MOV/WEBM/MKV và PNG/JPG/WEBP.')
+    audio = {'.mp3', '.wav', '.m4a', '.aac', '.ogg', '.flac'}
+    if ext not in videos | images | audio:
+        raise HTTPException(415, 'Hỗ trợ video MP4/MOV/WEBM/MKV, ảnh PNG/JPG/WEBP và nhạc MP3/WAV/M4A/AAC/OGG/FLAC.')
     if role == 'main' and (p.get('video') or ext not in videos):
         raise HTTPException(409, 'Video chính đã có hoặc file không phải video. Hãy tạo dự án mới để thay nguồn.')
     identifier = uid()
@@ -190,7 +193,7 @@ def upload(project_id: str, file: UploadFile = File(...), role: str = Form('auto
                 if size > MAX_UPLOAD:
                     raise HTTPException(413, 'File vượt giới hạn dung lượng upload.')
                 target.write(chunk)
-        meta = probe(path)
+        meta = probe_audio(path) if ext in audio else probe(path)
         if ext in videos and meta['duration'] <= 0:
             raise ValueError('Không xác định được thời lượng video.')
     except Exception as exc:
@@ -204,7 +207,7 @@ def upload(project_id: str, file: UploadFile = File(...), role: str = Form('auto
         result = subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', str(path), '-frames:v', '1', '-vf', 'scale=480:-2', str(thumb)], capture_output=True, timeout=30)
         if result.returncode == 0:
             thumbnail = thumb.name
-    asset = {'thumbnail': thumbnail, 'id': identifier, 'filename': path.name, 'original_name': file.filename, 'type': 'video' if ext in videos else 'image', 'metadata': meta, 'keywords': ''}
+    asset = {'thumbnail': thumbnail, 'id': identifier, 'filename': path.name, 'original_name': file.filename, 'type': 'video' if ext in videos else 'audio' if ext in audio else 'image', 'metadata': meta, 'keywords': ''}
     with LOCK:
         p = load_project(project_id)
         if role != 'asset' and not p.get('video') and ext in videos:
@@ -237,7 +240,7 @@ def save_plan(project_id: str, body: dict):
         if plan.get('video_clips') != p['edit_plan'].get('video_clips'):
             total = sum(float(c.get('duration', 0)) for c in plan.get('video_clips', []))
             plan = copy.deepcopy(plan)
-            for key in ('effect_keyframes', 'text_overlays', 'visual_overlays'):
+            for key in ('effect_keyframes', 'text_overlays', 'visual_overlays', 'audio_tracks'):
                 kept = []
                 for item in plan.get(key, []):
                     if item.get('origin') == 'auto':
@@ -281,6 +284,9 @@ def download_srt(project_id: str):
 
 
 class Options(BaseModel):
+    prompt: str = Field('', max_length=4000)
+    planner: str = Field('rules', pattern='^(rules|ai)$')
+    music_asset_id: str = Field('', max_length=100)
     intensity: str = 'balanced'
     headline: str = Field('', max_length=120)
     transcribe: bool = True
@@ -329,9 +335,14 @@ def run_job(project_id, job_id, snapshot, options, mode):
                     if event.is_set():
                         raise InterruptedError('Đã hủy tác vụ.')
                     if mode == 'auto':
-                        job_update(project_id, phase='Tạo nhịp zoom, chữ và minh họa')
-                        plan = auto_plan(plan, options.intensity, options.headline)
-                        if not plan['subtitles']:
+                        if options.planner == 'ai':
+                            job_update(project_id, phase='AI đang phân tích nội dung và lập kế hoạch theo prompt…')
+                            plan = direct(plan, options.prompt, ASSETS_DIR, work, event, options.music_asset_id, options.headline)
+                            warnings.extend(plan['director']['warnings'])
+                        else:
+                            job_update(project_id, phase='Tạo nhịp zoom, chữ và minh họa theo quy tắc')
+                            plan = auto_plan(plan, options.intensity, options.headline)
+                        if options.planner != 'ai' and not plan['subtitles']:
                             warnings.append('Chưa có phụ đề: bản dựng dùng nhịp theo thời gian, chưa ghép minh họa theo lời nói.')
                     with LOCK:
                         latest = load_project(project_id)
@@ -408,8 +419,16 @@ def run_job(project_id, job_id, snapshot, options, mode):
 def enqueue(project_id, background_tasks, options, mode):
     if not shutil.which('ffmpeg') or not shutil.which('ffprobe'):
         raise HTTPException(503, 'Cài FFmpeg và FFprobe vào PATH trước khi dựng.')
+    if mode == 'auto' and options.planner == 'ai':
+        if not options.prompt.strip():
+            raise HTTPException(422, 'Nhập yêu cầu dựng video cho AI.')
+        ai = ai_health()
+        if not ai['available']:
+            raise HTTPException(422, 'Chưa có Ollama/model. Cài Ollama và chạy ollama pull ' + ai['model'])
     with LOCK:
         p = load_project(project_id)
+        if options.music_asset_id and not any(a['id'] == options.music_asset_id and a['type'] == 'audio' for a in p['edit_plan']['assets']):
+            raise HTTPException(422, 'Chọn file nhạc nền thuộc dự án.')
         if p.get('job') and p['job']['status'] in ('queued', 'running'):
             raise HTTPException(409, 'Dự án đang có tác vụ; hãy đợi hoặc hủy.')
         p['edit_plan'] = check_plan(p['edit_plan'], p['edit_plan']['assets'])
