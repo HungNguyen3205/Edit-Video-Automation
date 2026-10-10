@@ -291,6 +291,9 @@ class Options(BaseModel):
     headline: str = Field('', max_length=120)
     transcribe: bool = True
     preview: bool = False
+    use_current_plan: bool = False
+    duration_policy: str = Field('preserve', pattern='^(preserve|trim_silence|summarize)$')
+    target_duration: float = Field(0.0, ge=0)
 
 
 def job_update(project_id, **changes):
@@ -328,6 +331,14 @@ def run_job(project_id, job_id, snapshot, options, mode):
             with tempfile.TemporaryDirectory(prefix='render-', dir=OUTPUTS_DIR) as temporary:
                 work = Path(temporary)
                 plan = snapshot['edit_plan']
+                if mode == 'auto' and not options.use_current_plan:
+                    # Tái tạo timeline gốc từ video chính
+                    main_video = snapshot.get('video')
+                    if main_video:
+                        dur = main_video['metadata']['duration']
+                        plan['video_clips'] = [{'id': uid(), 'asset_id': main_video['asset_id'], 'source_in': 0, 'source_out': dur, 'duration': dur, 'timeline_start': 0}]
+                        for key in ('text_overlays', 'visual_overlays', 'audio_tracks', 'effect_keyframes'):
+                            plan[key] = []
                 warnings = []
                 if mode in ('auto', 'transcribe'):
                     if mode == 'transcribe' or (options.transcribe and not plan.get('subtitles')):
@@ -337,7 +348,7 @@ def run_job(project_id, job_id, snapshot, options, mode):
                     if mode == 'auto':
                         if options.planner == 'ai':
                             job_update(project_id, phase='AI đang phân tích nội dung và lập kế hoạch theo prompt…')
-                            plan = direct(plan, options.prompt, ASSETS_DIR, work, event, options.music_asset_id, options.headline)
+                            plan = direct(plan, options.prompt, ASSETS_DIR, work, event, options.music_asset_id, options.headline, options.duration_policy, options.target_duration)
                             warnings.extend(plan['director']['warnings'])
                         else:
                             job_update(project_id, phase='Tạo nhịp zoom, chữ và minh họa theo quy tắc')

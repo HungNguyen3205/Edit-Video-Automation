@@ -110,6 +110,19 @@
               <div style="padding: 0 16px 16px 16px;">
                 <textarea id="edit-prompt" rows="4" maxlength="4000" style="width: 100%; resize: vertical; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; font-size: 14px; background: #fff;" placeholder="Ví dụ: Dựng video này thật cuốn hút cho Reels. Mở đầu hấp dẫn, bỏ khoảng im lặng dài, zoom ở ý quan trọng, thêm chữ ngắn, âm thanh nhấn và nhạc nền nhỏ. Giữ đúng nội dung lời nói."></textarea>
                 <div style="display: flex; gap: 10px; margin-top: 12px; align-items: center; flex-wrap: wrap;">
+                  <select id="duration-policy" style="padding: 6px; border-radius: 4px; border: 1px solid #ddd; font-size: 13px;">
+                    <option value="preserve">Giữ nội dung (Chỉ cắt khoảng lặng)</option>
+                    <option value="trim_silence">Bỏ im lặng (Cắt triệt để)</option>
+                    <option value="summarize">Tóm tắt (Cắt gọt mạnh tay)</option>
+                  </select>
+                  <label style="font-size: 13px; display: flex; align-items: center; gap: 4px;">
+                    <input type="checkbox" id="use-current-plan"> Dựng tiếp từ bản hiện tại
+                  </label>
+                  <label id="target-dur-label" style="font-size: 13px; display: none; align-items: center; gap: 4px;">
+                    Mục tiêu (s): <input type="number" id="target-duration" value="30" style="width: 50px; padding: 4px;">
+                  </label>
+                </div>
+                <div style="display: flex; gap: 10px; margin-top: 12px; align-items: center; flex-wrap: wrap;">
                   <button type="button" class="secondary small" id="prompt-example" style="background: transparent; border: 1px solid #ddd; color: #555; white-space: nowrap;">Dùng prompt gợi ý</button>
                   <p id="ai-note" class="notice" style="margin: 0; padding: 0; flex: 1 1 200px; background: transparent; border: none; font-size: 13px; color: #64748b; min-width: 200px;"></p>
                   <button type="button" id="btn-ai-preview" class="secondary" style="background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 16px; font-weight: 600; cursor: pointer; white-space: nowrap;">AI dựng thử 12 giây</button>

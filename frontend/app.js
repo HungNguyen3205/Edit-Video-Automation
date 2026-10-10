@@ -522,6 +522,9 @@ async function startJob(mode, preview = false, forcePlanner = null) {
     headline: $("headline").value.trim(),
     transcribe: $("auto-subs").checked,
     preview,
+    use_current_plan: $("use-current-plan") ? $("use-current-plan").checked : false,
+    duration_policy: $("duration-policy") ? $("duration-policy").value : "preserve",
+    target_duration: $("target-duration") ? (parseFloat($("target-duration").value) || 0.0) : 0.0
   };
   const updated = await api(
     `/api/projects/${id}/${mode}`,
@@ -742,6 +745,11 @@ $("add-item").onclick = () => {
   markDirty();
   renderEditList();
 };
+if ($("duration-policy")) {
+  $("duration-policy").addEventListener("change", () => {
+    $("target-dur-label").style.display = $("duration-policy").value === "summarize" ? "flex" : "none";
+  });
+}
 window.addEventListener("beforeunload", (e) => {
   if (dirty) {
     e.preventDefault();

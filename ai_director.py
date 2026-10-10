@@ -229,9 +229,19 @@ def apply_direction(plan, direction, music_asset_id=''):
     return validate(p, plan['assets'])
 
 
-def direct(plan, prompt, asset_dir, work, event, music_asset_id='', headline=''):
+def direct(plan, prompt, asset_dir, work, event, music_asset_id='', headline='', duration_policy='preserve', target_duration=0.0):
     cues, frames = analyse(plan, asset_dir, work, event)
+    
+    policy_desc = ''
+    if duration_policy == 'preserve':
+        policy_desc = 'MUST KEEP ALL ORIGINAL CONTENT (no cuts except removing silence). Output cuts that cover the entire video.'
+    elif duration_policy == 'trim_silence':
+        policy_desc = 'Cut ONLY silent parts/pauses. Keep all speech intact.'
+    elif duration_policy == 'summarize':
+        policy_desc = f'Summarize the video. Keep only the best parts. Target duration: {target_duration} seconds.'
+
     context = {'brief': prompt, 'headline': headline, 'input_duration': length(plan),
+               'duration_policy': policy_desc,
                'clips': plan['video_clips'], 'transcript': mapped_subtitles(plan),
                'assets': [{k: a.get(k) for k in ('id', 'type', 'original_name', 'keywords', 'metadata')} for a in plan['assets']],
                'music_asset_id': music_asset_id or None, 'cues': cues,
@@ -248,6 +258,8 @@ def direct(plan, prompt, asset_dir, work, event, music_asset_id='', headline='')
         try:
             decision = Direction.model_validate_json(raw)
             result = apply_direction(plan, decision, music_asset_id)
+            if duration_policy in ('preserve', 'trim_silence') and length(result) < 3.0 and length(plan) > 10.0:
+                raise ValueError(f"Error: Result duration is {length(result)}s but input is {length(plan)}s. You deleted the whole video! You MUST output cuts that span the entire input video.")
             result['director']['prompt'] = prompt
             if not plan.get('subtitles'):
                 result['director']['warnings'].append('Không có lời thoại nhận dạng; AI chưa hiểu đầy đủ nội dung nói. Cài Whisper hoặc nhập SRT.')
