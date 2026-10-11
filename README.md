@@ -1,5 +1,7 @@
 # DANAVA Video Studio — AI dựng video theo prompt
 
+Xem [hướng dẫn dựng theo mẫu đã duyệt](APPROVED_STYLE.md): nút **Dùng mẫu đã duyệt**, đồ họa theo ý nghĩa và xuất MP4 theo cùng phong cách.
+
 FastAPI + FFmpeg + JavaScript. Có hai chế độ riêng biệt: **AI theo yêu cầu** dùng model Ollama tại máy, và **hiệu ứng theo quy tắc** để dựng khi chưa có model. Không dùng khóa API trả phí hay dịch vụ render bên ngoài.
 
 ## Vì sao bản cũ vẫn dựng cố định?
@@ -46,13 +48,14 @@ Hoặc:
 
 > Dựng nhẹ và trang trọng. Giữ thứ tự lời nói, không zoom, không thêm chữ nổi bật, không hiệu ứng âm thanh. Nhạc nền rất nhỏ, giữ phụ đề rõ ràng.
 
-Model quyết định các đoạn giữ và thứ tự, điểm zoom, tiêu đề, minh họa, âm thanh nhấn và âm lượng nhạc theo yêu cầu. Engine hiện hỗ trợ cắt nối, zoom có easing, chữ có fade, phụ đề, minh họa góc/toàn khung, nhạc có fade/lặp/ducking và ba âm thanh tổng hợp whoosh/impact/chime. Chưa hỗ trợ speed ramp, chuyển cảnh phức tạp, tự tạo nhạc, tìm stock, tạo ảnh hay theo dõi khuôn mặt. Yêu cầu vượt khả năng cần được AI báo lại.
+Model quyết định các đoạn giữ và thứ tự, điểm zoom, tiêu đề, minh họa, âm thanh nhấn và âm lượng nhạc theo yêu cầu. Engine hiện hỗ trợ cắt nối, zoom có easing, chữ có fade, phụ đề, minh họa góc/toàn khung, nhạc có fade/lặp/ducking và ba âm thanh tổng hợp whoosh/impact/chime. Phong cách mẫu hỗ trợ thẻ trắng, minh họa khái niệm hội thoại/quy trình/kết nối, B-roll dự án và chuyển động pop/slide/fade. Chưa hỗ trợ speed ramp, tự tạo nhạc, tìm stock, tạo ảnh photorealistic hay theo dõi khuôn mặt. Yêu cầu vượt khả năng cần được AI báo lại.
 
 ## Phân tích nội dung và giới hạn
 
 - Mặc định model đọc lời thoại có timestamp, tên/từ khóa tài nguyên và mốc scene/silence; chưa dùng thị giác. Thiếu phụ đề sẽ hiện cảnh báo về mức hiểu lời nói.
 - FFmpeg phân tích tối đa 120 giây đầu của mỗi đoạn; phạm vi phân tích được gửi rõ cho model. Prompt/ngữ cảnh quá dài bị từ chối thay vì cắt lén nội dung. Phù hợp nhất cho video ngắn; chia video dài thành dự án nhỏ.
 - Tùy chọn **model thị giác**: đặt `VIDEO_AI_MODEL` tới model đã tải có hỗ trợ ảnh, và `VIDEO_AI_VISION=1` trước khi khởi động. Gửi tối đa 8 khung hình mẫu, không phải hiểu toàn bộ chuyển động. Model chỉ hỗ trợ text sẽ báo lỗi khi bật chế độ ảnh. Chế độ này chưa được kiểm thử với model thật trong môi trường phát triển.
+- Cần Node.js và Chrome/Chromium để dựng phong cách mẫu; chạy `npm --prefix motion_engine install`. Có thể đặt `CHROME_PATH` nếu Chrome cài nơi khác.
 - Không có nhạc tải lên thì không tự tạo nhạc nền. Âm thanh nhấn là âm tổng hợp đơn giản, không phải thư viện nhạc/âm thanh chuyên nghiệp.
 - Chất lượng dựng phụ thuộc model, chất lượng transcript, tài nguyên và prompt. Cần nghe/xem bản thử, nhất là sau khi AI cắt lời nói. Model nhỏ có thể hiểu sai prompt; không có cam kết mọi video đều chuyên nghiệp.
 - Kế hoạch model được kiểm tra và cho sửa lỗi một lần; không cho model cung cấp đường dẫn, lệnh shell hoặc filter FFmpeg. Model không sẵn sàng/sai kế hoạch sẽ báo lỗi, không báo thành công giả.

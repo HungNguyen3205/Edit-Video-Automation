@@ -179,6 +179,8 @@ async function openProject(id) {
     );
   $("auto-subs").checked = !!health?.whisper;
   $("edit-prompt").value = draft.director?.prompt || "";
+  $("visual-style").value = draft.render_profile || "explainer_ref";
+  $("brand-footer").value = draft.brand_footer || "";
   $("planner").value = draft.director?.engine === "ollama" || !draft.preset ? "ai" : "rules";
   updatePlanner();
   updateModelNote();
@@ -195,7 +197,11 @@ function updatePlanner() {
   $("ai-note").textContent = health?.ai?.available
     ? `Ollama sẵn sàng · ${health.ai.model}. ${health.ai.vision ? "Có phân tích khung hình mẫu." : "Đọc lời thoại và phân tích mốc cảnh/âm thanh."}`
     : `Chưa có model AI. Cài Ollama, chạy: ollama pull ${health?.ai?.model || "qwen3:4b"}. Sau đó tải lại trang.`;
+  if ($("visual-style").value === "explainer_ref" && health?.motion && !health.motion.ready) {
+    $("ai-note").textContent += " Phong cách mẫu cần cài Node.js và Chrome/Chromium.";
+  }
 }
+$("visual-style").onchange = updatePlanner;
 function updateModelNote() {
   const has = !!health?.whisper;
   $("model-note").textContent = has
@@ -445,8 +451,10 @@ function renderEditList() {
       fields.append(typeLabel);
       
       field(fields, sc, "duration", "Thời lượng (giây)");
+      field(fields, sc, "timeline_start", "Điểm đầu cảnh (giây)");
       field(fields, sc, "headline", "Tiêu đề chữ lớn", "input", false);
-      field(fields, sc, "badge_text", "Chữ thẻ Badge (Ví dụ: NỘI SÀN)", "input", false);
+      field(fields, sc, "badge_text", "Chữ trên thẻ (Ví dụ: Ý CHÍNH)", "input", false);
+      field(fields, sc, "graphic_title", "Tên minh họa", "input", false);
       field(fields, sc, "transcript_meaning", "Ngữ nghĩa lời nói", "textarea", false);
       
       row.append(header, fields);
@@ -588,7 +596,8 @@ async function startJob(mode, preview = false, forcePlanner = null) {
     use_current_plan: $("use-current-plan") ? $("use-current-plan").checked : false,
     duration_policy: $("duration-policy") ? $("duration-policy").value : "preserve",
     target_duration: $("target-duration") ? (parseFloat($("target-duration").value) || 0.0) : 0.0,
-    visual_style: $("visual-style") ? $("visual-style").value : "clean_expert"
+    visual_style: $("visual-style") ? $("visual-style").value : "clean_expert",
+    brand_footer: $("brand-footer").value.trim()
   };
   const updated = await api(
     `/api/projects/${id}/${mode}`,
@@ -798,6 +807,15 @@ $("btn-save").onclick = errorWrap(async () => {
 $("planner").onchange = updatePlanner;
 $("prompt-example").onclick = () => {
   $("edit-prompt").value = "Dựng video đủ wow cho Reels: mở đầu thu hút từ lời nói, bỏ khoảng im lặng dài, zoom ở ý quan trọng, chữ ngắn dễ đọc, thêm whoosh nhẹ và nhạc nền nhỏ nếu có. Giữ nguyên ý, không lạm dụng hiệu ứng.";
+};
+$("approved-style").onclick = () => {
+  $("visual-style").value = "explainer_ref";
+  $("duration-policy").value = "preserve";
+  $("planner").value = "ai";
+  $("auto-subs").checked = !!health?.whisper;
+  $("edit-prompt").value = "Dựng theo mẫu DANAVA đã duyệt: video dọc 9:16, giữ toàn bộ lời nói và thời lượng. Xen kẽ người nói với thẻ trắng theo ý nghĩa; chữ lớn Barlow Condensed phía trên mặt, phụ đề ngắn Inter; thẻ teal/navy. Chọn minh họa hội thoại, quy trình hoặc kết nối đúng nội dung. SFX pop/whoosh nhẹ ở điểm nhấn, không át giọng. Không lặp lịch hiệu ứng cố định, không bịa số liệu, không chèn thương hiệu khác. Kết thúc trên người nói nếu không có CTA thật.";
+  updatePlanner();
+  $("edit-prompt").focus();
 };
 $("btn-ai-preview").onclick = errorWrap(() => startJob("auto-edit", true, "ai"));
 $("btn-auto-edit").onclick = errorWrap(() => startJob("auto-edit", false, "ai"));

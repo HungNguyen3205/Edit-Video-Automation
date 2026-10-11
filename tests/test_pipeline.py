@@ -164,7 +164,7 @@ def test_auto_rerun_keeps_manual_and_uses_keywords(media):
 def test_missing_whisper_reports_actionable_error(media, monkeypatch):
     p = new_project(media)
     original = main.importlib.util.find_spec
-    monkeypatch.setattr(main.importlib.util, 'find_spec', lambda name: None if name == 'whisper' else original(name))
+    monkeypatch.setattr(main.importlib.util, 'find_spec', lambda name: None if name in ('whisper','faster_whisper') else original(name))
     result = client.post(f'/api/projects/{p["id"]}/auto-edit', json={'transcribe': True})
     assert result.status_code == 422 and 'requirements-ai' in result.json()['detail']
 

@@ -1,284 +1,160 @@
-"""Storyboard Motion Compiler: Renders and composites storyboard scenes
-
-Combines Motion Graphics Engine (HTML5/React in Chrome) with source video speech audio and FFmpeg assembly.
-"""
+"""Validated semantic storyboard -> approved motion style -> real MP4."""
 import copy
 import json
 import os
-import re
+import signal
 import subprocess
+import time
 from pathlib import Path
-
 from asset_resolver import AssetResolver
-from editing import filter_path, length, mapped_subtitles, probe, srt_content, write_ass
+from editing import compile_render, filter_path, length, probe, validate
+from storyboard_style import write_storyboard_ass
 
 BASE_DIR = Path(__file__).resolve().parent
 MOTION_DIR = BASE_DIR / 'motion_engine'
 
-def compile_storyboard_scenes(plan, asset_dir, work_dir, output_path, preview=False, visual_style='explainer_ref'):
-    """Compile storyboard scenes into an end-to-end MP4 video."""
-    settings = plan.get('output_settings', {})
-    w = settings.get('width', 720)
-    h = settings.get('height', 1280)
-    fps = settings.get('fps', 30)
 
-    # Force 9:16 vertical ratio if explainer_ref is chosen
-    if visual_style == 'explainer_ref' and w > h:
-        w, h = 720, 1280
+def run(command, event=None, timeout=600, cwd=None):
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                               text=True, cwd=cwd, start_new_session=os.name != 'nt')
+    start = time.monotonic()
+    try:
+        while True:
+            if event is not None and event.is_set():
+                raise InterruptedError('Đã hủy dựng storyboard.')
+            if time.monotonic()-start > timeout:
+                raise RuntimeError('Quá thời gian dựng cảnh. Hãy thử bản xem trước hoặc giảm số cảnh.')
+            try:
+                stdout, stderr = process.communicate(timeout=.2)
+                break
+            except subprocess.TimeoutExpired:
+                pass
+        if process.returncode:
+            raise RuntimeError('Không dựng được video: ' + (stderr or stdout)[-5000:])
+    finally:
+        if process.poll() is None:
+            if os.name == 'nt':
+                subprocess.run(['taskkill','/F','/T','/PID',str(process.pid)],capture_output=True)
+            else:
+                os.killpg(process.pid, signal.SIGKILL)
+            process.communicate()
 
-    if preview and max(w, h) > 640:
-        ratio = 640 / max(w, h)
-        w = int(w * ratio) // 2 * 2
-        h = int(h * ratio) // 2 * 2
 
-    assets = {a['id']: a for a in plan.get('assets', [])}
-    main_clip = plan['video_clips'][0] if plan.get('video_clips') else None
-    if not main_clip:
-        raise ValueError('Không có video chính trong kế hoạch dựng.')
-
-    main_asset = assets.get(main_clip['asset_id'])
-    if not main_asset:
-        raise ValueError('Không tìm thấy tài nguyên video chính.')
-
-    main_video_path = asset_dir / main_asset['filename']
-    resolver = AssetResolver(plan.get('assets', []), asset_dir, work_dir)
-
+def compile_storyboard_scenes(plan, asset_dir, work_dir, output_path, preview=False,
+                              visual_style='explainer_ref', event=None, progress=None):
+    plan = validate(plan, plan['assets'])
+    asset_dir, work_dir, output_path = Path(asset_dir), Path(work_dir), Path(output_path)
+    work_dir.mkdir(parents=True, exist_ok=True)
     storyboard = plan.get('storyboard', [])
     if not storyboard:
-        # Fallback if no storyboard scenes
-        raise ValueError('Kế hoạch không có storyboard.')
-
-    scene_files = []
-    total_duration = 0.0
-    work_dir.mkdir(parents=True, exist_ok=True)
-
-    # Render each storyboard scene
+        raise ValueError('Chưa có storyboard. Chạy AI dựng video trước khi xuất.')
+    fps = plan['output_settings']['fps']
+    w, h = (360, 640) if preview else (720, 1280)
+    total = min(12.0, length(plan)) if preview else length(plan)
+    assets = {a['id']: a for a in plan['assets']}
+    resolver = AssetResolver(plan['assets'], asset_dir, work_dir)
+    scene_files, cursor = [], 0.0
+    # Cumulative frame boundaries avoid drift across many short scenes.
     for i, sc in enumerate(storyboard):
-        sc_id = sc.get('scene_id', f'scene_{i}')
-        sc_type = sc.get('scene_type', 'talking_head')
-        dur = float(sc.get('duration', 3.0))
-        if preview and total_duration + dur > 12.0:
-            dur = max(0.5, 12.0 - total_duration)
-
-        src_in = float(sc.get('source_in', 0))
-        scene_mp4 = work_dir / f'sc_{i}.mp4'
-        scene_audio = work_dir / f'audio_{i}.wav'
-
-        # 1. Extract audio for this scene from main video
-        audio_cmd = [
-            'ffmpeg', '-hide_banner', '-y',
-            '-ss', str(src_in), '-t', str(dur),
-            '-i', str(main_video_path),
-            '-vn', '-ar', '48000', '-ac', '2',
-            str(scene_audio)
-        ]
-        res = subprocess.run(audio_cmd, capture_output=True, text=True)
-        if res.returncode != 0:
-            # If silence or failure, create silent wav
-            silence_cmd = ['ffmpeg', '-hide_banner', '-y', '-f', 'lavfi', '-i', f'anullsrc=r=48000:cl=stereo', '-t', str(dur), str(scene_audio)]
-            subprocess.run(silence_cmd, check=True, capture_output=True)
-
-        # 2. Render Video Track for this scene
-        if sc_type in ('explainer_card', 'comparison', 'statistic', 'step_list', 'cta'):
-            # Resolve visual asset
-            asset_info = resolver.resolve_visual(
-                query=sc.get('asset_query') or sc.get('headline') or '',
-                role='illustration',
-                fallback_title=sc.get('headline', ''),
-                fallback_badge=sc.get('badge_text', 'ĐIỂM NHẤN'),
-                badge_color=sc.get('badge_color', 'teal')
-            )
-
-            # Build JSON payload for motion_engine
-            scene_cfg = {
-                'scene_type': sc_type,
-                'duration': dur,
-                'headline': sc.get('headline', ''),
-                'subheadline': sc.get('subheadline', ''),
-                'badge_text': sc.get('badge_text', ''),
-                'badge_color': sc.get('badge_color', 'teal'),
-                'stat_number': sc.get('stat_number', ''),
-                'stat_label': sc.get('stat_label', ''),
-                'steps': sc.get('steps', []),
-                'badges': sc.get('badges', []),
-                'asset_path': asset_info.get('local_path', ''),
-                'warning_badge': sc.get('warning_badge', ''),
-                'footer': '0786.668.222   tabcomgroup.vn'
-            }
-            if sc_type == 'comparison':
-                left_img = resolver.resolve_visual('shopee', role='comparison_icon')
-                right_img = resolver.resolve_visual('facebook', role='comparison_icon')
-                scene_cfg['comparison_left'] = {
-                    'badge': 'NỘI SÀN',
-                    'title': 'TIKTOK / SHOPEE',
-                    'image_path': left_img.get('local_path', ''),
-                    'points': ['Khách rất gần hành vi mua', 'Tỷ lệ chốt đơn tức thì', 'Traffic sàn sẵn có']
-                }
-                scene_cfg['comparison_right'] = {
-                    'badge': 'NGOẠI SÀN',
-                    'title': 'FACEBOOK / WEB',
-                    'image_path': right_img.get('local_path', ''),
-                    'points': ['Chủ động tệp khách riêng', 'Không sợ sàn đổi thuật toán', 'Giá trị trọn đời cao']
-                }
-
-            json_path = work_dir / f'motion_{i}.json'
-            motion_raw = work_dir / f'motion_raw_{i}.mp4'
-            json_path.write_text(json.dumps(scene_cfg, ensure_ascii=False, indent=2), encoding='utf-8')
-
-            # Run motion_engine CLI
-            node_cmd = [
-                'node', str((MOTION_DIR / 'render_scene.js').resolve()),
-                '--input', str(json_path.resolve()),
-                '--output', str(motion_raw.resolve()),
-                '--width', str(w),
-                '--height', str(h),
-                '--fps', str(fps)
-            ]
-            node_res = subprocess.run(node_cmd, capture_output=True, text=True, cwd=str(MOTION_DIR), timeout=180)
-            if node_res.returncode != 0:
-                raise RuntimeError(f'Motion Engine lỗi ở cảnh {i}: {node_res.stderr or node_res.stdout}')
-
-            # Combine motion graphic video with speaker speech audio
-            mux_cmd = [
-                'ffmpeg', '-hide_banner', '-y',
-                '-i', str(motion_raw),
-                '-i', str(scene_audio),
-                '-c:v', 'copy',
-                '-c:a', 'aac', '-b:a', '128k',
-                '-shortest',
-                str(scene_mp4)
-            ]
-            subprocess.run(mux_cmd, check=True, capture_output=True)
-
-        elif sc_type == 'talking_head_pip':
-            # White canvas with speaker video positioned at bottom
-            asset_info = resolver.resolve_visual(
-                query=sc.get('asset_query') or sc.get('headline') or 'analytics',
-                role='pip_illustration',
-                fallback_title=sc.get('headline', ''),
-                fallback_badge=sc.get('badge_text', 'NGOẠI SÀN'),
-                badge_color=sc.get('badge_color', 'navy')
-            )
-            scene_cfg = {
-                'scene_type': 'talking_head_pip',
-                'duration': dur,
-                'headline': sc.get('headline', ''),
-                'subheadline': sc.get('subheadline', ''),
-                'badge_text': sc.get('badge_text', 'NGOẠI SÀN'),
-                'badge_color': sc.get('badge_color', 'navy'),
-                'asset_path': asset_info.get('local_path', ''),
-                'footer': '0786.668.222   tabcomgroup.vn'
-            }
-            json_path = work_dir / f'pip_{i}.json'
-            pip_bg = work_dir / f'pip_bg_{i}.mp4'
-            json_path.write_text(json.dumps(scene_cfg, ensure_ascii=False, indent=2), encoding='utf-8')
-
-            node_cmd = [
-                'node', str(MOTION_DIR / 'render_scene.js'),
-                '--input', str(json_path),
-                '--output', str(pip_bg),
-                '--width', str(w),
-                '--height', str(h),
-                '--fps', str(fps)
-            ]
-            subprocess.run(node_cmd, check=True, capture_output=True, cwd=str(MOTION_DIR), timeout=180)
-
-            # Composite speaker into bottom container
-            speaker_w = int(w * 0.90) // 2 * 2
-            speaker_h = int(h * 0.40) // 2 * 2
-            pos_x = (w - speaker_w) // 2
-            pos_y = h - speaker_h - 60
-
-            comp_cmd = [
-                'ffmpeg', '-hide_banner', '-y',
-                '-i', str(pip_bg),
-                '-ss', str(src_in), '-t', str(dur), '-i', str(main_video_path),
-                '-filter_complex',
-                f"[1:v]scale={speaker_w}:{speaker_h}:force_original_aspect_ratio=increase,crop={speaker_w}:{speaker_h}[spk];[0:v][spk]overlay={pos_x}:{pos_y}[outv]",
-                '-map', '[outv]', '-map', '1:a',
-                '-c:v', 'libx264', '-preset', 'ultrafast', '-c:a', 'aac',
-                str(scene_mp4)
-            ]
-            subprocess.run(comp_cmd, check=True, capture_output=True)
-
-        else:
-            # talking_head (raw camera) or broll
-            badge_text = sc.get('badge_text', '')
-            badge_color = sc.get('badge_color', 'teal')
-            
-            # If input is a side-by-side comparison video (aspect ratio > 1.4), crop the right half ("Claude Edit")
-            main_w = main_asset.get('metadata', {}).get('width', 1280)
-            main_h = main_asset.get('metadata', {}).get('height', 720)
-            if main_w / max(1, main_h) > 1.4:
-                # Crop right half: x = in_w / 2
-                filter_str = f"crop=iw/2:ih:iw/2:0,scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},fps={fps},format=yuv420p"
-            else:
-                filter_str = f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},fps={fps},format=yuv420p"
-
-            if badge_text:
-                bcolor = '0x0D9488' if badge_color == 'teal' else '0x1E293B' if badge_color == 'navy' else '0xDC2626'
-                filter_str += f",drawtext=font='Arial':text='{badge_text}':fontsize={round(w*0.045)}:fontcolor=white:box=1:boxcolor={bcolor}@0.9:boxborderw=10:x=(w-tw)/2:y=h*0.09"
-
-            cmd = [
-                'ffmpeg', '-hide_banner', '-y',
-                '-ss', str(src_in), '-t', str(dur),
-                '-i', str(main_video_path),
-                '-vf', filter_str,
-                '-c:v', 'libx264', '-preset', 'ultrafast',
-                '-c:a', 'aac', '-b:a', '128k',
-                str(scene_mp4)
-            ]
-            subprocess.run(cmd, check=True, capture_output=True)
-
-        scene_files.append(scene_mp4)
-        total_duration += dur
-        if preview and total_duration >= 12.0:
+        if cursor >= total - .0001:
             break
-
-    # 3. Concatenate all rendered scenes together
-    concat_list = work_dir / 'concat.txt'
-    with concat_list.open('w', encoding='utf-8') as f:
-        for sf in scene_files:
-            posix_p = sf.resolve().as_posix()
-            f.write(f"file '{posix_p}'\n")
-
-    assembled = work_dir / 'assembled.mp4'
-    concat_cmd = [
-        'ffmpeg', '-hide_banner', '-y',
-        '-f', 'concat', '-safe', '0',
-        '-i', str(concat_list),
-        '-c:v', 'libx264', '-preset', 'ultrafast',
-        '-c:a', 'aac',
-        str(assembled)
-    ]
-    res = subprocess.run(concat_cmd, capture_output=True, text=True)
-    if res.returncode != 0:
-        raise RuntimeError(f'Lỗi nối các cảnh FFmpeg ({res.returncode}): {res.stderr}')
-
-    # 4. Burn ASS Subtitles if present
-    final_video = assembled
-    subs = mapped_subtitles(plan)
-    if subs:
-        sub_ass = work_dir / 'subtitles.ass'
-        write_ass(sub_ass, subs, w, h, visual_style=visual_style)
-        subbed = work_dir / 'subbed.mp4'
-        sub_cmd = [
-            'ffmpeg', '-hide_banner', '-y',
-            '-i', str(assembled),
-            '-vf', f"subtitles=filename='{filter_path(sub_ass)}'",
-            '-c:v', 'libx264', '-preset', 'ultrafast' if preview else 'fast',
-            '-c:a', 'copy',
-            str(subbed)
-        ]
-        subprocess.run(sub_cmd, check=True, capture_output=True)
-        final_video = subbed
-
-    # 5. Move/copy final video to output_path
-    if final_video.exists():
-        if output_path.exists():
-            output_path.unlink()
-        final_video.rename(output_path)
-    else:
-        raise RuntimeError('Không tạo được file video cuối cùng.')
-
-    return total_duration
+        end = min(total, sc['timeline_start'] + sc['duration'])
+        frames = round(end * fps)-round(cursor * fps)
+        if frames < 1:
+            raise ValueError('Cảnh quá ngắn cho FPS hiện tại. Hãy gộp cảnh.')
+        dur, typ = frames/fps, sc['scene_type']
+        source = asset_dir / assets[sc['asset_id']]['filename']
+        scene_file, src_in = work_dir / f'scene_{i}.mp4', sc['source_in']
+        fit = f'scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},setsar=1,fps={fps},format=yuv420p'
+        if typ in ('talking_head', 'broll'):
+            input_opts = ['-ss',str(src_in),'-i',str(source)]
+            if typ == 'broll':
+                visual = assets.get(sc.get('visual_asset_id'))
+                if not visual:
+                    raise ValueError('B-roll cần ảnh/video minh họa thuộc dự án.')
+                path = asset_dir / visual['filename']
+                input_opts = ['-loop','1','-i',str(path)] if visual['type'] == 'image' else ['-ss',str(sc.get('visual_source_in',0)),'-i',str(path)]
+            crop = 'crop=iw/2:ih:iw/2:0,' if typ == 'talking_head' and plan.get('crop_reference_right_half') else ''
+            run(['ffmpeg','-v','error','-y',*input_opts,'-an','-vf',crop+fit,
+                 '-frames:v',str(frames),'-c:v','libx264','-crf','20','-preset','fast',
+                 '-threads','2',str(scene_file)], event)
+        else:
+            visual = assets.get(sc.get('visual_asset_id'))
+            if visual and visual['type'] == 'video':
+                asset_path = work_dir / f'visual_frame_{i}.png'
+                run(['ffmpeg','-v','error','-y','-ss',str(sc.get('visual_source_in',0)),
+                     '-i',str(asset_dir/visual['filename']),'-frames:v','1',str(asset_path)], event)
+            else:
+                info = resolver.resolve_visual(query=sc.get('asset_query') or sc.get('headline',''),
+                    fallback_title=sc.get('headline',''),fallback_badge=sc.get('badge_text',''),
+                    badge_color=sc.get('badge_color','teal'),graphic_kind=sc.get('graphic_kind','auto'),
+                    graphic_title=sc.get('graphic_title',''),graphic_items=sc.get('graphic_items',[]),
+                    visual_asset_id=sc.get('visual_asset_id',''))
+                asset_path = info['local_path']
+            cfg = {**sc,'duration':dur,'asset_path':str(asset_path),'footer':plan.get('brand_footer','')}
+            cfg_file = work_dir/f'motion_{i}.json'
+            cfg_file.write_text(json.dumps(cfg,ensure_ascii=False),encoding='utf-8')
+            raw = work_dir/f'motion_{i}.mp4'
+            run(['node',str(MOTION_DIR/'render_scene.js'),'--input',str(cfg_file.resolve()),
+                 '--output',str(raw.resolve()),'--width',str(w),'--height',str(h),'--fps',str(fps)],event,cwd=MOTION_DIR)
+            if typ == 'talking_head_pip':
+                sw, sh = round(w*.9)//2*2, round(h*.40)//2*2
+                x, y = (w-sw)//2, round(h*.55)
+                run(['ffmpeg','-v','error','-y','-i',str(raw),'-ss',str(src_in),'-i',str(source),
+                     '-filter_complex',f'[1:v]scale={sw}:{sh}:force_original_aspect_ratio=increase,crop={sw}:{sh},setsar=1[spk];[0:v][spk]overlay={x}:{y}[out]',
+                     '-map','[out]','-an','-frames:v',str(frames),'-c:v','libx264','-crf','20','-preset','fast','-threads','2',str(scene_file)],event)
+            else:
+                raw.replace(scene_file)
+        meta = probe(scene_file)
+        if abs(meta['duration']-dur) > 1/fps+.01:
+            raise RuntimeError(f'Cảnh {i+1} bị thiếu hình; không xuất video bị cụt.')
+        scene_files.append(scene_file)
+        cursor = end
+        if progress:
+            progress(20+int(55*cursor/total))
+    concat = work_dir/'concat.txt'
+    concat.write_text(''.join("file '"+str(f.resolve()).replace("'", "'\\''")+"'\n" for f in scene_files),encoding='utf-8')
+    assembled = work_dir/'assembled.mp4'
+    run(['ffmpeg','-v','error','-y','-xerror','-f','concat','-safe','0','-i',str(concat),
+         '-an','-vf',f'setpts=N/({fps}*TB),fps={fps}', '-c:v','libx264','-preset','fast','-crf','20',
+         '-threads','2','-movflags','+faststart',str(assembled)],event)
+    if abs(probe(assembled)['duration']-total) > 1/fps+.02:
+        raise RuntimeError('Video nối cảnh sai thời lượng; hãy gộp hoặc sửa các cảnh quá ngắn.')
+    # Original cuts remain authoritative for voice, music ducking and SFX.
+    audio_plan = copy.deepcopy(plan)
+    for key in ('subtitles','text_overlays','visual_overlays','effect_keyframes','storyboard'):
+        audio_plan[key] = []
+    audio_plan['output_settings'].update(width=120,height=120)
+    for sc in storyboard:
+        kind, start = sc.get('sound_effect','none'), sc['timeline_start']+.15
+        if kind != 'none' and start < total-.1:
+            if not any(t['kind'] != 'music' and abs(t['timeline_start']-start)<.3 for t in audio_plan['audio_tracks']):
+                audio_plan['audio_tracks'].append({'id':f"sfx_{sc['scene_id']}",'kind':kind,'timeline_start':start,
+                    'duration':min(.35,total-start),'volume':sc.get('sound_volume',.10)})
+    carrier = work_dir/'audio_carrier.mp4'
+    cmd,_ = compile_render(audio_plan,asset_dir,work_dir,carrier,preview)
+    run(cmd,event)
+    # Editable overlays/zooms now operate on the actual motion storyboard.
+    picture = assembled
+    if plan['visual_overlays'] or plan['effect_keyframes']:
+        picture_plan = copy.deepcopy(plan)
+        picture_plan['assets'].append({'id':'rendered_story','type':'video','filename':str(assembled.resolve()),'metadata':probe(assembled)})
+        picture_plan['video_clips'] = [{'id':'rendered','asset_id':'rendered_story','source_in':0,'duration':total,'timeline_start':0}]
+        for key in ('subtitles','text_overlays','audio_tracks','storyboard'):
+            picture_plan[key] = []
+        for key in ('visual_overlays','effect_keyframes'):
+            picture_plan[key] = [{**e,'duration':min(e['duration'],total-e['timeline_start'])} for e in picture_plan[key] if e['timeline_start'] < total-.04]
+        picture_plan['output_settings'].update(width=w,height=h,fit='cover')
+        picture = work_dir/'picture_effects.mp4'
+        cmd,_ = compile_render(picture_plan,asset_dir,work_dir,picture,False)
+        run(cmd,event)
+    ass = work_dir/'storyboard.ass'
+    write_storyboard_ass(ass,plan,w,h)
+    vf = f"subtitles=filename='{filter_path(ass)}':fontsdir='{filter_path(MOTION_DIR/'fonts')}'"
+    run(['ffmpeg','-v','error','-y','-i',str(picture),'-i',str(carrier),'-map','0:v:0','-map','1:a:0',
+         '-vf',vf,'-t',str(total),'-c:v','libx264','-preset','fast','-crf','19','-threads','2',
+         '-pix_fmt','yuv420p','-c:a','copy','-movflags','+faststart',str(output_path)],event)
+    if abs(probe(output_path)['duration']-total) > 1/fps+.02:
+        output_path.unlink(missing_ok=True)
+        raise RuntimeError('MP4 cuối sai thời lượng; không lưu kết quả bị cụt.')
+    return total

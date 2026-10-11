@@ -18,6 +18,7 @@ import json
 import os
 import re
 from pathlib import Path
+from illustrations import draw_graphic
 
 BASE_DIR = Path(__file__).resolve().parent
 LIBRARY_DIR = BASE_DIR / 'data' / 'library'
@@ -90,16 +91,16 @@ class AssetResolver:
         self.work_dir = Path(work_dir)
         self.resolved_log = []
 
-    def resolve_visual(self, query: str = '', role: str = 'illustration', fallback_title: str = '', fallback_badge: str = '', badge_color: str = 'teal') -> dict:
+    def resolve_visual(self, query: str = '', role: str = 'illustration', fallback_title: str = '', fallback_badge: str = '', badge_color: str = 'teal', graphic_kind='auto', graphic_title='', graphic_items=None, visual_asset_id='') -> dict:
         norm_query = normalize_text(query)
         words = set(re.findall(r'\w+', norm_query))
 
         # 1. Search in user-uploaded project assets
         for a in self.project_assets:
-            if a.get('type') in ('image', 'video'):
+            if a.get('type') == 'image':
                 match_target = normalize_text(f"{a.get('original_name', '')} {a.get('keywords', '')}")
                 target_words = set(re.findall(r'\w+', match_target))
-                if words & target_words or (norm_query and norm_query in match_target):
+                if (visual_asset_id and a['id'] == visual_asset_id) or (not visual_asset_id and (words & target_words or (norm_query and norm_query in match_target))):
                     file_path = self.asset_dir / a['filename']
                     if file_path.exists():
                         res = {
@@ -136,6 +137,14 @@ class AssetResolver:
                     self.resolved_log.append(res)
                     return res
 
+        # Approved conceptual graphics can be selected by AI without stock APIs.
+        if graphic_kind in ('chat', 'process', 'network'):
+            path = self.work_dir / f'graphic_{len(self.resolved_log)}.png'
+            draw_graphic(path, graphic_kind, graphic_title or fallback_title, graphic_items)
+            res = {'local_path': str(path), 'source': 'conceptual_graphic', 'license': 'Original generated diagram',
+                   'role': graphic_kind, 'status': 'procedural_fallback', 'media_type': 'image'}
+            self.resolved_log.append(res)
+            return res
         # 3. Procedural SVG Card Fallback (ensures visual presentation never fails or crashes)
         clean_name = re.sub(r'[^\w]+', '_', normalize_text(fallback_title or query or 'card'))[:30]
         proc_path = self.work_dir / f'proc_{clean_name}_{len(self.resolved_log)}.svg'

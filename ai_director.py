@@ -48,6 +48,12 @@ class Sound(Timed):
     volume: float = Field(default=.15, ge=0, le=2.0)
 
 
+class ComparisonColumn(Decision):
+    badge: str = Field(default='', max_length=60)
+    title: str = Field(max_length=100)
+    points: list[str] = Field(default_factory=list, max_length=5)
+
+
 class StoryboardScene(Decision):
     scene_id: str = Field(default_factory=uid)
     source_in: float = Field(default=0, ge=0)
@@ -56,7 +62,7 @@ class StoryboardScene(Decision):
     duration: float = Field(default=1.0, ge=.04)
     transcript_meaning: str = Field(default='', max_length=500)
     scene_type: str = Field(default='talking_head', pattern='^(talking_head|talking_head_pip|explainer_card|comparison|statistic|step_list|broll|cta)$')
-    headline: str = Field(default='', max_length=160)
+    headline: str = Field(default='', max_length=80)
     subheadline: str = Field(default='', max_length=200)
     badge_text: str = Field(default='', max_length=60)
     badge_color: str = Field(default='teal', pattern='^(teal|navy|red)$')
@@ -65,10 +71,18 @@ class StoryboardScene(Decision):
     steps: list[str] = Field(default_factory=list, max_length=10)
     badges: list[str] = Field(default_factory=list, max_length=10)
     asset_query: str = Field(default='', max_length=100)
-    sound_effect: str = Field(default='pop', pattern='^(whoosh|impact|chime|pop|click|none)$')
+    sound_effect: str = Field(default='none', pattern='^(whoosh|impact|chime|pop|click|none)$')
+    sound_volume: float = Field(default=.10, ge=0, le=1)
     animation_in: str = Field(default='pop_in', pattern='^(pop_in|slide_up|fade)$')
     animation_out: str = Field(default='fade', pattern='^(fade|none)$')
     layout_rationale: str = Field(default='', max_length=500)
+    comparison_left: ComparisonColumn | None = None
+    comparison_right: ComparisonColumn | None = None
+    graphic_kind: str = Field(default='auto', pattern='^(auto|chat|process|network)$')
+    graphic_title: str = Field(default='', max_length=60)
+    graphic_items: list[str] = Field(default_factory=list, max_length=5)
+    visual_asset_id: str = Field(default='', max_length=100)
+    visual_source_in: float = Field(default=0, ge=0)
 
 
 class Direction(Decision):
@@ -153,7 +167,7 @@ Return ONLY the required JSON edit decision schema. Make the video highly engagi
 
 EFFECT REGISTRY:
 1. `titles` (Text Overlay): Short punchy text (2-5 words). DO NOT overlap titles (they will collide).
-2. `zooms` (Keyframe): Scale up video (1.0 to 1.5x) to punch-in on key moments. Use subtle (1.1) or dramatic (1.4).
+2. `zooms` (Keyframe): Scale up video (1.0 to 1.2x) to punch-in on key moments.
 3. `illustrations` (PIP/Full Overlay): Add B-roll images/videos. `mode` can be `pip` (picture-in-picture) or `full`.
 4. `sounds` (Audio Track): Supported kinds: `whoosh` (for fast transitions/zooms), `impact` (for heavy titles), `chime` (for positive/insightful moments). Max 4 seconds. Max volume 2.0.
 
@@ -164,6 +178,10 @@ RULES:
 - Never invent spoken words, facts, or assets. Titles MUST paraphrase the transcript.
 - Music is available only when a music_asset_id is supplied. Source captions are remapped automatically (don't output them).
 - summary and warnings must be in Vietnamese.
+- For explainer_ref, return a semantic storyboard covering the ENTIRE output timeline without gaps or overlap. Every scene needs timeline_start and explicit duration. Choose camera, graphics, comparisons or steps from meaning, not a fixed alternating schedule. Keep titles short and faithful to speech. A comparison needs comparison_left and comparison_right (title, badge, points). Never reuse businesses, statistics, phone numbers or CTA from a reference.
+- APPROVED STYLE: vertical 9:16; white explainer cards; teal/navy pills; Barlow Condensed bold headings; Inter captions; preserve the speaker's voice. Use a short scene headline/badge on camera (above the face), then well-paced explainer cutaways. Do not cover every sentence with graphics. Pick scene boundaries from speech, normally 3-8 seconds. End on camera unless speech contains a real CTA.
+- Use graphic_kind=chat for assistants/conversation, process for a sequence of up to 3 ideas, network for distribution/connections; graphic_title and graphic_items must paraphrase the current speech. These are conceptual illustrations, not real product screenshots. Use visual_asset_id only for supplied image/video assets. broll requires visual_asset_id. Do not add unrelated app icons or invent performance metrics.
+- For explainer_ref, put camera titles in scene.headline/badge_text; do not duplicate them in titles. Supported scene animations: pop_in, slide_up, fade, with fade/none on exit. Respect requests for no zoom, no SFX, or a minimal edit.
 '''
 
 
@@ -329,10 +347,10 @@ def build_semantic_storyboard(plan, direction=None, headline=''):
         badges = []
 
         # Check for Ending CTA (last 3-5 seconds of video)
-        if cursor >= total - 4.5 or (num_subs > 0 and sub_idx >= num_subs and cursor >= total - 6.0):
+        if any(k in norm_text for k in ('lưu video', 'theo dõi', 'đăng ký kênh')):
             scene_type = 'cta'
-            headline = 'LƯU VIDEO NÀY LẠI'
-            subheadline = text[:60] if text else 'để biết mình đang lệ thuộc ở đâu'
+            headline = ' '.join(text.split()[:7]).upper()
+            subheadline = ''
             badge_text = 'LƯU Ý QUAN TRỌNG'
             badge_color = 'navy'
             sound_fx = 'chime'
@@ -347,26 +365,27 @@ def build_semantic_storyboard(plan, direction=None, headline=''):
             sound_fx = 'impact'
         # Check for Comparison
         elif any(k in norm_text for k in ('so sánh', 'nội sàn', 'ngoại sàn', 'thay vì', 'hai phần', 'khác nhau', 'hai bên')):
-            scene_type = 'comparison'
-            headline = 'SO SÁNH NỘI SÀN & NGOẠI SÀN'
+            scene_type = 'explainer_card'
+            headline = ' '.join(text.split()[:7]).upper()
+            subheadline = text[:100]
             badge_text = 'PHÂN TÍCH'
             badge_color = 'navy'
             sound_fx = 'whoosh'
         # Check for Steps / Process
         elif any(k in norm_text for k in ('bước', 'thứ nhất', 'thứ hai', 'quy trình', 'muốn bền', 'lưu ý trước')):
             scene_type = 'step_list'
-            headline = 'QUY TRÌNH THỰC HIỆN' if 'quy trình' in norm_text else 'MUỐN BỀN PHẢI CÓ CẢ HAI'
-            steps = ['NỘI SÀN: Review & bằng chứng', 'NGOẠI SÀN: Mở rộng tệp khách']
+            headline = 'Ý CHÍNH CẦN NẮM'
+            steps = [s['text'][:100] for s in scene_subs[:3]]
             badge_text = 'CÁC BƯỚC'
             badge_color = 'teal'
             sound_fx = 'click'
         # Alternating rhythm: Explainer card vs Talking head
-        elif scene_count % 2 == 1:
+        elif any(k in norm_text for k in ('trợ lý', 'thương hiệu', 'thông điệp', 'giải pháp', 'ví dụ')):
             scene_type = 'explainer_card'
             headline = ' '.join(text.split()[:7]).upper() if text else 'Ý CHÍNH CẦN NẮM'
-            badge_text = 'ƯU ĐIỂM NỘI SÀN' if 'sàn' in norm_text else 'ĐIỂM NHẤN'
-            badge_color = 'teal' if scene_count % 4 == 1 else 'red'
-            badges = ['VIDEO', 'LIVESTREAM', 'QUẢNG CÁO']
+            badge_text = 'Ý CHÍNH'
+            badge_color = 'teal'
+            badges = []
             sound_fx = 'pop'
         else:
             scene_type = 'talking_head'
@@ -390,7 +409,7 @@ def build_semantic_storyboard(plan, direction=None, headline=''):
             'stat_label': stat_label,
             'steps': steps,
             'badges': badges,
-            'asset_query': 'shopee' if 'sàn' in norm_text else 'tiktok' if 'tiktok' in norm_text else 'chart',
+            'asset_query': text[:100],
             'sound_effect': sound_fx,
             'animation_in': 'pop_in',
             'animation_out': 'fade',
@@ -408,7 +427,7 @@ def direct(plan, prompt, asset_dir, work, event, music_asset_id='', headline='',
     
     policy_desc = ''
     if duration_policy == 'preserve':
-        policy_desc = 'MUST KEEP ALL ORIGINAL CONTENT (no cuts except removing silence). Output cuts that cover the entire video.'
+        policy_desc = 'MUST KEEP THE ENTIRE INPUT TIMELINE, IN ORIGINAL ORDER. No cuts, no trimming silence. Use cuts=[{start:0,end:input_duration}]. Only decorate the video.'
     elif duration_policy == 'trim_silence':
         policy_desc = 'Cut ONLY silent parts/pauses. Keep all speech intact.'
     elif duration_policy == 'summarize':
@@ -419,6 +438,8 @@ def direct(plan, prompt, asset_dir, work, event, music_asset_id='', headline='',
         style_desc = 'Use lots of zooms, pop-in titles, and heavy sound effects. Very fast-paced.'
     elif visual_style == 'clean_expert':
         style_desc = 'Keep it minimal, clean, professional. Use subtle zooms and gentle chimes. Minimal titles.'
+    elif visual_style == 'explainer_ref':
+        style_desc = 'Use a semantic storyboard: camera intercut with clean white explainer cards, teal/navy badges, motion graphics, and meaning-based SFX. Storyboard is required and must cover the final output duration exactly. Use project visuals or honest conceptual illustrations. Never insert unrelated reference content.'
     else:
         style_desc = 'Professional layout with brand colors. Balanced effects.'
 
@@ -440,10 +461,20 @@ def direct(plan, prompt, asset_dir, work, event, music_asset_id='', headline='',
         raw = chat(messages, event)
         try:
             decision = Direction.model_validate_json(raw)
+            if visual_style == 'explainer_ref' and not decision.storyboard:
+                raise ValueError('explainer_ref requires a complete semantic storyboard with explicit timing; do not substitute fixed effects.')
             result = apply_direction(plan, decision, music_asset_id)
             
             in_dur = length(plan)
             res_dur = length(result)
+            if duration_policy == 'preserve':
+                covered = 0.0
+                for cut in decision.cuts:
+                    if abs(cut.start-covered) > .02:
+                        raise ValueError('preserve requires all input content in original order without gaps or duplicate ranges.')
+                    covered = cut.end
+                if abs(covered-in_dur) > .02:
+                    raise ValueError(f'preserve requires the complete {in_dur}s timeline; do not shorten it.')
 
             # Từ chối mọi kế hoạch làm video dài còn khoảng 1 giây ngoài yêu cầu
             if in_dur >= 5.0 and res_dur <= 1.5 and target_duration > 1.5:

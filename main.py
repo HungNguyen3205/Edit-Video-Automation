@@ -38,6 +38,24 @@ MODEL_LOCK = threading.Lock()
 MAX_UPLOAD = int(os.getenv('MAX_UPLOAD_MB', '500')) * 1024 * 1024
 
 
+def recognition_engine():
+    if importlib.util.find_spec('faster_whisper') is not None:
+        return 'faster_whisper'
+    if importlib.util.find_spec('whisper') is not None:
+        return 'whisper'
+    return ''
+
+
+def motion_health():
+    paths = [os.getenv('CHROME_PATH',''), '/usr/bin/chromium', '/usr/bin/chromium-browser',
+             '/usr/bin/google-chrome', r'C:\Program Files\Google\Chrome\Application\chrome.exe',
+             r'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe',
+             '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome']
+    chrome = any(p and Path(p).is_file() for p in paths)
+    return {'node':bool(shutil.which('node')), 'chrome':chrome,
+            'ready':bool(shutil.which('node')) and chrome}
+
+
 def stamp():
     return datetime.now(timezone.utc).isoformat()
 
@@ -149,7 +167,8 @@ def root():
 
 @app.get('/api/health')
 def health():
-    return {'ffmpeg': bool(shutil.which('ffmpeg')), 'ffprobe': bool(shutil.which('ffprobe')), 'whisper': importlib.util.find_spec('whisper') is not None, 'model': os.getenv('WHISPER_MODEL', 'base'), 'font_file': bool(os.getenv('VIDEO_FONT_FILE')), 'ai': ai_health()}
+    engine = recognition_engine()
+    return {'ffmpeg': bool(shutil.which('ffmpeg')), 'ffprobe': bool(shutil.which('ffprobe')), 'whisper': bool(engine), 'recognition_engine': engine, 'model': os.getenv('WHISPER_MODEL', 'small' if engine=='faster_whisper' else 'base'), 'font_file': bool(os.getenv('VIDEO_FONT_FILE')), 'motion':motion_health(), 'ai': ai_health()}
 
 
 @app.get('/api/projects')
@@ -296,6 +315,7 @@ class Options(BaseModel):
     duration_policy: str = Field('preserve', pattern='^(preserve|trim_silence|summarize)$')
     target_duration: float = Field(0.0, ge=0)
     visual_style: str = Field('clean_expert', pattern='^(clean_expert|dynamic_reels|danava_brand|explainer_ref)$')
+    brand_footer: str = Field('', max_length=100)
 
 
 def job_update(project_id, **changes):
@@ -307,7 +327,8 @@ def job_update(project_id, **changes):
 
 def transcribe(plan, work_dir, project_id):
     global MODEL
-    if importlib.util.find_spec('whisper') is None:
+    engine = recognition_engine()
+    if not engine:
         raise RuntimeError('Chưa cài Whisper. Cài requirements-ai.txt hoặc nhập SRT; có thể tắt phụ đề tự động để dựng hình trước.')
     asset = next(a for a in plan['assets'] if a['id'] == plan['video_clips'][0]['asset_id'])
     if not asset['metadata'].get('has_audio'):
@@ -315,12 +336,27 @@ def transcribe(plan, work_dir, project_id):
     audio = work_dir / 'audio.wav'
     subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', str(ASSETS_DIR / asset['filename']), '-vn', '-ar', '16000', '-ac', '1', str(audio)], check=True, capture_output=True)
     job_update(project_id, phase='Đang tải model/nhận dạng tiếng Việt trên CPU…')
-    import whisper
-    with MODEL_LOCK:
-        if MODEL is None:
-            MODEL = whisper.load_model(os.getenv('WHISPER_MODEL', 'base'), device='cpu')
-    result = MODEL.transcribe(str(audio), language='vi', fp16=False)
-    return [{'id': uid(), 'asset_id': asset['id'], 'start': float(s['start']), 'end': float(s['end']), 'text': s['text'].strip()} for s in result['segments'] if s['text'].strip() and s['end'] > s['start']]
+    if engine == 'faster_whisper':
+        import numpy as np
+        from faster_whisper import WhisperModel
+        with MODEL_LOCK:
+            if MODEL is None:
+                MODEL = WhisperModel(os.getenv('WHISPER_MODEL','small'),device='cpu',compute_type='int8',cpu_threads=4)
+        # FFmpeg decoding avoids differences between PyAV versions.
+        raw = subprocess.run(['ffmpeg','-v','error','-i',str(audio),'-f','f32le','-ac','1','-ar','16000','-'],capture_output=True,check=True).stdout
+        segments,_ = MODEL.transcribe(np.frombuffer(raw,dtype=np.float32),language='vi',beam_size=5,
+                                     word_timestamps=True,initial_prompt=plan.get('brand_footer') or None)
+        result = {'segments':[{'start':s.start,'end':s.end,'text':s.text,
+                    'words':[{'start':w.start,'end':w.end,'word':w.word} for w in (s.words or [])]} for s in segments]}
+    else:
+        import whisper
+        with MODEL_LOCK:
+            if MODEL is None:
+                MODEL = whisper.load_model(os.getenv('WHISPER_MODEL', 'base'), device='cpu')
+        result = MODEL.transcribe(str(audio), language='vi', fp16=False,word_timestamps=True,
+                                  initial_prompt=plan.get('brand_footer') or None)
+    return [{'id': uid(), 'asset_id': asset['id'], 'start': float(s['start']), 'end': float(s['end']),
+             'text': s['text'].strip(),'words':s.get('words',[])} for s in result['segments'] if s['text'].strip() and s['end'] > s['start']]
 
 
 def run_job(project_id, job_id, snapshot, options, mode):
@@ -341,6 +377,9 @@ def run_job(project_id, job_id, snapshot, options, mode):
                         plan['video_clips'] = [{'id': uid(), 'asset_id': main_video['asset_id'], 'source_in': 0, 'source_out': dur, 'duration': dur, 'timeline_start': 0}]
                         for key in ('text_overlays', 'visual_overlays', 'audio_tracks', 'effect_keyframes'):
                             plan[key] = []
+                if mode == 'auto':
+                    plan['brand_footer'] = options.brand_footer
+                    plan['render_profile'] = options.visual_style
                 warnings = []
                 if mode in ('auto', 'transcribe'):
                     if mode == 'transcribe' or (options.transcribe and not plan.get('subtitles')):
@@ -378,7 +417,8 @@ def run_job(project_id, job_id, snapshot, options, mode):
                 output = OUTPUTS_DIR / filename
                 if options.visual_style == 'explainer_ref':
                     job_update(project_id, phase='Đang render Motion Graphics theo video mẫu' if not options.preview else 'Đang render xem thử Motion Graphics', progress=20, warnings=warnings)
-                    duration = compile_storyboard_scenes(plan, ASSETS_DIR, work, output, options.preview, visual_style=options.visual_style)
+                    duration = compile_storyboard_scenes(plan, ASSETS_DIR, work, output, options.preview, visual_style=options.visual_style,
+                        event=event, progress=lambda value: job_update(project_id, progress=value))
                     job_update(project_id, phase='Đang kiểm tra MP4 hoàn chỉnh', progress=95, warnings=warnings)
                 else:
                     cmd, duration = compile_render(plan, ASSETS_DIR, work, output, options.preview, visual_style=options.visual_style)
@@ -461,6 +501,8 @@ def run_job(project_id, job_id, snapshot, options, mode):
 def enqueue(project_id, background_tasks, options, mode):
     if not shutil.which('ffmpeg') or not shutil.which('ffprobe'):
         raise HTTPException(503, 'Cài FFmpeg và FFprobe vào PATH trước khi dựng.')
+    if mode != 'transcribe' and options.visual_style == 'explainer_ref' and not motion_health()['ready']:
+        raise HTTPException(503, 'Phong cách mẫu cần Node.js và Chrome/Chromium. Cài Node, chạy npm install trong motion_engine, đặt CHROME_PATH nếu Chrome ở vị trí khác.')
     if mode == 'auto' and options.planner == 'ai':
         if not options.prompt.strip():
             raise HTTPException(422, 'Nhập yêu cầu dựng video cho AI.')
@@ -475,7 +517,7 @@ def enqueue(project_id, background_tasks, options, mode):
             raise HTTPException(409, 'Dự án đang có tác vụ; hãy đợi hoặc hủy.')
         p['edit_plan'] = check_plan(p['edit_plan'], p['edit_plan']['assets'])
         if mode in ('auto', 'transcribe') and (mode == 'transcribe' or options.transcribe) and not p['edit_plan']['subtitles']:
-            if importlib.util.find_spec('whisper') is None:
+            if not recognition_engine():
                 raise HTTPException(422, 'Chưa cài Whisper. Cài requirements-ai.txt, nhập SRT hoặc tắt phụ đề tự động.')
         identifier = uid()
         p['job'] = {'id': identifier, 'status': 'queued', 'phase': 'Đang chờ worker', 'progress': None, 'error': None, 'warnings': [], 'mode': mode, 'preview': options.preview}

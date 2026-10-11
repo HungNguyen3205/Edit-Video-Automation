@@ -23,8 +23,9 @@ if (!inputPath || !outputPath) {
 }
 
 const sceneData = JSON.parse(fs.readFileSync(inputPath, 'utf-8'));
-const duration = Math.max(0.5, parseFloat(sceneData.duration || 3.0));
-const totalFrames = Math.round(duration * fps);
+const duration = Number(sceneData.duration ?? 3.0);
+if (!Number.isFinite(duration) || duration <= 0) throw new Error('Invalid scene duration');
+const totalFrames = Math.max(1, Math.round(duration * fps));
 
 // Read local font files as base64 for 100% offline determinism
 const fontsDir = path.join(__dirname, 'fonts');
@@ -33,17 +34,21 @@ const barlowExtraBold = fs.readFileSync(path.join(fontsDir, 'BarlowCondensed-Ext
 const interVar = fs.readFileSync(path.join(fontsDir, 'Inter-Variable.ttf')).toString('base64');
 
 function buildHtml(data) {
+  // All AI/user copy is literal text, never HTML or executable markup.
+  const escape = value => typeof value === 'string' ? value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') : value;
+  const clean = value => Array.isArray(value) ? value.map(clean) : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).map(([key, val]) => [key, key.endsWith('_path') ? val : clean(val)])) : escape(value);
+  data = clean(data);
   const type = data.scene_type || 'explainer_card';
   const headline = data.headline || '';
   const subheadline = data.subheadline || '';
   const badgeText = data.badge_text || '';
   const badgeColor = data.badge_color || 'teal'; // teal, navy, red
-  const statNumber = data.stat_number || '90%';
+  const statNumber = data.stat_number || '';
   const statLabel = data.stat_label || '';
   const steps = data.steps || [];
-  const compLeft = data.comparison_left || { badge: 'NỘI SÀN', title: 'ƯU ĐIỂM NỘI SÀN', points: ['Khách rất gần hành vi mua', 'Tỷ lệ chốt đơn cao'] };
-  const compRight = data.comparison_right || { badge: 'NGOẠI SÀN', title: 'ƯU ĐIỂM NGOẠI SÀN', points: ['Chủ động tệp khách riêng', 'Không lệ thuộc sàn'] };
-  const footerText = data.footer || '0786.668.222   tabcomgroup.vn';
+  const compLeft = data.comparison_left || { badge: '', title: '', points: [] };
+  const compRight = data.comparison_right || { badge: '', title: '', points: [] };
+  const footerText = data.footer || '';
 
   // Helper for image src: convert local path to base64 if exists
   function getImgSrc(p) {
@@ -91,7 +96,7 @@ function buildHtml(data) {
       ${headline ? `<div class="headline anim-headline">${headline}</div>` : '<div class="headline anim-headline">SO SÁNH BỐ CỤC</div>'}
       <div class="comparison-container anim-card">
         <div class="comp-col left">
-          <div class="badge badge-teal">${compLeft.badge || 'NỘI SÀN'}</div>
+          <div class="badge badge-teal">${compLeft.badge || 'LỰA CHỌN A'}</div>
           <div class="comp-title">${compLeft.title || ''}</div>
           ${leftImgSrc ? `<img src="${leftImgSrc}" class="comp-img" />` : ''}
           <div class="comp-points">
@@ -99,7 +104,7 @@ function buildHtml(data) {
           </div>
         </div>
         <div class="comp-col right">
-          <div class="badge badge-navy">${compRight.badge || 'NGOẠI SÀN'}</div>
+          <div class="badge badge-navy">${compRight.badge || 'LỰA CHỌN B'}</div>
           <div class="comp-title">${compRight.title || ''}</div>
           ${rightImgSrc ? `<img src="${rightImgSrc}" class="comp-img" />` : ''}
           <div class="comp-points">
@@ -115,7 +120,7 @@ function buildHtml(data) {
       <div class="stat-label anim-headline">${statLabel || headline}</div>
       <div class="card stat-card anim-card">
         ${assetSrc ? `<img src="${assetSrc}" class="card-img" />` : `
-          <div class="stat-desc">${subheadline || 'Chỉ số quan trọng tác động trực tiếp đến hiệu quả kinh doanh và khả năng mở rộng.'}</div>
+          <div class="stat-desc">${subheadline}</div>
         `}
       </div>
     `;
@@ -145,7 +150,7 @@ function buildHtml(data) {
         ${headline || 'LƯU VIDEO NÀY LẠI'}
       </div>
       <div class="cta-sub anim-sub">
-        ${subheadline || 'để biết mình đang lệ thuộc ở đâu'}
+        ${subheadline}
       </div>
     `;
   } else if (type === 'talking_head_pip') {
@@ -190,8 +195,8 @@ function buildHtml(data) {
       body {
         margin: 0;
         padding: 0;
-        width: ${width}px;
-        height: ${height}px;
+        width: 720px;
+        height: 1280px;
         background: #FFFFFF;
         font-family: 'Barlow Condensed', sans-serif;
         overflow: hidden;
@@ -235,7 +240,7 @@ function buildHtml(data) {
 
       /* Headlines */
       .headline {
-        font-size: 44px;
+        font-size: 60px;
         font-weight: 800;
         color: #1E293B;
         text-transform: uppercase;
@@ -495,8 +500,7 @@ function buildHtml(data) {
       ${sceneContent}
     </div>
     <div class="footer">
-      <span>📞 ${footerText.split(' ')[0]}</span>
-      <span>${footerText.split(' ').slice(1).join(' ')}</span>
+      <span>${footerText}</span>
     </div>
   </body>
   </html>
@@ -504,16 +508,21 @@ function buildHtml(data) {
 }
 
 async function render() {
+  const candidates = [process.env.CHROME_PATH, '/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome', 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', 'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'];
+  const chromePath = candidates.find(p => p && fs.existsSync(p));
+  if (!chromePath) throw new Error('Không tìm thấy Chrome/Chromium. Cài trình duyệt hoặc đặt CHROME_PATH tới executable.');
   const browser = await puppeteer.launch({
-    executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    executablePath: chromePath,
     headless: 'new',
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu']
   });
 
   const page = await browser.newPage();
-  await page.setViewport({ width, height, deviceScaleFactor: 1 });
+  // The same design coordinates keep preview and export layouts identical.
+  await page.setViewport({ width: 720, height: 1280, deviceScaleFactor: 1 });
   const html = buildHtml(sceneData);
   await page.setContent(html, { waitUntil: 'load' });
+  await page.evaluate(() => document.fonts.ready);
 
   const ffmpeg = spawn('ffmpeg', [
     '-y',
@@ -521,16 +530,20 @@ async function render() {
     '-vcodec', 'png',
     '-r', fps.toString(),
     '-i', '-',
+    '-vf', `scale=${width}:${height}`,
     '-c:v', 'libx264',
     '-pix_fmt', 'yuv420p',
     '-preset', 'ultrafast',
+    '-threads', '2',
+    '-movflags', '+faststart',
     outputPath
   ]);
 
   for (let f = 0; f < totalFrames; f++) {
     const t = f / fps; // current timestamp in seconds
     // Calculate smooth spring/ease animations
-    await page.evaluate((currTime) => {
+    await page.evaluate((cfg) => {
+      const currTime = cfg.time;
       // Badge pop-in: 0.0s -> 0.35s
       const badgeT = Math.min(1, Math.max(0, currTime / 0.35));
       const badgeScale = badgeT < 1 ? 0.7 + 0.35 * Math.sin(badgeT * Math.PI) : 1;
@@ -553,6 +566,11 @@ async function render() {
       const stagT = Math.min(1, Math.max(0, (currTime - 0.5) / 0.4));
       document.body.style.setProperty('--ty-stagger', `${(1 - stagT) * 20}px`);
       document.body.style.setProperty('--op-stagger', stagT);
+      document.querySelectorAll('.anim-stagger').forEach((el, index) => {
+        const t = Math.min(1, Math.max(0, (currTime - 0.5 - index * 0.18) / 0.4));
+        el.style.opacity = t;
+        el.style.transform = `translateY(${(1-t)*20}px)`;
+      });
 
       // Subtext fade
       const subT = Math.min(1, Math.max(0, (currTime - 0.6) / 0.4));
@@ -562,10 +580,18 @@ async function render() {
       const statT = Math.min(1, Math.max(0, (currTime - 0.2) / 0.4));
       document.body.style.setProperty('--scale-stat', statT < 1 ? 0.8 + 0.25 * Math.sin(statT * Math.PI) : 1);
       document.body.style.setProperty('--op-stat', statT);
-    }, t);
+      if (cfg.animation === 'fade' || cfg.animation === 'slide_up') {
+        const entry = Math.min(1, currTime / .45);
+        for (const el of document.querySelectorAll('.anim-badge, .anim-card, .anim-headline, .anim-stat, .anim-sub')) {
+          el.style.opacity = entry;
+          el.style.transform = cfg.animation === 'slide_up' ? `translateY(${(1-entry)*28}px)` : 'none';
+        }
+      }
+      document.querySelector('.main-content').style.opacity = cfg.exit === 'fade' ? Math.min(1, Math.max(0, (cfg.duration-currTime)/.18)) : 1;
+    }, {time: t, animation: sceneData.animation_in || 'pop_in', exit: sceneData.animation_out || 'none', duration});
 
     const buffer = await page.screenshot({ type: 'png' });
-    ffmpeg.stdin.write(buffer);
+    if (!ffmpeg.stdin.write(buffer)) await new Promise(resolve => ffmpeg.stdin.once('drain', resolve));
   }
 
   ffmpeg.stdin.end();

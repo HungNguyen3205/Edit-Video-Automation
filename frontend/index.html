@@ -111,13 +111,13 @@
                 <textarea id="edit-prompt" rows="4" maxlength="4000" style="width: 100%; resize: vertical; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; font-size: 14px; background: #fff;" placeholder="Ví dụ: Dựng video này thật cuốn hút cho Reels. Mở đầu hấp dẫn, bỏ khoảng im lặng dài, zoom ở ý quan trọng, thêm chữ ngắn, âm thanh nhấn và nhạc nền nhỏ. Giữ đúng nội dung lời nói."></textarea>
                 <div style="display: flex; gap: 10px; margin-top: 12px; align-items: center; flex-wrap: wrap;">
                   <select id="visual-style" style="padding: 6px; border-radius: 4px; border: 1px solid #7c3aed; font-size: 13px; font-weight: bold; color: #0d9488; background: #f0fdfa;">
-                    <option value="explainer_ref" selected>✨ Explainer theo video mẫu (Claude Edit - Thẻ trắng & Bố cục phân cấp)</option>
+                    <option value="explainer_ref" selected>DANAVA — phong cách mẫu đã duyệt</option>
                     <option value="clean_expert">Clean Expert (Gọn gàng, tinh tế)</option>
                     <option value="dynamic_reels">Dynamic Reels (Năng động, nhanh)</option>
                     <option value="danava_brand">DANAVA Brand (Màu thương hiệu)</option>
                   </select>
                   <select id="duration-policy" style="padding: 6px; border-radius: 4px; border: 1px solid #ddd; font-size: 13px;">
-                    <option value="preserve">Giữ nội dung (Chỉ cắt khoảng lặng)</option>
+                    <option value="preserve">Giữ toàn bộ nội dung</option>
                     <option value="trim_silence">Bỏ im lặng (Cắt triệt để)</option>
                     <option value="summarize">Tóm tắt (Cắt gọt mạnh tay)</option>
                   </select>
@@ -130,12 +130,17 @@
                 </div>
                 <div style="display: flex; gap: 10px; margin-top: 12px; align-items: center; flex-wrap: wrap;">
                   <button type="button" class="secondary small" id="prompt-example" style="background: transparent; border: 1px solid #ddd; color: #555; white-space: nowrap;">Dùng prompt gợi ý</button>
+                  <button type="button" class="secondary small" id="approved-style">Dùng mẫu đã duyệt</button>
                   <p id="ai-note" class="notice" style="margin: 0; padding: 0; flex: 1 1 200px; background: transparent; border: none; font-size: 13px; color: #64748b; min-width: 200px;"></p>
                   <button type="button" id="btn-ai-preview" class="secondary" style="background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 16px; font-weight: 600; cursor: pointer; white-space: nowrap;">AI dựng thử 12 giây</button>
                   <button type="button" id="btn-auto-edit" class="primary" style="background: #7c3aed; color: #fff; border: none; border-radius: 6px; padding: 8px 16px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; white-space: nowrap;">
                     <i data-lucide="wand-2"></i>AI dựng & xuất video
                   </button>
                 </div>
+                <label style="display: block; margin-top: 12px;">Dòng thương hiệu (tùy chọn)
+                  <input id="brand-footer" maxlength="100" placeholder="Ví dụ: DANAVA SOLUTIONS" style="width: 100%; padding: 8px; margin-top: 4px;">
+                </label>
+                <p class="notice">AI chọn cảnh theo lời thoại và prompt. Có thể tải thêm ảnh thật hoặc nhạc; khi thiếu ảnh, tool dùng đồ họa minh họa.</p>
               </div>
             </section>
             <section class="panel viewer-panel">

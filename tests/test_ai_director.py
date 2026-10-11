@@ -78,7 +78,7 @@ def test_director_repairs_invalid_response_and_passes_prompt_context(media, tmp_
         messages_seen.append(copy.deepcopy(messages))
         return responses.pop(0)
     monkeypatch.setattr(ai_director, 'chat', reply)
-    result = direct(p['edit_plan'], 'Làm wow, nhấn ý chính', __import__('main').ASSETS_DIR, tmp_path, threading.Event())
+    result = direct(p['edit_plan'], 'Làm wow, nhấn ý chính', __import__('main').ASSETS_DIR, tmp_path, threading.Event(), duration_policy='trim_silence')
     assert len(messages_seen) == 2
     assert 'Repair' in messages_seen[1][-1]['content']
     assert json.loads(messages_seen[0][1]['content'])['brief'] == 'Làm wow, nhấn ý chính'

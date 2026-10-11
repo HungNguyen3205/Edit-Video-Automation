@@ -123,6 +123,14 @@ def validate(plan, trusted_assets):
         finite(sub.get('end'), sub['start'] + .001, 86400, 'Phụ đề kết thúc')
         if not isinstance(sub.get('text'), str) or len(sub['text']) > 2000:
             raise ValueError('Nội dung phụ đề không hợp lệ.')
+        words=sub.get('words',[])
+        if not isinstance(words,list) or len(words)>1000:
+            raise ValueError('Timestamp từ không hợp lệ.')
+        for word in words:
+            finite(word.get('start'),0,86400,'Điểm đầu từ')
+            finite(word.get('end'),word['start'],86400,'Điểm cuối từ')
+            if not isinstance(word.get('word'),str) or len(word['word'])>100:
+                raise ValueError('Chữ trong timestamp từ không hợp lệ.')
     for key in ('text_overlays', 'visual_overlays', 'effect_keyframes'):
         for item in p[key]:
             finite(item.get('timeline_start'), 0, max(0, cursor - .001), 'Thời gian hiệu ứng')
@@ -169,9 +177,69 @@ def validate(plan, trusted_assets):
             raise ValueError('Hiệu ứng âm thanh chỉ hỗ trợ whoosh/impact/chime/pop/click, tối đa 4 giây.')
     finite(settings.get('source_volume', 1), 0, 1.5, 'Âm lượng tiếng gốc')
     storyboard = p.setdefault('storyboard', [])
+    if not isinstance(p.get('brand_footer',''),str) or len(p.get('brand_footer',''))>100:
+        raise ValueError('Dòng thương hiệu cần tối đa 100 ký tự.')
+    if not isinstance(storyboard, list) or len(storyboard) > 200:
+        raise ValueError('Storyboard cần tối đa 200 cảnh.')
+    scene_cursor = 0.0
+    normalized = []
     for sc in storyboard:
         sc.setdefault('scene_id', uid())
         sc.setdefault('scene_type', 'talking_head')
+        if sc['scene_type'] not in ('talking_head', 'talking_head_pip', 'explainer_card', 'comparison', 'statistic', 'step_list', 'broll', 'cta'):
+            raise ValueError('Loại cảnh không hợp lệ.')
+        finite(sc.get('duration'), .04, cursor, 'Thời lượng cảnh')
+        finite(sc.get('timeline_start'), 0, cursor, 'Điểm đầu cảnh')
+        for key, limit in [('headline',80),('subheadline',200),('badge_text',60),('graphic_title',60),('stat_number',30),('stat_label',100)]:
+            if not isinstance(sc.get(key,''),str) or len(sc.get(key,'')) > limit:
+                raise ValueError(f'{key}: nội dung quá dài hoặc không hợp lệ.')
+        if sc.get('graphic_kind','auto') not in ('auto','chat','process','network'):
+            raise ValueError('Loại minh họa không hợp lệ.')
+        for key, count in [('graphic_items',5),('steps',10),('badges',10)]:
+            values = sc.get(key,[])
+            if not isinstance(values,list) or len(values)>count or any(not isinstance(v,str) or len(v)>120 for v in values):
+                raise ValueError(f'{key}: cần danh sách chữ ngắn.')
+        if sc.get('sound_effect','none') not in ('none','pop','whoosh','impact','chime','click'):
+            raise ValueError('Âm thanh cảnh không hợp lệ.')
+        finite(sc.get('sound_volume',.10),0,1,'Âm lượng cảnh')
+        if sc.get('animation_in','pop_in') not in ('pop_in','slide_up','fade') or sc.get('animation_out','none') not in ('fade','none'):
+            raise ValueError('Chuyển động cảnh không hợp lệ.')
+        visual = assets.get(sc.get('visual_asset_id'))
+        if sc.get('visual_asset_id') and (not visual or visual['type'] not in ('image','video')):
+            raise ValueError('Minh họa cảnh phải thuộc dự án.')
+        if sc['scene_type']=='broll' and not visual:
+            raise ValueError('B-roll cần visual_asset_id của ảnh/video dự án.')
+        if visual and visual['type']=='video':
+            source_in = sc.get('visual_source_in',0)
+            finite(source_in,0,visual['metadata']['duration']-.001,'Điểm đầu minh họa cảnh')
+            if sc['scene_type']=='broll' and source_in+sc['duration']>visual['metadata']['duration']+.02:
+                raise ValueError('B-roll vượt thời lượng tài nguyên.')
+        if sc['scene_type']=='comparison':
+            for key in ('comparison_left','comparison_right'):
+                col=sc.get(key)
+                if not isinstance(col,dict) or not isinstance(col.get('title'),str) or not 1<=len(col['title'])<=100:
+                    raise ValueError('So sánh cần tiêu đề thật cho cả hai cột.')
+                points=col.get('points',[])
+                if not isinstance(points,list) or len(points)>5 or any(not isinstance(pt,str) or len(pt)>120 for pt in points):
+                    raise ValueError('Các ý so sánh phải là chữ ngắn.')
+        if abs(sc['timeline_start'] - scene_cursor) > .02:
+            raise ValueError('Storyboard có khoảng trống hoặc cảnh chồng nhau.')
+        end = scene_cursor + sc['duration']
+        # Output timeline is authoritative; split at cut boundaries and map to
+        # the correct source instead of trusting model-generated source times.
+        for c in p['video_clips']:
+            lo = max(scene_cursor, c['timeline_start'])
+            hi = min(end, c['timeline_start'] + c['duration'])
+            if hi > lo + .000001:
+                source_in = c['source_in'] + lo - c['timeline_start']
+                normalized.append({**sc, 'scene_id': f"{sc['scene_id']}_{len(normalized)}",
+                                   'timeline_start': lo, 'duration': hi-lo,
+                                   'asset_id': c['asset_id'], 'source_in': source_in,
+                                   'source_out': source_in + hi-lo})
+        scene_cursor = end
+    if storyboard and abs(scene_cursor - cursor) > .02:
+        raise ValueError(f'Storyboard dài {scene_cursor:.2f}s, timeline dài {cursor:.2f}s. Phải phủ toàn bộ timeline.')
+    p['storyboard'] = normalized
     return p
 
 
@@ -184,7 +252,15 @@ def mapped_subtitles(plan):
             start = max(sub['start'], clip['source_in'])
             end = min(sub['end'], clip['source_in'] + clip['duration'])
             if end > start:
-                result.append({**sub, 'start': start - clip['source_in'] + clip['timeline_start'], 'end': end - clip['source_in'] + clip['timeline_start']})
+                offset=clip['timeline_start']-clip['source_in']
+                mapped={**sub,'start':start+offset,'end':end+offset}
+                if sub.get('words'):
+                    mapped['words']=[{**w,'start':max(start,w['start'])+offset,'end':min(end,w['end'])+offset}
+                                     for w in sub['words'] if w['end']>start and w['start']<end and w['end']>w['start']]
+                    # After cuts, use only words that survive on that clip.
+                    if start>sub['start'] or end<sub['end']:
+                        mapped['text']=''.join(w['word'] for w in mapped['words']).strip()
+                result.append(mapped)
     return sorted(result, key=lambda x: x['start'])
 
 
