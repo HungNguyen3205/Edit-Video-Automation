@@ -1,0 +1,18 @@
+{
+  "scene_type": "comparison",
+  "duration": 1.5,
+  "headline": "SO SÁNH NỘI SÀN VÀ NGOẠI SÀN",
+  "comparison_left": {
+    "badge": "NỘI SÀN",
+    "title": "TIKTOK / SHOPEE",
+    "image_path": "d:/NamHung/Projects/Code/Edit Video/AutoVideoEditor/data/library/shopee.svg",
+    "points": ["Khách rất gần hành vi mua", "Chốt đơn tức thì", "Traffic sẵn có"]
+  },
+  "comparison_right": {
+    "badge": "NGOẠI SÀN",
+    "title": "FACEBOOK / WEB",
+    "image_path": "d:/NamHung/Projects/Code/Edit Video/AutoVideoEditor/data/library/facebook.svg",
+    "points": ["Chủ động tệp khách riêng", "Không lo sàn đổi thuật toán", "Giá trị vòng đời cao"]
+  },
+  "footer": "0786.668.222 tabcomgroup.vn"
+}

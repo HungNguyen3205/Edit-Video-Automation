@@ -45,7 +45,7 @@ def get_result(p, endpoint='export', **options):
     response = client.post(f'/api/projects/{p["id"]}/{endpoint}', json=options)
     assert response.status_code == 200, response.text
     latest = client.get(f'/api/projects/{p["id"]}').json()
-    assert latest['job']['status'] == 'succeeded', latest['job']
+    assert latest['job']['status'] == 'succeeded', latest['job'].get('error') or latest['job']
     return latest, main.OUTPUTS_DIR / Path(latest['preview_path' if options.get('preview') else 'output_path']).name
 
 

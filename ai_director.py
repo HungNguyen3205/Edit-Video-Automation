@@ -44,8 +44,31 @@ class Illustration(Timed):
 
 
 class Sound(Timed):
-    kind: str = Field(pattern='^(whoosh|impact|chime)$')
+    kind: str = Field(pattern='^(whoosh|impact|chime|pop|click)$')
     volume: float = Field(default=.15, ge=0, le=2.0)
+
+
+class StoryboardScene(Decision):
+    scene_id: str = Field(default_factory=uid)
+    source_in: float = Field(default=0, ge=0)
+    source_out: float = Field(default=0, ge=0)
+    timeline_start: float = Field(default=0, ge=0)
+    duration: float = Field(default=1.0, ge=.04)
+    transcript_meaning: str = Field(default='', max_length=500)
+    scene_type: str = Field(default='talking_head', pattern='^(talking_head|talking_head_pip|explainer_card|comparison|statistic|step_list|broll|cta)$')
+    headline: str = Field(default='', max_length=160)
+    subheadline: str = Field(default='', max_length=200)
+    badge_text: str = Field(default='', max_length=60)
+    badge_color: str = Field(default='teal', pattern='^(teal|navy|red)$')
+    stat_number: str = Field(default='', max_length=30)
+    stat_label: str = Field(default='', max_length=100)
+    steps: list[str] = Field(default_factory=list, max_length=10)
+    badges: list[str] = Field(default_factory=list, max_length=10)
+    asset_query: str = Field(default='', max_length=100)
+    sound_effect: str = Field(default='pop', pattern='^(whoosh|impact|chime|pop|click|none)$')
+    animation_in: str = Field(default='pop_in', pattern='^(pop_in|slide_up|fade)$')
+    animation_out: str = Field(default='fade', pattern='^(fade|none)$')
+    layout_rationale: str = Field(default='', max_length=500)
 
 
 class Direction(Decision):
@@ -56,6 +79,7 @@ class Direction(Decision):
     zooms: list[Zoom] = Field(default_factory=list, max_length=60)
     illustrations: list[Illustration] = Field(default_factory=list, max_length=60)
     sounds: list[Sound] = Field(default_factory=list, max_length=60)
+    storyboard: list[StoryboardScene] = Field(default_factory=list, max_length=60)
     music_volume: float = Field(default=.12, ge=0, le=1.0)
     source_volume: float = Field(default=1, ge=0, le=2.0)
 
@@ -213,6 +237,17 @@ def apply_direction(plan, direction, music_asset_id=''):
                     kept.append(rebased)
         p[key] = kept
     out_len = length(p)
+    for t in direction.titles:
+        if t.start + t.duration > out_len + 0.05:
+            raise ValueError('AI đặt tiêu đề chữ vượt quá thời lượng video.')
+    for s in direction.sounds:
+        if s.duration > 4.0:
+            raise ValueError('Âm thanh hiệu ứng không được dài quá 4 giây.')
+        if s.start + s.duration > out_len + 0.05:
+            raise ValueError('AI đặt âm thanh vượt quá thời lượng video.')
+    for z in direction.zooms:
+        if z.start + z.duration > out_len + 0.05:
+            raise ValueError('AI đặt hiệu ứng zoom vượt quá thời lượng video.')
     def timed(item):
         start = max(0.0, min(item.start, max(0.0, out_len - 0.04)))
         dur = max(0.04, min(item.duration, out_len - start))
@@ -227,9 +262,145 @@ def apply_direction(plan, direction, music_asset_id=''):
                                   'timeline_start': 0, 'duration': length(p), 'source_in': 0,
                                   'volume': direction.music_volume, 'loop': True})
     p['output_settings']['source_volume'] = direction.source_volume
+
+    # Build semantic storyboard matching the reference video style
+    if direction.storyboard:
+        p['storyboard'] = [sc.model_dump() if hasattr(sc, 'model_dump') else dict(sc) for sc in direction.storyboard]
+    else:
+        p['storyboard'] = build_semantic_storyboard(p, direction)
+
     p['director'] = {'engine': 'ollama', 'model': model_name(), 'summary': direction.summary,
                      'warnings': direction.warnings}
     return validate(p, plan['assets'])
+
+
+def build_semantic_storyboard(plan, direction=None, headline=''):
+    """Build a structured storyboard by speech meaning, matching the reference video style."""
+    clips = plan.get('video_clips', [])
+    subs = mapped_subtitles(plan)
+    if not clips:
+        return []
+
+    total = length(plan)
+    scenes = []
+    cursor = 0.0
+    sub_idx = 0
+    num_subs = len(subs)
+    scene_count = 0
+
+    while cursor < total - 0.25:
+        scene_start = cursor
+        target_end = min(total, scene_start + 4.5)
+
+        scene_subs = []
+        while sub_idx < num_subs and subs[sub_idx]['start'] < target_end + 0.8:
+            scene_subs.append(subs[sub_idx])
+            target_end = subs[sub_idx]['end']
+            sub_idx += 1
+            if target_end - scene_start >= 3.2:
+                break
+
+        # If remaining time until total is small (< 1.5s), merge into current scene
+        if total - target_end < 1.5:
+            target_end = total
+
+        target_end = min(total, max(scene_start + 0.4, target_end))
+        duration = target_end - scene_start
+
+        src_in = 0.0
+        for c in clips:
+            if c['timeline_start'] <= scene_start < c['timeline_start'] + c['duration']:
+                src_in = c['source_in'] + (scene_start - c['timeline_start'])
+                break
+        src_out = src_in + duration
+
+        text = ' '.join(s['text'] for s in scene_subs).strip()
+        norm_text = text.lower()
+
+        scene_type = 'talking_head'
+        badge_text = ''
+        badge_color = 'teal'
+        headline = ''
+        subheadline = ''
+        stat_num = ''
+        stat_label = ''
+        sound_fx = 'pop'
+        steps = []
+        badges = []
+
+        # Check for Ending CTA (last 3-5 seconds of video)
+        if cursor >= total - 4.5 or (num_subs > 0 and sub_idx >= num_subs and cursor >= total - 6.0):
+            scene_type = 'cta'
+            headline = 'LƯU VIDEO NÀY LẠI'
+            subheadline = text[:60] if text else 'để biết mình đang lệ thuộc ở đâu'
+            badge_text = 'LƯU Ý QUAN TRỌNG'
+            badge_color = 'navy'
+            sound_fx = 'chime'
+        # Check for Number / Statistics (e.g. 90%, 30 ngày, 2 triệu, x10)
+        elif re.search(r'(\d+[\s]*(%|phần trăm|ngày|triệu|k|lần|x|gấp))', norm_text):
+            match = re.search(r'(\d+[\s]*(%|phần trăm|ngày|triệu|k|lần|x|gấp))', norm_text)
+            scene_type = 'statistic'
+            stat_num = match.group(1).upper()
+            stat_label = text[:40].upper() if text else 'SỐ LIỆU ĐÁNG CHÚ Ý'
+            badge_text = 'SỐ LIỆU QUAN TRỌNG'
+            badge_color = 'teal'
+            sound_fx = 'impact'
+        # Check for Comparison
+        elif any(k in norm_text for k in ('so sánh', 'nội sàn', 'ngoại sàn', 'thay vì', 'hai phần', 'khác nhau', 'hai bên')):
+            scene_type = 'comparison'
+            headline = 'SO SÁNH NỘI SÀN & NGOẠI SÀN'
+            badge_text = 'PHÂN TÍCH'
+            badge_color = 'navy'
+            sound_fx = 'whoosh'
+        # Check for Steps / Process
+        elif any(k in norm_text for k in ('bước', 'thứ nhất', 'thứ hai', 'quy trình', 'muốn bền', 'lưu ý trước')):
+            scene_type = 'step_list'
+            headline = 'QUY TRÌNH THỰC HIỆN' if 'quy trình' in norm_text else 'MUỐN BỀN PHẢI CÓ CẢ HAI'
+            steps = ['NỘI SÀN: Review & bằng chứng', 'NGOẠI SÀN: Mở rộng tệp khách']
+            badge_text = 'CÁC BƯỚC'
+            badge_color = 'teal'
+            sound_fx = 'click'
+        # Alternating rhythm: Explainer card vs Talking head
+        elif scene_count % 2 == 1:
+            scene_type = 'explainer_card'
+            headline = ' '.join(text.split()[:7]).upper() if text else 'Ý CHÍNH CẦN NẮM'
+            badge_text = 'ƯU ĐIỂM NỘI SÀN' if 'sàn' in norm_text else 'ĐIỂM NHẤN'
+            badge_color = 'teal' if scene_count % 4 == 1 else 'red'
+            badges = ['VIDEO', 'LIVESTREAM', 'QUẢNG CÁO']
+            sound_fx = 'pop'
+        else:
+            scene_type = 'talking_head'
+            badge_text = 'NỘI SÀN' if 'nội sàn' in norm_text else 'NGOẠI SÀN' if 'ngoại sàn' in norm_text else ''
+            badge_color = 'teal'
+            sound_fx = 'none'
+
+        scenes.append({
+            'scene_id': f'scene_{scene_count+1}',
+            'source_in': round(src_in, 2),
+            'source_out': round(src_out, 2),
+            'timeline_start': round(scene_start, 2),
+            'duration': round(duration, 2),
+            'transcript_meaning': text or 'Nội dung chia sẻ của người nói',
+            'scene_type': scene_type,
+            'headline': headline,
+            'subheadline': subheadline,
+            'badge_text': badge_text,
+            'badge_color': badge_color,
+            'stat_number': stat_num,
+            'stat_label': stat_label,
+            'steps': steps,
+            'badges': badges,
+            'asset_query': 'shopee' if 'sàn' in norm_text else 'tiktok' if 'tiktok' in norm_text else 'chart',
+            'sound_effect': sound_fx,
+            'animation_in': 'pop_in',
+            'animation_out': 'fade',
+            'layout_rationale': f'Bố cục {scene_type} được chọn theo ngữ nghĩa: "{text[:50]}"'
+        })
+
+        cursor = target_end
+        scene_count += 1
+
+    return scenes
 
 
 def direct(plan, prompt, asset_dir, work, event, music_asset_id='', headline='', duration_policy='preserve', target_duration=0.0, visual_style='clean_expert'):
@@ -271,13 +442,23 @@ def direct(plan, prompt, asset_dir, work, event, music_asset_id='', headline='',
             decision = Direction.model_validate_json(raw)
             result = apply_direction(plan, decision, music_asset_id)
             
-            # Validation mạnh tay hơn với thời lượng
-            if duration_policy == 'preserve' and length(result) < length(plan) * 0.9:
-                raise ValueError(f"CRITICAL ERROR: 'preserve' policy requires keeping the ENTIRE video. Input is {length(plan)}s, but you output {length(result)}s. You MUST output cuts that cover the full {length(plan)}s.")
-            elif duration_policy == 'trim_silence' and length(result) < length(plan) * 0.4:
-                raise ValueError(f"Error: You deleted too much content. Only cut true silence. Input is {length(plan)}s, output is {length(result)}s.")
-            elif length(result) < 3.0 and length(plan) > 10.0:
-                raise ValueError(f"Error: Result duration is {length(result)}s. Too short! Must be at least 3 seconds.")
+            in_dur = length(plan)
+            res_dur = length(result)
+
+            # Từ chối mọi kế hoạch làm video dài còn khoảng 1 giây ngoài yêu cầu
+            if in_dur >= 5.0 and res_dur <= 1.5 and target_duration > 1.5:
+                raise ValueError(f"Kế hoạch AI bị từ chối: video xuất bị cắt còn {res_dur}s (dưới 1.5 giây ngoài yêu cầu).")
+
+            if in_dur > 5.0:
+                if duration_policy == 'preserve' and res_dur < in_dur * 0.85:
+                    raise ValueError(f"CRITICAL ERROR: 'preserve' policy requires keeping the ENTIRE video. Input is {in_dur}s, but you output {res_dur}s. You MUST output cuts that cover the full {in_dur}s.")
+                elif duration_policy == 'trim_silence' and res_dur < in_dur * 0.4:
+                    raise ValueError(f"Error: You deleted too much content. Only cut true silence. Input is {in_dur}s, output is {res_dur}s.")
+                elif duration_policy == 'summarize' and target_duration > 0:
+                    if abs(res_dur - target_duration) > max(5.0, target_duration * 0.3):
+                        raise ValueError(f"AI cắt video chưa khớp thời lượng mục tiêu ({res_dur}s so với mục tiêu {target_duration}s).")
+            elif res_dur < 1.0 and in_dur >= 2.0:
+                raise ValueError(f"Thời lượng kết quả quá ngắn ({res_dur}s).")
             
             # Kiểm tra chất lượng: Không chồng lớp chữ
             title_times = []

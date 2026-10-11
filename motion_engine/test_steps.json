@@ -1,0 +1,11 @@
+{
+  "scene_type": "step_list",
+  "duration": 1.5,
+  "headline": "MUỐN BỀN PHẢI CÓ CẢ HAI",
+  "steps": [
+    { "badge": "NỘI SÀN", "note": "Tối ưu review & bằng chứng" },
+    { "badge": "NGOẠI SÀN", "note": "Chốt được đơn rồi mới mở rộng" }
+  ],
+  "warning_badge": "SHOP MỚI: LO NỘI SÀN TRƯỚC",
+  "footer": "0786.668.222 tabcomgroup.vn"
+}

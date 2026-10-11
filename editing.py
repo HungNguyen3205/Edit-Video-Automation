@@ -59,6 +59,13 @@ def synth_sound(path, kind, duration):
             value = rng.uniform(-1, 1) * math.sin(math.pi * phase) ** 2 * .6
         elif kind == 'impact':
             value = (math.sin(2 * math.pi * (65*t + 25*t*t)) + .25*rng.uniform(-1, 1)) * math.exp(-10*phase) * .65
+        elif kind == 'pop':
+            freq = 900 * math.exp(-18 * phase) + 200
+            env = math.exp(-22 * phase) * min(1.0, t / 0.003)
+            value = math.sin(2 * math.pi * freq * t) * env * 0.75
+        elif kind == 'click':
+            env = math.exp(-60 * phase) * min(1.0, t / 0.001)
+            value = (math.sin(2 * math.pi * 2400 * t) + 0.3 * rng.uniform(-1, 1)) * env * 0.7
         else:
             value = (math.sin(2*math.pi*880*t) + .4*math.sin(2*math.pi*1320*t)) * math.exp(-5*phase) * .45
         value *= min(1, t / .01, (duration-t) / .02)
@@ -158,9 +165,13 @@ def validate(plan, trusted_assets):
                 raise ValueError('Lặp nhạc phải là boolean.')
             if not track.get('loop', True) and track.get('source_in', 0) + track['duration'] > a['metadata']['duration'] + .02:
                 raise ValueError('Nhạc vượt thời lượng nguồn.')
-        elif track.get('kind') not in ('whoosh', 'impact', 'chime') or track['duration'] > 4:
-            raise ValueError('Hiệu ứng âm thanh chỉ hỗ trợ whoosh/impact/chime, tối đa 4 giây.')
+        elif track.get('kind') not in ('whoosh', 'impact', 'chime', 'pop', 'click') or track['duration'] > 4:
+            raise ValueError('Hiệu ứng âm thanh chỉ hỗ trợ whoosh/impact/chime/pop/click, tối đa 4 giây.')
     finite(settings.get('source_volume', 1), 0, 1.5, 'Âm lượng tiếng gốc')
+    storyboard = p.setdefault('storyboard', [])
+    for sc in storyboard:
+        sc.setdefault('scene_id', uid())
+        sc.setdefault('scene_type', 'talking_head')
     return p
 
 

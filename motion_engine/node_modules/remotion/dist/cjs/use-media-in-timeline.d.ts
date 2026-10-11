@@ -1,0 +1,44 @@
+import { type LoopVolumeCurveBehavior } from './audio/use-audio-frame.js';
+import type { LoopDisplay } from './CompositionManager.js';
+import type { VolumeProp } from './volume-prop.js';
+export declare const useBasicMediaInTimeline: ({ volume, mediaVolume, src, displayName, trimBefore, trimAfter, playbackRate, sequenceDurationInFrames, mediaStartsAt, mediaFrom, loop, muted, }: {
+    volume: VolumeProp | undefined;
+    mediaVolume: number;
+    src: string | undefined;
+    displayName: string | null;
+    trimBefore: number | undefined;
+    trimAfter: number | undefined;
+    playbackRate: number;
+    sequenceDurationInFrames: number;
+    mediaStartsAt: number;
+    mediaFrom: number;
+    loop: boolean;
+    muted: boolean;
+}) => {
+    volumes: string | number;
+    duration: number;
+    doesVolumeChange: boolean;
+    finalDisplayName: string;
+    startMediaFrom: number;
+    src: string;
+    playbackRate: number;
+    muted: boolean;
+};
+export type BasicMediaInTimelineReturnType = ReturnType<typeof useBasicMediaInTimeline>;
+export declare const useMediaInTimeline: ({ volume, mediaVolume, src, mediaType, playbackRate, displayName, id, getStack, showInTimeline, premountDisplay, postmountDisplay, loopDisplay, loopVolumeCurveBehavior, documentationLink, muted, }: {
+    volume: VolumeProp | undefined;
+    mediaVolume: number;
+    src: string | undefined;
+    mediaType: "audio" | "video";
+    playbackRate: number;
+    displayName: string | null;
+    id: string;
+    getStack: () => string | null;
+    showInTimeline: boolean;
+    premountDisplay: number | null;
+    postmountDisplay: number | null;
+    loopDisplay: LoopDisplay | undefined;
+    loopVolumeCurveBehavior: LoopVolumeCurveBehavior;
+    documentationLink: string | null;
+    muted: boolean;
+}) => import("react").RefObject<Element | null> | null;

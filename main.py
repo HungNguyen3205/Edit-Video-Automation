@@ -16,9 +16,10 @@ from fastapi.responses import RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from editing import auto_plan, compile_render, mapped_subtitles, parse_srt, probe, probe_audio, srt_content, uid, validate
+from editing import auto_plan, compile_render, length, mapped_subtitles, parse_srt, probe, probe_audio, srt_content, uid, validate
 
-from ai_director import direct, ai_health
+from ai_director import direct, ai_health, build_semantic_storyboard
+from storyboard_compiler import compile_storyboard_scenes
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.getenv('VIDEO_DATA_DIR', BASE_DIR / 'data')).resolve()
@@ -294,7 +295,7 @@ class Options(BaseModel):
     use_current_plan: bool = False
     duration_policy: str = Field('preserve', pattern='^(preserve|trim_silence|summarize)$')
     target_duration: float = Field(0.0, ge=0)
-    visual_style: str = Field('clean_expert', pattern='^(clean_expert|dynamic_reels|danava_brand)$')
+    visual_style: str = Field('clean_expert', pattern='^(clean_expert|dynamic_reels|danava_brand|explainer_ref)$')
 
 
 def job_update(project_id, **changes):
@@ -354,6 +355,8 @@ def run_job(project_id, job_id, snapshot, options, mode):
                         else:
                             job_update(project_id, phase='Tạo nhịp zoom, chữ và minh họa theo quy tắc')
                             plan = auto_plan(plan, options.intensity, options.headline)
+                            if options.visual_style == 'explainer_ref':
+                                plan['storyboard'] = build_semantic_storyboard(plan, ASSETS_DIR, headline=options.headline)
                         if options.planner != 'ai' and not plan['subtitles']:
                             warnings.append('Chưa có phụ đề: bản dựng dùng nhịp theo thời gian, chưa ghép minh họa theo lời nói.')
                     with LOCK:
@@ -373,52 +376,79 @@ def run_job(project_id, job_id, snapshot, options, mode):
                     raise InterruptedError('Đã hủy tác vụ.')
                 filename = f'{project_id}_{job_id}.mp4'
                 output = OUTPUTS_DIR / filename
-                cmd, duration = compile_render(plan, ASSETS_DIR, work, output, options.preview, visual_style=options.visual_style)
-                job_update(project_id, phase='Đang render bản xem thử' if options.preview else 'Đang render MP4', progress=0, warnings=warnings)
-                log_path = work / 'ffmpeg.log'
-                with log_path.open('w+', encoding='utf-8') as log:
-                    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=log, text=True)
-                    def stop_when_cancelled():
-                        while process.poll() is None:
-                            if event.wait(.2):
-                                process.terminate()
+                if options.visual_style == 'explainer_ref':
+                    job_update(project_id, phase='Đang render Motion Graphics theo video mẫu' if not options.preview else 'Đang render xem thử Motion Graphics', progress=20, warnings=warnings)
+                    duration = compile_storyboard_scenes(plan, ASSETS_DIR, work, output, options.preview, visual_style=options.visual_style)
+                    job_update(project_id, phase='Đang kiểm tra MP4 hoàn chỉnh', progress=95, warnings=warnings)
+                else:
+                    cmd, duration = compile_render(plan, ASSETS_DIR, work, output, options.preview, visual_style=options.visual_style)
+                    job_update(project_id, phase='Đang render bản xem thử' if options.preview else 'Đang render MP4', progress=0, warnings=warnings)
+                    log_path = work / 'ffmpeg.log'
+                    with log_path.open('w+', encoding='utf-8') as log:
+                        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=log, text=True)
+                        def stop_when_cancelled():
+                            while process.poll() is None:
+                                if event.wait(.2):
+                                    process.terminate()
+                                    try:
+                                        process.wait(timeout=3)
+                                    except subprocess.TimeoutExpired:
+                                        process.kill()
+                                    return
+                        watcher = threading.Thread(target=stop_when_cancelled, daemon=True)
+                        watcher.start()
+                        last = 0
+                        for line in process.stdout:
+                            if line.startswith('out_time_us=') and time.monotonic() - last > .4:
                                 try:
-                                    process.wait(timeout=3)
-                                except subprocess.TimeoutExpired:
-                                    process.kill()
-                                return
-                    watcher = threading.Thread(target=stop_when_cancelled, daemon=True)
-                    watcher.start()
-                    last = 0
-                    for line in process.stdout:
-                        if line.startswith('out_time_us=') and time.monotonic() - last > .4:
-                            try:
-                                progress = min(99, max(0, int(float(line.split('=')[1]) / 1000000 / duration * 100)))
-                                job_update(project_id, progress=progress)
-                                last = time.monotonic()
-                            except ValueError:
-                                pass
-                    process.wait()
-                    watcher.join(timeout=4)
-                    if event.is_set():
-                        output.unlink(missing_ok=True)
-                        raise InterruptedError('Đã hủy tác vụ.')
-                    if process.returncode:
-                        log.seek(0)
-                        details = log.read()[-6000:]
-                        output.unlink(missing_ok=True)
-                        raise RuntimeError('FFmpeg không xuất được video: ' + details)
+                                    progress = min(99, max(0, int(float(line.split('=')[1]) / 1000000 / duration * 100)))
+                                    job_update(project_id, progress=progress)
+                                    last = time.monotonic()
+                                except ValueError:
+                                    pass
+                        process.wait()
+                        watcher.join(timeout=4)
+                        if event.is_set():
+                            output.unlink(missing_ok=True)
+                            raise InterruptedError('Đã hủy tác vụ.')
+                        if process.returncode:
+                            log.seek(0)
+                            details = log.read()[-6000:]
+                            output.unlink(missing_ok=True)
+                            raise RuntimeError('FFmpeg không xuất được video: ' + details)
                 meta = probe(output)
-                if abs(meta['duration'] - duration) > .2:
+                if abs(meta['duration'] - duration) > 0.45:
                     output.unlink(missing_ok=True)
-                    raise RuntimeError('Thời lượng kết quả không đúng bản dựng.')
+                    raise RuntimeError(f"Thời lượng kết quả ({meta['duration']}s) không đúng bản dựng ({duration}s).")
+                
+                # Duration Audit log
+                main_vid = snapshot.get('video')
+                src_dur = main_vid['metadata']['duration'] if main_vid and 'metadata' in main_vid else 0
+                audit = {
+                    'source_duration': round(src_dur, 2),
+                    'input_timeline_duration': round(length(plan), 2),
+                    'ai_planned_duration': round(sum(sc.get('duration', 0) for sc in plan.get('storyboard', [])) if plan.get('storyboard') else length(plan), 2),
+                    'post_cut_duration': round(duration, 2),
+                    'ffprobe_duration': round(meta['duration'], 2),
+                    'timestamp': stamp()
+                }
+
                 with LOCK:
                     latest = load_project(project_id)
                     field = 'preview_path' if options.preview else 'output_path'
                     latest[field] = '/outputs/' + filename
                     latest['preview_revision' if options.preview else 'output_revision'] = snapshot['revision']
                     latest['export_status'] = 'succeeded'
-                    latest['job'].update(status='succeeded', phase='Bản xem thử đã sẵn sàng' if options.preview else 'Video hoàn chỉnh đã sẵn sàng', progress=100, warnings=warnings)
+                    latest['duration_audit'] = audit
+                    latest.setdefault('history', []).append({
+                        'revision': latest.get('revision', 0),
+                        'timestamp': stamp(),
+                        'summary': plan.get('director', {}).get('summary', 'Bản dựng mới'),
+                        'plan': copy.deepcopy(plan)
+                    })
+                    if len(latest['history']) > 10:
+                        latest['history'] = latest['history'][-10:]
+                    latest['job'].update(status='succeeded', phase='Bản xem thử đã sẵn sàng' if options.preview else 'Video hoàn chỉnh đã sẵn sàng', progress=100, warnings=warnings, duration_audit=audit)
                     save_project(project_id, latest)
     except Exception as exc:
         cancelled = isinstance(exc, InterruptedError)
@@ -487,6 +517,26 @@ def cancel(project_id: str):
 def status(project_id: str):
     p = load_project(project_id)
     return {'status': p.get('export_status'), 'transcribe_status': p.get('transcribe_status'), 'job': p.get('job')}
+
+
+@app.post('/api/projects/{project_id}/rollback')
+def rollback(project_id: str, body: dict = None):
+    body = body or {}
+    target_rev = body.get('revision')
+    with LOCK:
+        p = load_project(project_id)
+        history = p.get('history', [])
+        if not history:
+            raise HTTPException(404, 'Không có bản dựng trước để khôi phục.')
+        entry = None
+        if target_rev is not None:
+            entry = next((h for h in history if h.get('revision') == target_rev), None)
+        if not entry:
+            entry = history[-1]
+        p['edit_plan'] = check_plan(entry['plan'], p['edit_plan']['assets'])
+        p['revision'] = p.get('revision', 0) + 1
+        save_project(project_id, p)
+        return p
 
 
 if __name__ == '__main__':

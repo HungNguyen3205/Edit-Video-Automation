@@ -1,0 +1,39 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.useSequenceRegistration = void 0;
+const react_1 = require("react");
+const SequenceManager_js_1 = require("./SequenceManager.js");
+const useSequenceRegistration = ({ getSequence, id, }) => {
+    const { registerSequence, unregisterSequence, updateSequence } = (0, react_1.useContext)(SequenceManager_js_1.SequenceManagerActionsContext);
+    const registrationDisabled = (0, react_1.useContext)(SequenceManager_js_1.DisableSequenceRegistrationContext);
+    const getSequenceRef = (0, react_1.useRef)(getSequence);
+    getSequenceRef.current = getSequence;
+    const lastRegisteredGetterRef = (0, react_1.useRef)(null);
+    const registrationEnabled = getSequence !== null && !registrationDisabled;
+    (0, react_1.useEffect)(() => {
+        if (!registrationEnabled) {
+            return;
+        }
+        const currentGetter = getSequenceRef.current;
+        if (currentGetter === null) {
+            throw new Error('Expected a sequence registration getter');
+        }
+        registerSequence(currentGetter());
+        lastRegisteredGetterRef.current = currentGetter;
+        return () => {
+            lastRegisteredGetterRef.current = null;
+            unregisterSequence(id);
+        };
+    }, [id, registerSequence, registrationEnabled, unregisterSequence]);
+    (0, react_1.useEffect)(() => {
+        if (registrationDisabled ||
+            getSequence === null ||
+            updateSequence === null ||
+            lastRegisteredGetterRef.current === getSequence) {
+            return;
+        }
+        updateSequence(getSequence());
+        lastRegisteredGetterRef.current = getSequence;
+    }, [getSequence, registrationDisabled, updateSequence]);
+};
+exports.useSequenceRegistration = useSequenceRegistration;

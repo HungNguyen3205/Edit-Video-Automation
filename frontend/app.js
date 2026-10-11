@@ -382,6 +382,8 @@ function renderEditList() {
   show("add-item", tab === "subtitles" || tab === "text_overlays");
   $("download-srt").href = `/api/projects/${project.id}/subtitles.srt`;
   const help = {
+    storyboard:
+      "Kế hoạch phân cảnh AI theo ngữ nghĩa lời nói. Có thể chỉnh loại cảnh, tiêu đề, thẻ badge hoặc từ khóa minh họa mà không phải dựng lại từ đầu.",
     clips:
       "Điểm đầu tính trên video nguồn. Các đoạn được ghép theo thứ tự. Sau khi đổi thời lượng, hãy dựng lại hiệu ứng.",
     subtitles:
@@ -391,7 +393,68 @@ function renderEditList() {
     visual_overlays:
       "Thời gian tính trên bản dựng. Tọa độ 0–1 tương ứng với tỷ lệ khung hình.",
   };
-  $("tab-help").textContent = help[tab];
+  $("tab-help").textContent = help[tab] || "";
+  
+  if (tab === "storyboard") {
+    const scenes = draft.storyboard || [];
+    if (!scenes.length) {
+      $("edit-list").append(
+        node(
+          "p",
+          "helper muted",
+          "Chưa có storyboard. Hãy chọn 'Explainer theo video mẫu' và bấm 'AI dựng & xuất video' để AI phân tích theo lời nói.",
+        ),
+      );
+      return;
+    }
+    scenes.forEach((sc, index) => {
+      const row = node("div", "edit-row");
+      const header = node("div", "edit-row-header");
+      const titleWrap = node("span", "", `Cảnh ${index + 1}: `);
+      const badge = node("span", "status-badge", sc.scene_type || "talking_head");
+      badge.style.marginLeft = "8px";
+      titleWrap.append(badge);
+      header.append(titleWrap);
+      
+      const fields = node("div", "edit-fields");
+      
+      // Scene Type selector
+      const typeLabel = node("label", "", "Loại cảnh (Scene Type)");
+      const typeSelect = node("select");
+      const types = [
+        ["talking_head", "Người nói toàn khung"],
+        ["explainer_card", "Thẻ ý chính nền trắng (Explainer Card)"],
+        ["comparison", "So sánh 2 cột (Comparison)"],
+        ["statistic", "Số liệu lớn (Statistic)"],
+        ["step_list", "Danh sách các bước (Step List)"],
+        ["talking_head_pip", "Người nói kèm minh họa (PiP)"],
+        ["cta", "Kêu gọi hành động (CTA)"]
+      ];
+      for (const [val, txt] of types) {
+        const opt = node("option", "", txt);
+        opt.value = val;
+        typeSelect.append(opt);
+      }
+      typeSelect.value = sc.scene_type || "talking_head";
+      typeSelect.onchange = () => {
+        sc.scene_type = typeSelect.value;
+        badge.textContent = sc.scene_type;
+        markDirty();
+      };
+      typeLabel.append(typeSelect);
+      fields.append(typeLabel);
+      
+      field(fields, sc, "duration", "Thời lượng (giây)");
+      field(fields, sc, "headline", "Tiêu đề chữ lớn", "input", false);
+      field(fields, sc, "badge_text", "Chữ thẻ Badge (Ví dụ: NỘI SÀN)", "input", false);
+      field(fields, sc, "transcript_meaning", "Ngữ nghĩa lời nói", "textarea", false);
+      
+      row.append(header, fields);
+      $("edit-list").append(row);
+    });
+    return;
+  }
+
   const key = tab === "clips" ? "video_clips" : tab;
   const items = draft[key] || [];
   if (!items.length)
@@ -547,7 +610,7 @@ function updateStatus() {
     $("ai-feedback").style.display = (director && !running) ? "flex" : "none";
   }
 
-  const hasVideo = !!project?.video;
+  const hasVideo = !!project?.video;  
   for (const id of [
     "btn-auto-edit",
     "btn-ai-preview",
@@ -577,7 +640,44 @@ function updateStatus() {
   $("job-error").textContent = job?.error || "";
   show("job-error", !!job?.error);
   $("job-warnings").textContent = (job?.warnings || []).join(" ");
-  show("job-warnings", !!job?.warnings?.length);
+  // Render Duration Audit
+  const audit = project?.duration_audit;
+  if ($("duration-audit")) {
+    if (audit) {
+      $("duration-audit").innerHTML = `
+        <strong>⏱ Nhật ký đo lường thời lượng:</strong><br>
+        • Video nguồn gốc: <b>${audit.source_duration}s</b><br>
+        • Timeline đầu vào: <b>${audit.input_timeline_duration}s</b><br>
+        • Kế hoạch AI/Storyboard: <b>${audit.ai_planned_duration}s</b><br>
+        • Thời lượng cắt: <b>${audit.post_cut_duration}s</b><br>
+        • MP4 đo bằng FFprobe: <b>${audit.ffprobe_duration}s</b>
+      `;
+      $("duration-audit").classList.remove("hidden");
+    } else {
+      $("duration-audit").classList.add("hidden");
+    }
+  }
+
+  // Render History Rollback section
+  const hasHistory = (project?.history && project.history.length > 1);
+  if ($("history-section")) {
+    $("history-section").classList.toggle("hidden", !hasHistory);
+    if ($("btn-rollback")) {
+      $("btn-rollback").onclick = async () => {
+        try {
+          const res = await api(`/api/projects/${project.id}/rollback`, json("POST", { revision: -1 }));
+          project = res;
+          draft = clone(project.edit_plan);
+          renderEditList();
+          updateStatus();
+          notify("Đã khôi phục về bản dựng trước thành công.");
+        } catch (e) {
+          notify(e.message, true);
+        }
+      };
+    }
+  }
+
   show("btn-cancel", running);
   const validOutput =
     project?.output_path &&

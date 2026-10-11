@@ -110,7 +110,8 @@
               <div style="padding: 0 16px 16px 16px;">
                 <textarea id="edit-prompt" rows="4" maxlength="4000" style="width: 100%; resize: vertical; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; font-size: 14px; background: #fff;" placeholder="Ví dụ: Dựng video này thật cuốn hút cho Reels. Mở đầu hấp dẫn, bỏ khoảng im lặng dài, zoom ở ý quan trọng, thêm chữ ngắn, âm thanh nhấn và nhạc nền nhỏ. Giữ đúng nội dung lời nói."></textarea>
                 <div style="display: flex; gap: 10px; margin-top: 12px; align-items: center; flex-wrap: wrap;">
-                  <select id="visual-style" style="padding: 6px; border-radius: 4px; border: 1px solid #ddd; font-size: 13px; font-weight: bold; color: #7c3aed;">
+                  <select id="visual-style" style="padding: 6px; border-radius: 4px; border: 1px solid #7c3aed; font-size: 13px; font-weight: bold; color: #0d9488; background: #f0fdfa;">
+                    <option value="explainer_ref" selected>✨ Explainer theo video mẫu (Claude Edit - Thẻ trắng & Bố cục phân cấp)</option>
                     <option value="clean_expert">Clean Expert (Gọn gàng, tinh tế)</option>
                     <option value="dynamic_reels">Dynamic Reels (Năng động, nhanh)</option>
                     <option value="danava_brand">DANAVA Brand (Màu thương hiệu)</option>
@@ -199,7 +200,8 @@
               </summary>
               <div class="advanced-body">
                 <div class="tabs" role="group" aria-label="Chỉnh bản dựng">
-                  <button data-tab="clips" class="selected">Cắt video</button
+                  <button data-tab="storyboard" class="selected">✨ Storyboard AI</button
+                  ><button data-tab="clips">Cắt video</button
                   ><button data-tab="subtitles">Phụ đề</button
                   ><button data-tab="text_overlays">Chữ nổi bật</button
                   ><button data-tab="visual_overlays">Minh họa</button>
@@ -315,6 +317,11 @@
                 class="hidden"
                 aria-label="Tiến trình dựng video"
               ></progress>
+              <div id="duration-audit" class="notice hidden" style="background: #f8fafc; border-left: 4px solid #0d9488; font-size: 13px; line-height: 1.6; margin-bottom: 12px; padding: 10px 14px; border-radius: 6px;"></div>
+              <div id="history-section" class="hidden" style="margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; background: #fff7ed; padding: 8px 12px; border-radius: 6px; border: 1px solid #fed7aa;">
+                <span style="font-size: 13px; color: #9a3412;"><i data-lucide="history"></i> Có các bản dựng trước đó</span>
+                <button type="button" id="btn-rollback" class="secondary small" style="background: #fff; border-color: #fdba74; color: #c2410c;">Khôi phục bản trước</button>
+              </div>
               <p id="job-error" class="error hidden"></p>
               <p id="job-warnings" class="notice hidden"></p>
               <div class="result-actions">
