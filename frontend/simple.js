@@ -11,13 +11,21 @@ async function api(url, options = {}) {
   return body;
 }
 function json(body) { return {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}; }
-function error(message) {
+function error(message, code = '') {
   visible('error-box',true);
   $('error-detail').textContent = message;
   let note = 'Tool chưa tạo được bản dựng. Video gốc vẫn được giữ. Bạn có thể bấm tạo lại.';
-  if (/Ollama|model|Whisper|Chrome|Node|FFmpeg|nhận dạng/i.test(message)) note = 'Máy chạy tool còn thiếu một thành phần dựng video. Mở hướng dẫn bên dưới để chuẩn bị một lần, rồi bấm tạo lại.';
-  if (/AI chưa|storyboard|bản dựng hợp lệ/i.test(message)) note = 'AI chưa lập được các cảnh phù hợp. Hãy bấm tạo lại hoặc viết yêu cầu ngắn, rõ hơn.';
-  if (/dung lượng|giới hạn|Hỗ trợ video|file không phải|upload/i.test(message)) note = message;
+  if (/TIMEOUT/.test(code) || /vượt\s*10\s*phút|quá thời gian|quá nhiều thời gian|timeout|timed out/i.test(message))
+    note = 'AI mất quá nhiều thời gian để lập kế hoạch. Tác vụ đã dừng; video gốc vẫn được giữ. Kiểm tra tốc độ model và tài nguyên máy trước khi thử lại.';
+  else if (/^AI_(CONNECTION|MODEL_ERROR|STREAM)/.test(code) || /Không gọi được Ollama|Không kết nối/i.test(message))
+    note = 'Không nhận được kế hoạch hoàn chỉnh từ AI. Kiểm tra kết nối Ollama và trạng thái model, rồi thử lại.';
+  else if (code === 'AI_OUTPUT_LIMIT')
+    note = 'AI chưa hoàn tất kế hoạch trong giới hạn sinh kết quả. Chưa xuất video từ kế hoạch bị cụt; xem chi tiết để xử lý.';
+  else if (/Chưa có Ollama|Chưa cài Whisper|Không tìm thấy Chrome|Cài FFmpeg|cần Node.js|Chưa cài.*model/i.test(message))
+    note = 'Máy chạy tool còn thiếu hoặc chưa chạy một thành phần dựng video. Mở hướng dẫn bên dưới để chuẩn bị, rồi thử lại.';
+  else if (/AI chưa|storyboard|bản dựng hợp lệ/i.test(message))
+    note = 'AI chưa lập được các cảnh phù hợp. Hãy bấm tạo lại hoặc viết yêu cầu ngắn, rõ hơn.';
+  else if (/dung lượng|giới hạn|Hỗ trợ video|file không phải|upload/i.test(message)) note = message;
   $('error-text').textContent = note;
 }
 function lock(yes) {
@@ -65,7 +73,7 @@ async function poll() {
     } else {
       visible('render-progress',false);lock(false);
       $('result-badge').textContent = job?.status === 'cancelled' ? 'Đã dừng' : 'Cần thử lại';
-      if (job?.status !== 'cancelled') error(job?.error || 'Chưa có video kết quả. Hãy bấm tạo video để thử lại.');
+      if (job?.status !== 'cancelled') error(job?.error || 'Chưa có video kết quả. Hãy bấm tạo video để thử lại.',job?.error_code);
     }
   } catch (e) {
     if (generation !== token) return;
@@ -149,7 +157,7 @@ async function openProject(id) {
     visible('history-panel',false);localStorage.setItem('danava-last-video',id);
     if (ongoing(p)) { lock(true);beginPolling(); }
     else if (p.output_path && p.output_revision === p.revision && p.job?.status!=='failed') finish(p);
-    else { lock(false);visible('download-video',false);visible('result-note',false);$('result-badge').textContent = 'Video gốc';if(p.job?.status === 'failed')error(p.job.error); }
+    else { lock(false);visible('download-video',false);visible('result-note',false);$('result-badge').textContent = 'Video gốc';if(p.job?.status === 'failed')error(p.job.error,p.job.error_code); }
   } catch(e) { error(e.message); }
 }
 $('drop-zone').onclick = () => $('video-input').click();

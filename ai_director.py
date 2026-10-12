@@ -3,9 +3,13 @@
 Model output is data only; it can never supply paths, filters or shell commands.
 """
 import base64
+import asyncio
+from contextlib import contextmanager, suppress
+from contextvars import ContextVar
 import copy
 import json
 import math
+import logging
 import os
 import re
 import subprocess
@@ -186,35 +190,124 @@ RULES:
 '''
 
 
-def chat(messages, event, schema=None):
-    cancelled(event)
-    payload = {'model': model_name(), 'messages': messages, 'format': schema or Direction.model_json_schema(),
-               'stream': True, 'options': {'temperature': .35, 'num_ctx': 8192 if schema else 16384},
-               'think': os.getenv('VIDEO_AI_THINK', '0') == '1'}
-    parts = []
+class AIError(RuntimeError):
+    def __init__(self, code, message):
+        super().__init__(message)
+        self.code = code
+
+
+_AI_SESSION = ContextVar('video_ai_session', default=None)
+_AI_LOG = logging.getLogger('uvicorn.error')
+
+
+def ai_seconds(name, default):
+    value = float(os.getenv(name, str(default)))
+    if not math.isfinite(value) or value <= 0:
+        raise ValueError(name + ' phải là số giây lớn hơn 0.')
+    return value
+
+
+@contextmanager
+def ai_session(event):
+    """One planning deadline across all repairs, scoped to this worker/job."""
+    current = _AI_SESSION.get()
+    if current is not None:
+        yield current
+        return
     started = time.monotonic()
+    session = {'started': started, 'deadline': started + ai_seconds('VIDEO_AI_PLANNING_TIMEOUT', 600), 'requests': []}
+    token = _AI_SESSION.set(session)
     try:
-        with httpx.Client(timeout=httpx.Timeout(300, connect=10), trust_env=False) as client:
-            with client.stream('POST', base_url() + '/api/chat', json=payload) as response:
+        yield session
+        cancelled(event)
+        if time.monotonic() >= session['deadline']:
+            raise AIError('AI_TIMEOUT', 'AI đã hết tổng thời gian lập kế hoạch, bao gồm kiểm tra và tự sửa. Chưa render video.')
+    finally:
+        event.ai_diagnostics = {'elapsed_seconds': round(time.monotonic()-started, 3), 'requests': session['requests']}
+        _AI_SESSION.reset(token)
+
+
+def chat(messages, event, schema=None):
+    # Preserve the existing synchronous director API; network waiting itself
+    # is cancellable asyncio I/O, not a background thread left generating.
+    cancelled(event)
+    with ai_session(event) as session:
+        return asyncio.run(_chat_stream(messages, event, schema, session))
+
+
+async def _chat_stream(messages, event, schema, session):
+    started = time.monotonic()
+    deadline = min(session['deadline'], started + ai_seconds('VIDEO_AI_REQUEST_TIMEOUT', 600))
+    if started >= deadline:
+        raise AIError('AI_TIMEOUT', 'AI đã hết thời gian lập kế hoạch, bao gồm các lần tự sửa. Video gốc vẫn được giữ.')
+    count = (schema or {}).get('properties', {}).get('scenes', {}).get('maxItems', 0)
+    predicted_limit = max(2048, 768 + int(count)*512) if schema else 8192
+    output_limit = int(os.getenv('VIDEO_AI_MAX_TOKENS', str(min(16384, predicted_limit))))
+    if output_limit <= 0:
+        raise ValueError('VIDEO_AI_MAX_TOKENS phải lớn hơn 0.')
+    payload = {'model': model_name(), 'messages': messages, 'format': schema or Direction.model_json_schema(),
+               'stream': True, 'options': {'temperature': .35, 'num_ctx': 8192 if schema else 16384, 'num_predict': output_limit},
+               'think': os.getenv('VIDEO_AI_THINK', '0') == '1'}
+    record = {'model': payload['model'], 'think': payload['think'], **payload['options'],
+              'request_index': len(session['requests'])+1,
+              'input_characters': sum(len(str(m.get('content',''))) for m in messages), 'status': 'running'}
+    session['requests'].append(record)
+    _AI_LOG.info('video_ai_request %s', json.dumps(record, ensure_ascii=False))
+    parts = []
+    async def consume():
+        timeout = httpx.Timeout(ai_seconds('VIDEO_AI_READ_TIMEOUT', 300), connect=10)
+        async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
+            async with client.stream('POST', base_url()+'/api/chat', json=payload) as response:
                 response.raise_for_status()
-                for line in response.iter_lines():
-                    cancelled(event)
-                    if time.monotonic() - started > 600:
-                        raise RuntimeError('AI vượt 10 phút. Dùng model nhỏ hơn hoặc rút ngắn video.')
+                async for line in response.aiter_lines():
                     if not line:
                         continue
+                    record.setdefault('first_chunk_seconds', round(time.monotonic()-started, 3))
                     chunk = json.loads(line)
                     if chunk.get('error'):
-                        raise RuntimeError('Ollama: ' + chunk['error'])
+                        raise AIError('AI_MODEL_ERROR', 'Ollama: '+str(chunk['error']))
                     parts.append(chunk.get('message', {}).get('content', ''))
                     if sum(map(len, parts)) > 150000:
-                        raise ValueError('Phản hồi AI quá lớn.')
+                        raise AIError('AI_OUTPUT_LIMIT', 'Phản hồi AI quá lớn; đã dừng để giữ tác vụ trong giới hạn.')
                     if chunk.get('done'):
-                        break
+                        for key in ('load_duration','prompt_eval_duration','eval_duration','total_duration','prompt_eval_count','eval_count','done_reason'):
+                            if key in chunk:
+                                record[key] = chunk[key]
+                        if chunk.get('done_reason') == 'length':
+                            raise AIError('AI_OUTPUT_LIMIT', 'AI đã hết giới hạn token trước khi hoàn tất kế hoạch. Chưa render video từ phản hồi bị cụt.')
+                        return ''.join(parts)
+                raise AIError('AI_STREAM_INCOMPLETE', 'Kết nối AI kết thúc trước khi hoàn tất kế hoạch. Hãy thử lại.')
+    task = asyncio.create_task(consume())
+    try:
+        while True:
+            cancelled(event)
+            remaining = deadline-time.monotonic()
+            if remaining <= 0:
+                raise AIError('AI_TIMEOUT', 'AI mất quá nhiều thời gian để lập kế hoạch. Đã dừng request; đây không phải lỗi thiếu thành phần.')
+            done, _ = await asyncio.wait({task}, timeout=min(.05, remaining))
+            if done:
+                result = task.result()
+                cancelled(event)
+                record['status'] = 'succeeded'
+                return result
+    except httpx.TimeoutException as exc:
+        code = 'AI_CONNECT_TIMEOUT' if isinstance(exc, httpx.ConnectTimeout) else 'AI_IDLE_TIMEOUT'
+        raise AIError(code, 'Kết nối AI quá thời gian chờ dữ liệu. Kiểm tra Ollama và tài nguyên máy; không có video kết quả mới.') from exc
     except httpx.HTTPError as exc:
-        raise RuntimeError(f'Không gọi được Ollama/model {model_name()}. Chạy Ollama và tải model; kiểm tra OLLAMA_URL. {exc}') from exc
-    cancelled(event)
-    return ''.join(parts)
+        raise AIError('AI_CONNECTION', f'Không gọi được Ollama/model {model_name()}; kiểm tra OLLAMA_URL và trạng thái Ollama. {exc}') from exc
+    except json.JSONDecodeError as exc:
+        raise AIError('AI_STREAM_INVALID', 'Ollama trả stream không hợp lệ; chưa tạo bản dựng.') from exc
+    finally:
+        if not task.done():
+            task.cancel()
+        # Await cleanup before releasing the worker or starting another call.
+        with suppress(asyncio.CancelledError, Exception):
+            await task
+        if record['status'] == 'running':
+            record['status'] = 'cancelled' if event.is_set() else 'failed'
+        record['elapsed_seconds'] = round(time.monotonic()-started, 3)
+        record['output_characters'] = sum(map(len, parts))
+        _AI_LOG.info('video_ai_result %s', json.dumps(record, ensure_ascii=False))
 
 
 def apply_direction(plan, direction, music_asset_id=''):

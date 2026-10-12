@@ -24,7 +24,7 @@ class SceneChoice(Decision):
     graphic_title: str = Field(max_length=60)
     graphic_items: list[str] = Field(max_length=5)
     sound_effect: str = Field(pattern='^(none|pop|whoosh|chime|click|impact)$')
-    caption_text: str = Field(max_length=1200)
+    caption_text: str = Field(default='',max_length=1200)
     animation_in: str = Field(default='pop_in',pattern='^(pop_in|slide_up|fade)$')
     zoom_scale: float = Field(default=1,ge=1,le=1.2)
 
@@ -174,13 +174,13 @@ def semantic_units(plan):
 SYSTEM='''You edit Vietnamese videos using an existing premium explainer renderer. Return JSON only.
 The engine owns ALL timing and preserves the original voice. Select content/layout for the supplied scenes; never calculate cuts or invent new scenes.
 Return every supplied scene_index exactly once. For a repair requesting ONLY certain indices, return those indices only; the engine retains the other scenes.
-Read the full transcript for context, then EACH indexed scene's own text. Never shift the next scene's speech into the current scene.
+Read all indexed scenes for full context, then EACH scene's own text. Never shift the next scene's speech into the current scene.
 Use talking_head for introductions/personal remarks/conclusions; talking_head_pip for a speaker with illustration; explainer_card for a useful white graphic cutaway. Keep the speaker visible for more than half the video when possible. Choose by meaning, not a fixed schedule. Avoid repetitive consecutive network diagrams.
 headline: a short accurate 2-6-word Vietnamese idea, not fillers or a whole sentence. badge_text: a short topic label. Do not add brands or facts absent from speech/user facts. Spell user-supplied names correctly.
 graphic_kind: chat for assistant/conversation; process for related ideas/steps; network for distribution/connections.
 graphic_title and graphic_items are visible display text. Use 2-3 SHORT bare labels/messages; NEVER prefix them with Chat:, Process:, or Network:. Camera scenes also supply 2 short labels, though they are not displayed.
 Graphics must use concepts/words from the transcript or explicit user facts. Neutral chat greetings are fine (Chào bạn / Bạn cần hỗ trợ gì?). Do not fabricate first/only/best claims, features, benefits, optimization/algorithm stages, statistics, prices, contacts, testimonials or real screenshots. A process can label related source ideas; it need not invent steps.
-caption_text: speech from THIS indexed scene only. Correct obvious spelling using full context/user names; do not summarize, add or move sentences. If uncertain, copy this scene's text rather than invent wording. Silent scene = empty string. Never promote uncertain ASR words into headings or illustrations.
+caption_text is optional: omit it or leave it empty to keep the engine's source captions. Do not retype unchanged speech. Only supply it to correct a clear spelling error in THIS scene; never summarize, add or move sentences. Silent scene = empty string. Never promote uncertain ASR words into headings or illustrations.
 sound_effect: none on most camera scenes; subtle pop/whoosh/chime/click on useful graphics. Respect requests for no sound, no text or minimal effects. captions=true unless explicitly disabled.
 zoom_scale: 1 unless camera emphasis benefits the content; at most 1.2. animation_in: pop_in, slide_up or fade.
 The renderer supplies white/teal/navy styling, rounded cards, Vietnamese fonts and automatic captions. Do not put implementation descriptions in visible text. summary must be Vietnamese.'''
@@ -190,12 +190,15 @@ def automatic_direction(plan,prompt,asset_dir,work,event,*unused):
     units=semantic_units(plan)
     for unit in units:
         unit['text']=correct_recognition_copy(unit['text'],prompt)
-    context={'brief':prompt,'transcript':[{'start':s['start'],'end':s['end'],'text':correct_recognition_copy(s['text'],prompt)} for s in mapped_subtitles(plan)],'scenes':units}
+    # Indexed scenes already contain the complete speech. Do not send another
+    # copy of the transcript/timestamps and make CPU prefill needlessly longer.
+    context={'brief':prompt,'scenes':units}
     serialized=json.dumps(context,ensure_ascii=False)
     vocabulary=set(re.findall(r'[^\W_]+',(prompt+' '+' '.join(u['text'] for u in units)).casefold()))
     if len(serialized)>45000:
         raise ValueError('Video quá dài cho model hiện tại. Hãy dùng video ngắn hơn.')
-    messages=[{'role':'system','content':SYSTEM},{'role':'user','content':serialized}]
+    base_messages=[{'role':'system','content':SYSTEM},{'role':'user','content':serialized}]
+    messages=list(base_messages)
     retained={}
     repair_indices=None
     saved_captions=None
@@ -257,7 +260,9 @@ def automatic_direction(plan,prompt,asset_dir,work,event,*unused):
                 choice=choices[unit['scene_index']]
                 if unit['text'].strip() and direction.captions:
                     similarity=SequenceMatcher(None,unit['text'].casefold(),choice.caption_text.casefold()).ratio()
-                    if similarity<.78:
+                    if not choice.caption_text.strip():
+                        choice.caption_text=unit['text']
+                    elif similarity<.78:
                         # A model moving/summarizing speech must not prevent
                         # rendering or silently remove the source captions.
                         choice.caption_text=unit['text']
@@ -310,4 +315,7 @@ def automatic_direction(plan,prompt,asset_dir,work,event,*unused):
         except (ValueError,TypeError,KeyError) as exc:
             if attempt==2:
                 raise RuntimeError('AI chưa chọn được cảnh hợp lệ sau khi tự sửa: '+str(exc)) from exc
-            messages += [{'role':'assistant','content':raw},{'role':'user','content':'Repair the JSON. '+str(exc)[:1500]}]
+            # Retain source context and only the latest failed response/error;
+            # previous repairs are not useful additional speech context.
+            messages = base_messages+[{'role':'assistant','content':raw[:15000]},
+                                      {'role':'user','content':'Repair the JSON. '+str(exc)[:1500]}]

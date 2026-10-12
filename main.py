@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 
 from editing import auto_plan, compile_render, length, mapped_subtitles, parse_srt, probe, probe_audio, srt_content, uid, validate
 
-from ai_director import direct, ai_health, build_semantic_storyboard
+from ai_director import direct, ai_health, build_semantic_storyboard, ai_session
 from storyboard_compiler import compile_storyboard_scenes
 from automatic_director import automatic_direction
 
@@ -398,7 +398,12 @@ def run_job(project_id, job_id, snapshot, options, mode):
                         if options.planner == 'ai':
                             job_update(project_id, phase='AI đang phân tích nội dung và lập kế hoạch theo prompt…')
                             director = automatic_direction if options.automatic else direct
-                            plan = director(plan, options.prompt, ASSETS_DIR, work, event, options.music_asset_id, options.headline, options.duration_policy, options.target_duration, options.visual_style)
+                            with ai_session(event):
+                                plan = director(plan, options.prompt, ASSETS_DIR, work, event, options.music_asset_id, options.headline, options.duration_policy, options.target_duration, options.visual_style)
+                            if event.is_set():
+                                raise InterruptedError('Đã hủy tác vụ AI.')
+                            plan['director']['diagnostics'] = event.ai_diagnostics
+                            job_update(project_id, ai_diagnostics=event.ai_diagnostics)
                             if options.automatic:
                                 plan['director']['user_prompt']=options.user_prompt
                             warnings.extend(plan['director']['warnings'])
@@ -410,6 +415,8 @@ def run_job(project_id, job_id, snapshot, options, mode):
                         if options.planner != 'ai' and not plan['subtitles']:
                             warnings.append('Chưa có phụ đề: bản dựng dùng nhịp theo thời gian, chưa ghép minh họa theo lời nói.')
                     with LOCK:
+                        if event.is_set():
+                            raise InterruptedError('Đã hủy tác vụ AI.')
                         latest = load_project(project_id)
                         if latest.get('revision', 0) != snapshot.get('revision', 0):
                             raise RuntimeError('Bạn đã sửa dự án trong lúc phân tích. Hãy chạy lại để giữ chỉnh sửa mới.')
@@ -485,6 +492,8 @@ def run_job(project_id, job_id, snapshot, options, mode):
                 }
 
                 with LOCK:
+                    if event.is_set():
+                        raise InterruptedError('Đã hủy tác vụ.')
                     latest = load_project(project_id)
                     field = 'preview_path' if options.preview else 'output_path'
                     latest[field] = '/outputs/' + filename
@@ -503,7 +512,8 @@ def run_job(project_id, job_id, snapshot, options, mode):
                     save_project(project_id, latest)
     except Exception as exc:
         cancelled = isinstance(exc, InterruptedError)
-        job_update(project_id, status='cancelled' if cancelled else 'failed', phase='Đã hủy' if cancelled else 'Cần xử lý lỗi', error=str(exc))
+        job_update(project_id, status='cancelled' if cancelled else 'failed', phase='Đã hủy' if cancelled else 'Cần xử lý lỗi', error=str(exc),
+                   error_code=getattr(exc, 'code', 'AI_CANCELLED' if cancelled else ''), ai_diagnostics=getattr(event, 'ai_diagnostics', {}))
         patch(project_id, export_status='cancelled' if cancelled else 'failed', transcribe_status='failed' if mode == 'transcribe' else load_project(project_id).get('transcribe_status', 'none'))
     finally:
         CANCEL.pop(job_id, None)

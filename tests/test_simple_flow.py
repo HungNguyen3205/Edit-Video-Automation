@@ -78,7 +78,7 @@ def test_one_button_endpoint_defaults_and_real_export(media,monkeypatch):
     assert not result['job']['preview']
     assert result['edit_plan']['director']['user_prompt']==''
     assert seen[0]['brief'] and result['edit_plan']['render_profile']=='explainer_ref'
-    assert seen[0]['transcript'][0]['text']=='Trợ lý AI hỗ trợ công việc.'
+    assert seen[0]['scenes'][0]['text']=='Trợ lý AI hỗ trợ công việc.'
     output=main.OUTPUTS_DIR/result['output_path'].split('/')[-1]
     meta=probe(output)
     assert meta['duration']==pytest.approx(4,abs=.06)
@@ -213,3 +213,28 @@ def test_style_composition_uses_semantic_concepts_and_keeps_opening_and_ending()
     assert choices[0].scene_type==choices[5].scene_type=='talking_head'
     assert {choices[i].scene_type for i in adjusted}=={'talking_head_pip','explainer_card'}
     assert all(choices[i].sound_effect=='none' for i in adjusted)
+
+
+def test_optional_caption_copy_preserves_actual_word_timestamps(media,tmp_path,monkeypatch):
+    plan=new_project(media)['edit_plan'];aid=plan['video_clips'][0]['asset_id']
+    words=[{'word':' Chào','start':1,'end':1.3},{'word':' bạn.','start':1.3,'end':1.8}]
+    plan['subtitles']=[{'asset_id':aid,'start':1,'end':1.8,'text':'Chào bạn.','words':words}]
+    raw={'summary':'Giữ nguồn','scenes':[{'scene_index':0,'scene_type':'talking_head','headline':'',
+        'badge_text':'','graphic_kind':'chat','graphic_title':'','graphic_items':[],'sound_effect':'none'}]}
+    monkeypatch.setattr(automatic_director,'chat',lambda *args:json.dumps(raw))
+    result=automatic_direction(plan,'Giữ lời',main.ASSETS_DIR,tmp_path,threading.Event())
+    assert result['subtitles'][0]['text']=='Chào bạn.'
+    assert [(w['start'],w['end']) for w in result['subtitles'][0]['words']]==[(1,1.3),(1.3,1.8)]
+    assert not result['director']['warnings']
+
+
+def test_repair_context_does_not_accumulate_previous_responses(media,tmp_path,monkeypatch):
+    plan=new_project(media)['edit_plan'];calls=[]
+    def reply(messages,event,schema):
+        calls.append(len(messages))
+        return json.dumps({'summary':'Giữ nguồn','scenes':[{'scene_index':0 if len(calls)==3 else 9,
+            'scene_type':'talking_head','headline':'','badge_text':'','graphic_kind':'chat',
+            'graphic_title':'','graphic_items':[],'sound_effect':'none'}]})
+    monkeypatch.setattr(automatic_director,'chat',reply)
+    automatic_direction(plan,'Giữ lời',main.ASSETS_DIR,tmp_path,threading.Event())
+    assert calls==[2,4,4]

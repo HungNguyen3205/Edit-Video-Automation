@@ -54,3 +54,8 @@ Hai chế độ AI và quy tắc vẫn riêng biệt. Chế độ quy tắc khô
 
 
 Bộ phong cách có thể chuyển cảnh camera thành PIP/thẻ để hiển thị khái niệm minh họa mà AI đã viết, khi prompt yêu cầu minh họa nhưng model chưa bật bố cục đó. Mở đầu/kết thúc được giữ khi có cảnh giữa; lựa chọn dựa trên độ khớp nhãn với lời thoại, không theo chu kỳ số giây. `director.layout_adjustments` ghi các vị trí được engine hoàn thiện. Bộ kiểm tra từ vựng ngăn các nhãn mới như “AI đầu tiên”, “tối ưu thuật toán” khi không có trong nguồn; đây không phải xác minh sự thật của transcript.
+
+
+## Timeout và chẩn đoán AI
+
+Xem [TIMEOUT_FIX.md](TIMEOUT_FIX.md). Giai đoạn AI có budget chung 600 giây, bao gồm repair; hủy được cả khi đang chờ dữ liệu. Model không phải chép lại phụ đề khi không sửa. Log ghi token/thời gian Ollama thực tế; timeout không còn được báo nhầm là thiếu model. API/giao diện/renderer và thời lượng nguồn giữ nguyên.
