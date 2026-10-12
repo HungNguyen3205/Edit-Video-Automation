@@ -1,6 +1,6 @@
 # DANAVA Video Studio — AI dựng video theo prompt
 
-Xem [hướng dẫn dựng theo mẫu đã duyệt](APPROVED_STYLE.md): nút **Dùng mẫu đã duyệt**, đồ họa theo ý nghĩa và xuất MP4 theo cùng phong cách.
+Giao diện chính chỉ có **video + prompt + Tạo video của tôi**. Xem [hướng dẫn chuẩn bị máy](APPROVED_STYLE.md).
 
 FastAPI + FFmpeg + JavaScript. Có hai chế độ riêng biệt: **AI theo yêu cầu** dùng model Ollama tại máy, và **hiệu ứng theo quy tắc** để dựng khi chưa có model. Không dùng khóa API trả phí hay dịch vụ render bên ngoài.
 
@@ -17,7 +17,8 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 # Để tự nhận dạng lời nói tiếng Việt:
-pip install -r requirements-ai.txt
+pip install -r requirements-ai-fast.txt
+npm --prefix motion_engine install
 ```
 
 Cài [Ollama](https://ollama.com/download), mở ứng dụng Ollama, rồi tải model:
@@ -31,24 +32,21 @@ Mở **http://127.0.0.1:8000/**. Model chạy tại máy qua HTTP localhost; đ�
 
 Trên Linux: cài `ffmpeg fonts-dejavu-core`, dùng `source .venv/bin/activate`, các lệnh Python/pip còn lại giống nhau. Bật dịch vụ Ollama (hoặc `ollama serve`) trước khi dựng AI.
 
-## Cách dùng
+## Cách dùng giao diện mới
 
-1. Tạo dự án, tải video chính. Một video là đủ.
-2. Chọn **AI theo yêu cầu**, nhập prompt hoặc bấm **Dùng yêu cầu gợi ý**.
-3. Bật nhận dạng phụ đề nếu đã cài Whisper, hoặc nhập SRT trong phần chỉnh chi tiết. Lời thoại giúp AI hiểu nội dung video.
-4. Có thể thêm ảnh/video minh họa và gắn từ khóa; thêm file nhạc MP3/WAV/M4A/AAC/OGG/FLAC qua **Thêm tài nguyên**, chọn nó trong **Nhạc nền**.
-5. Bấm **AI dựng thử 12 giây** để lập kế hoạch cho toàn timeline rồi render 12 giây đầu của bản dựng. Bấm **Xuất bản đã chỉnh** để xuất toàn bộ cùng kế hoạch; bấm **Tự động dựng & xuất** nếu muốn AI lập lại kế hoạch.
-6. Xem **AI đã dựng**, các cảnh báo và MP4 thực tế. Chỉnh đoạn, phụ đề, chữ, minh họa nếu cần, lưu rồi xuất lại.
+1. Thả **một video** vào trang chính.
+2. Nhập yêu cầu nếu muốn; để trống thì dùng phong cách mẫu đã duyệt.
+3. Bấm **Tạo video của tôi**. Tool tự nhận dạng lời nói, chọn cảnh/chữ/minh họa/SFX và xuất toàn bộ MP4; xem và tải ngay ở bên phải.
 
-Ví dụ prompt:
+Không cần tạo tên dự án, chọn model, chọn style, nhập thời lượng, chỉnh timeline hoặc thêm từng hiệu ứng. Video được giữ trong **Video của tôi**; tải lại trang có thể tiếp tục theo dõi tác vụ hoặc mở kết quả. Khi muốn thay video, bấm vùng chọn video và đưa file mới vào.
 
-> Dựng video đủ wow cho Reels: mở đầu thu hút từ lời nói, bỏ khoảng im lặng dài, zoom ở ý quan trọng, chữ ngắn dễ đọc, thêm whoosh nhẹ và nhạc nền nhỏ nếu có. Giữ nguyên ý, không lạm dụng hiệu ứng.
+`POST /api/projects/{id}/make-video` chỉ nhận `{ "prompt": "..." }`. Máy chủ tự chọn AI, profile mẫu, nhận dạng khi nguồn có tiếng, giữ toàn bộ thời lượng và render đầy đủ. Model chọn nội dung hình ảnh theo các đoạn lời nói; engine quản lý thời gian và kiểm tra MP4. Các thiết lập này không được đẩy sang form của người dùng.
 
-Hoặc:
+Ví dụ: “Dựng đẹp và sinh động, chữ lớn rõ, minh họa đúng lời nói, SFX nhẹ; giữ người nói ở đầu và cuối.” Có thể yêu cầu phong cách nhẹ, không zoom/không SFX/không phụ đề.
 
-> Dựng nhẹ và trang trọng. Giữ thứ tự lời nói, không zoom, không thêm chữ nổi bật, không hiệu ứng âm thanh. Nhạc nền rất nhỏ, giữ phụ đề rõ ràng.
+Giao diện chỉnh thủ công cũ còn ở `/frontend/advanced.html` cho người cần sửa SRT/timeline/tài nguyên. Nó không phải bước bắt buộc của luồng mới.
 
-Model quyết định các đoạn giữ và thứ tự, điểm zoom, tiêu đề, minh họa, âm thanh nhấn và âm lượng nhạc theo yêu cầu. Engine hiện hỗ trợ cắt nối, zoom có easing, chữ có fade, phụ đề, minh họa góc/toàn khung, nhạc có fade/lặp/ducking và ba âm thanh tổng hợp whoosh/impact/chime. Phong cách mẫu hỗ trợ thẻ trắng, minh họa khái niệm hội thoại/quy trình/kết nối, B-roll dự án và chuyển động pop/slide/fade. Chưa hỗ trợ speed ramp, tự tạo nhạc, tìm stock, tạo ảnh photorealistic hay theo dõi khuôn mặt. Yêu cầu vượt khả năng cần được AI báo lại.
+Xem [APPROVED_STYLE.md](APPROVED_STYLE.md) để chuẩn bị máy một lần. Đây vẫn là AI cục bộ: Ollama và bộ nhận dạng cần được cài trước khi dựng; không giả thành AI khi thiếu model.
 
 ## Phân tích nội dung và giới hạn
 
@@ -58,8 +56,8 @@ Model quyết định các đoạn giữ và thứ tự, điểm zoom, tiêu đ�
 - Cần Node.js và Chrome/Chromium để dựng phong cách mẫu; chạy `npm --prefix motion_engine install`. Có thể đặt `CHROME_PATH` nếu Chrome cài nơi khác.
 - Không có nhạc tải lên thì không tự tạo nhạc nền. Âm thanh nhấn là âm tổng hợp đơn giản, không phải thư viện nhạc/âm thanh chuyên nghiệp.
 - Chất lượng dựng phụ thuộc model, chất lượng transcript, tài nguyên và prompt. Cần nghe/xem bản thử, nhất là sau khi AI cắt lời nói. Model nhỏ có thể hiểu sai prompt; không có cam kết mọi video đều chuyên nghiệp.
-- Kế hoạch model được kiểm tra và cho sửa lỗi một lần; không cho model cung cấp đường dẫn, lệnh shell hoặc filter FFmpeg. Model không sẵn sàng/sai kế hoạch sẽ báo lỗi, không báo thành công giả.
-- Phụ đề giữ timestamp nguồn và tự ánh xạ sau khi cắt/reorder. Chỉnh sửa thủ công có thời gian được ánh xạ sang đoạn giữ lại; nội dung trong đoạn đã bỏ cũng bị bỏ. Chạy AI lần nữa dùng timeline hiện tại làm đầu vào, không phục hồi đoạn đã bỏ; có thể chỉnh clip nguồn hoặc tạo dự án mới để dựng lại từ gốc.
+- Kế hoạch model được kiểm tra và cho sửa lỗi tối đa hai lần trong luồng một nút (một lần ở trang nâng cao); không cho model cung cấp đường dẫn, lệnh shell hoặc filter FFmpeg. Model không sẵn sàng/sai kế hoạch sẽ báo lỗi, không báo thành công giả.
+- Phụ đề giữ timestamp nguồn và tự ánh xạ sau khi cắt/reorder. Chỉnh sửa thủ công có thời gian được ánh xạ sang đoạn giữ lại; nội dung trong đoạn đã bỏ cũng bị bỏ. Nút Tạo video của tôi luôn dựng lại từ nguồn gốc và bản nhận dạng gốc. Trang nâng cao chỉ dùng timeline hiện tại khi người dùng chọn dùng bản hiện tại làm đầu vào.
 
 ## Cấu hình
 
@@ -75,7 +73,7 @@ Model quyết định các đoạn giữ và thứ tự, điểm zoom, tiêu đ�
 
 Một tác vụ nặng chạy mỗi lần. Hủy render dừng FFmpeg; hủy nhận dạng/phân tích có hiệu lực ở ranh giới bước, hủy Ollama khi nhận chunk tiếp theo (read timeout 30 giây). Ollama giới hạn đọc phản hồi 10 phút sau khi nhận chunk. Sao lưu toàn bộ `data` trước khi cập nhật/chuyển máy. Ứng dụng đơn người dùng tại localhost; chưa dành cho public hosting/multi-worker.
 
-API `POST /api/projects/{id}/auto-edit` nhận `planner: "ai"`, `prompt`, `music_asset_id` tùy chọn, `transcribe`, `preview`. Khi không chỉ định planner, API giữ `rules` để tương thích với client cũ. UI mặc định AI cho dự án mới. `GET /api/health` trả trạng thái Ollama/model.
+API `POST /api/projects/{id}/auto-edit` nhận `planner: "ai"`, `prompt`, `music_asset_id` tùy chọn, `transcribe`, `preview`. Khi không chỉ định planner, API giữ `rules` để tương thích với client cũ. Giao diện chính luôn dùng luồng AI tự động; trang nâng cao vẫn giữ API và chế độ cũ. `GET /api/health` trả trạng thái Ollama/model.
 
 ## Kiểm thử
 

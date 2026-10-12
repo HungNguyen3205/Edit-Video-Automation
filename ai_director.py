@@ -5,6 +5,7 @@ Model output is data only; it can never supply paths, filters or shell commands.
 import base64
 import copy
 import json
+import math
 import os
 import re
 import subprocess
@@ -185,10 +186,11 @@ RULES:
 '''
 
 
-def chat(messages, event):
+def chat(messages, event, schema=None):
     cancelled(event)
-    payload = {'model': model_name(), 'messages': messages, 'format': Direction.model_json_schema(),
-               'stream': True, 'options': {'temperature': .35, 'num_ctx': 16384}, 'think': False}
+    payload = {'model': model_name(), 'messages': messages, 'format': schema or Direction.model_json_schema(),
+               'stream': True, 'options': {'temperature': .35, 'num_ctx': 8192 if schema else 16384},
+               'think': os.getenv('VIDEO_AI_THINK', '0') == '1'}
     parts = []
     started = time.monotonic()
     try:
@@ -460,7 +462,15 @@ def direct(plan, prompt, asset_dir, work, event, music_asset_id='', headline='',
     for attempt in range(2):
         raw = chat(messages, event)
         try:
-            decision = Direction.model_validate_json(raw)
+            data = json.loads(raw)
+            if not isinstance(data,dict):
+                raise ValueError('Quyết định AI cần một đối tượng JSON.')
+            for zoom in data.get('zooms', []):
+                scale = zoom.get('scale')
+                if isinstance(scale,(int,float)) and not isinstance(scale,bool) and math.isfinite(scale) and scale>1.2:
+                    zoom['scale']=1.2
+                    data.setdefault('warnings',[]).append('Đã giảm mức zoom AI yêu cầu về 1.2 để giữ hình rõ và đúng giới hạn renderer.')
+            decision = Direction.model_validate(data)
             if visual_style == 'explainer_ref' and not decision.storyboard:
                 raise ValueError('explainer_ref requires a complete semantic storyboard with explicit timing; do not substitute fixed effects.')
             result = apply_direction(plan, decision, music_asset_id)

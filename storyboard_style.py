@@ -54,7 +54,7 @@ def write_storyboard_ass(path, plan, width, height):
             wrapped = [wrapped[0],wrapped[1].rstrip('.,')+'…']
         safe = '\\N'.join(wrapped)
         lines.append(f'Dialogue: 0,{ass_time(start)},{ass_time(end)},{style},,0,0,0,,{{\\fad(150,150){tags}}}{safe}')
-    for sub in caption_chunks(mapped_subtitles(plan)):
+    for sub in caption_chunks(mapped_subtitles(plan)) if plan.get('show_captions',True) else []:
         event(sub['start'],sub['end'],'Caption',sub['text'])
     for scene in plan.get('storyboard', []):
         if scene['scene_type'] not in ('talking_head', 'broll'):

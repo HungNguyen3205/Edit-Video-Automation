@@ -20,6 +20,7 @@ from editing import auto_plan, compile_render, length, mapped_subtitles, parse_s
 
 from ai_director import direct, ai_health, build_semantic_storyboard
 from storyboard_compiler import compile_storyboard_scenes
+from automatic_director import automatic_direction
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.getenv('VIDEO_DATA_DIR', BASE_DIR / 'data')).resolve()
@@ -28,6 +29,7 @@ for directory in (PROJECTS_DIR, ASSETS_DIR, OUTPUTS_DIR):
     directory.mkdir(parents=True, exist_ok=True)
 app = FastAPI(title='DANAVA Video Studio')
 app.mount('/frontend', StaticFiles(directory=BASE_DIR / 'frontend'), name='frontend')
+app.mount('/fonts', StaticFiles(directory=BASE_DIR / 'motion_engine' / 'fonts'), name='fonts')
 app.mount('/assets', StaticFiles(directory=ASSETS_DIR), name='assets')
 app.mount('/outputs', StaticFiles(directory=OUTPUTS_DIR), name='outputs')
 LOCK = threading.RLock()
@@ -316,6 +318,8 @@ class Options(BaseModel):
     target_duration: float = Field(0.0, ge=0)
     visual_style: str = Field('clean_expert', pattern='^(clean_expert|dynamic_reels|danava_brand|explainer_ref)$')
     brand_footer: str = Field('', max_length=100)
+    automatic: bool = False
+    user_prompt: str = Field('',max_length=4000)
 
 
 def job_update(project_id, **changes):
@@ -377,6 +381,10 @@ def run_job(project_id, job_id, snapshot, options, mode):
                         plan['video_clips'] = [{'id': uid(), 'asset_id': main_video['asset_id'], 'source_in': 0, 'source_out': dur, 'duration': dur, 'timeline_start': 0}]
                         for key in ('text_overlays', 'visual_overlays', 'audio_tracks', 'effect_keyframes'):
                             plan[key] = []
+                        if options.automatic and 'recognition_subtitles' in plan:
+                            # Re-direct from recognizer output, not successive
+                            # model rewrites of the last generated captions.
+                            plan['subtitles'] = copy.deepcopy(plan['recognition_subtitles'])
                 if mode == 'auto':
                     plan['brand_footer'] = options.brand_footer
                     plan['render_profile'] = options.visual_style
@@ -389,7 +397,10 @@ def run_job(project_id, job_id, snapshot, options, mode):
                     if mode == 'auto':
                         if options.planner == 'ai':
                             job_update(project_id, phase='AI đang phân tích nội dung và lập kế hoạch theo prompt…')
-                            plan = direct(plan, options.prompt, ASSETS_DIR, work, event, options.music_asset_id, options.headline, options.duration_policy, options.target_duration, options.visual_style)
+                            director = automatic_direction if options.automatic else direct
+                            plan = director(plan, options.prompt, ASSETS_DIR, work, event, options.music_asset_id, options.headline, options.duration_policy, options.target_duration, options.visual_style)
+                            if options.automatic:
+                                plan['director']['user_prompt']=options.user_prompt
                             warnings.extend(plan['director']['warnings'])
                         else:
                             job_update(project_id, phase='Tạo nhịp zoom, chữ và minh họa theo quy tắc')
@@ -534,6 +545,22 @@ def enqueue(project_id, background_tasks, options, mode):
 @app.post('/api/projects/{project_id}/auto-edit')
 def automate(project_id: str, options: Options, background_tasks: BackgroundTasks):
     return enqueue(project_id, background_tasks, options, 'auto')
+
+
+class MakeVideo(BaseModel):
+    prompt: str = Field('',max_length=4000)
+
+
+@app.post('/api/projects/{project_id}/make-video')
+def make_video(project_id: str, body: MakeVideo, background_tasks: BackgroundTasks):
+    p=load_project(project_id)
+    if not p.get('video'):
+        raise HTTPException(422,'Tải một video trước khi bắt đầu dựng.')
+    brief=body.prompt.strip() or 'Dựng video đẹp mắt và sinh động theo mẫu đã duyệt. Giữ lời nói, chữ rõ, minh họa đúng nội dung và âm thanh nhẹ.'
+    options=Options(planner='ai',prompt=brief,visual_style='explainer_ref',duration_policy='preserve',
+        preview=False,use_current_plan=False,transcribe=bool(p['video']['metadata'].get('has_audio')),
+        automatic=True,user_prompt=body.prompt.strip())
+    return enqueue(project_id,background_tasks,options,'auto')
 
 
 @app.post('/api/projects/{project_id}/export')
