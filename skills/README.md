@@ -31,3 +31,8 @@ Cách dùng: cập nhật code, dựng video khác, xem kết quả, góp ý c�
 bấm Duyệt phong cách hoặc Cần cải thiện. Đánh giá trên nhiều video trước
 khi thay đổi rule dùng chung. Bộ skill này là điểm khởi đầu; chất lượng
 model thật chưa được benchmark trong đợt bổ sung hướng dẫn này.
+
+## Bộ chữ theo chủ đề
+
+`typography.json` chứa 10 bộ font với mục đích riêng cho phụ đề, tiêu đề,
+nhãn và thương hiệu. [Cách dùng và giấy phép](../docs/TYPOGRAPHY.md).

@@ -120,8 +120,12 @@ def compile_storyboard_scenes(plan, asset_dir, work_dir, output_path, preview=Fa
                         visual_asset_id=sc.get('visual_asset_id',''))
                     asset_path = info['local_path']
                 from text_review import headline_layout
-                title,title_size=headline_layout(sc.get('headline',''),60,590,plan.get('proper_names',''))
+                from typography import profile_for, font_path
+                profile = profile_for(plan)
+                title,title_size=headline_layout(sc.get('headline',''),min(60,profile['heading_size']) if profile else 60,590,plan.get('proper_names',''),font_path(profile,'heading') if profile else None)
                 cfg = {**sc,'headline':title,'headline_font_size':title_size,'duration':dur,'asset_path':str(asset_path),'footer':'' if plan.get('branding') else plan.get('brand_footer','')}
+                if profile:
+                    cfg.update(heading_font_file=profile['heading_file'],caption_font_file=profile['caption_file'],heading_weight=profile['heading_weight'],caption_weight=profile['caption_weight'])
                 cfg_file = work_dir/f'motion_{i}.json'
                 cfg_file.write_text(json.dumps(cfg,ensure_ascii=False),encoding='utf-8')
                 raw = work_dir/f'motion_{i}.mp4'

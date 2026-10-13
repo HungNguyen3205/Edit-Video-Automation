@@ -38,6 +38,15 @@ function buildHtml(data) {
   const escape = value => typeof value === 'string' ? value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') : value;
   const clean = value => Array.isArray(value) ? value.map(clean) : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).map(([key, val]) => [key, key.endsWith('_path') ? val : clean(val)])) : escape(value);
   data = clean(data);
+  function chosenFont(file, fallback) {
+    if (!file) return fallback;
+    if (!/^AVStudio[0-9]{2}-(Caption|Heading)\.ttf$/.test(file)) throw new Error('Invalid font asset');
+    return fs.readFileSync(path.join(fontsDir, file)).toString('base64');
+  }
+  const headingFont = chosenFont(data.heading_font_file, barlowExtraBold);
+  const captionFont = chosenFont(data.caption_font_file, interVar);
+  const headingWeight = data.heading_weight === 700 ? 700 : 800;
+  const captionWeight = [500,600,700].includes(data.caption_weight) ? data.caption_weight : 600;
   const type = data.scene_type || 'explainer_card';
   const headline = data.headline || '';
   const subheadline = data.subheadline || '';
@@ -176,6 +185,8 @@ function buildHtml(data) {
   <head>
     <meta charset="utf-8">
     <style>
+      @font-face { font-family: 'VideoHeading'; src: url(data:font/ttf;base64,${headingFont}) format('truetype'); font-weight: ${headingWeight}; }
+      @font-face { font-family: 'VideoCaption'; src: url(data:font/ttf;base64,${captionFont}) format('truetype'); font-weight: ${captionWeight}; }
       @font-face {
         font-family: 'Barlow Condensed';
         font-weight: 700;
@@ -198,7 +209,7 @@ function buildHtml(data) {
         width: 720px;
         height: 1280px;
         background: #FFFFFF;
-        font-family: 'Barlow Condensed', sans-serif;
+        font-family: 'VideoHeading', sans-serif;
         overflow: hidden;
         display: flex;
         flex-direction: column;
@@ -240,9 +251,10 @@ function buildHtml(data) {
 
       /* Headlines */
       .headline {
+        font-weight: ${headingWeight};
         font-size: ${Math.max(18, Math.min(60, Number(data.headline_font_size) || 60))}px;
         white-space: pre-line;
-        font-weight: 800;
+
         color: #1E293B;
         text-transform: uppercase;
         text-align: center;
@@ -251,7 +263,7 @@ function buildHtml(data) {
         letter-spacing: 0.5px;
       }
       .subheadline {
-        font-family: 'Inter', sans-serif;
+        font-family: 'VideoCaption', sans-serif;
         font-size: 20px;
         font-weight: 600;
         color: #475569;
@@ -327,7 +339,7 @@ function buildHtml(data) {
         width: 100%;
       }
       .comp-point {
-        font-family: 'Inter', sans-serif;
+        font-family: 'VideoCaption', sans-serif;
         font-size: 15px;
         font-weight: 600;
         color: #334155;
@@ -353,7 +365,7 @@ function buildHtml(data) {
         padding: 24px;
       }
       .stat-desc {
-        font-family: 'Inter', sans-serif;
+        font-family: 'VideoCaption', sans-serif;
         font-size: 18px;
         color: #475569;
         text-align: center;
@@ -388,7 +400,7 @@ function buildHtml(data) {
         padding: 8px 22px;
       }
       .step-note {
-        font-family: 'Inter', sans-serif;
+        font-family: 'VideoCaption', sans-serif;
         font-size: 16px;
         color: #475569;
         font-weight: 600;
@@ -430,7 +442,7 @@ function buildHtml(data) {
         box-shadow: 0 12px 30px rgba(30, 41, 59, 0.3);
       }
       .cta-sub {
-        font-family: 'Inter', sans-serif;
+        font-family: 'VideoCaption', sans-serif;
         font-size: 22px;
         font-weight: 600;
         color: #475569;
@@ -468,7 +480,7 @@ function buildHtml(data) {
       .scene-explainer_card .card-img {max-height: 580px;}
       /* Footer */
       .footer {
-        font-family: 'Inter', sans-serif;
+        font-family: 'VideoCaption', sans-serif;
         font-size: 15px;
         font-weight: 700;
         color: #64748B;

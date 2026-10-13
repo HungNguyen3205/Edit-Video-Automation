@@ -5,6 +5,7 @@
 - [Chẩn đoán](AUDIT.md)
 - [Timeout AI](TIMEOUT_FIX.md)
 - [Dựng dự phòng](FALLBACK_FIX.md)
+- [10 bộ chữ theo chủ đề](TYPOGRAPHY.md)
 - [Logo và ảnh](BRANDING_IMAGES.md)
 - [Duyệt và lưu phụ đề](SUBTITLE_REVIEW.md)
 - [Bộ skill dựng cơ bản](../skills/README.md)

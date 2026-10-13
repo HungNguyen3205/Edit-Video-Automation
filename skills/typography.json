@@ -1,0 +1,216 @@
+{
+  "version": 1,
+  "default": "clean",
+  "profiles": [
+    {
+      "id": "clean",
+      "family": "Inter",
+      "label": "Kiến thức rõ ràng",
+      "topics": "Kiến thức, chuyên gia, giáo dục",
+      "purpose": "Phụ đề thông tin; tiêu đề ngắn, gọn.",
+      "font_family": "AV Studio 01",
+      "caption_file": "AVStudio01-Caption.ttf",
+      "heading_file": "AVStudio01-Heading.ttf",
+      "caption_size": 32,
+      "caption_weight": 600,
+      "heading_size": 64,
+      "heading_weight": 700,
+      "max_words": 7,
+      "roles": {
+        "caption": "Giữ nguyên lời nói, tối đa hai dòng; chữ sáng trên nền tối.",
+        "heading": "Phụ đề thông tin; tiêu đề ngắn, gọn.",
+        "label": "Nhãn ngắn, không lặp lại phụ đề.",
+        "brand": "Tên thương hiệu nhỏ, ổn định ở chân khung."
+      }
+    },
+    {
+      "id": "business",
+      "family": "Be Vietnam Pro",
+      "label": "Doanh nghiệp Việt",
+      "topics": "Doanh nghiệp, thương hiệu, dịch vụ",
+      "purpose": "Phụ đề tiếng Việt; tiêu đề giới thiệu và tên thương hiệu.",
+      "font_family": "AV Studio 02",
+      "caption_file": "AVStudio02-Caption.ttf",
+      "heading_file": "AVStudio02-Heading.ttf",
+      "caption_size": 32,
+      "caption_weight": 600,
+      "heading_size": 60,
+      "heading_weight": 700,
+      "max_words": 7,
+      "roles": {
+        "caption": "Giữ nguyên lời nói, tối đa hai dòng; chữ sáng trên nền tối.",
+        "heading": "Phụ đề tiếng Việt; tiêu đề giới thiệu và tên thương hiệu.",
+        "label": "Nhãn ngắn, không lặp lại phụ đề.",
+        "brand": "Tên thương hiệu nhỏ, ổn định ở chân khung."
+      }
+    },
+    {
+      "id": "energetic",
+      "family": "Montserrat",
+      "label": "Năng lượng tích cực",
+      "topics": "Thể thao, fitness, sự kiện",
+      "purpose": "Phụ đề ngắn; tiêu đề hành động nổi bật, không viết cả câu in hoa.",
+      "font_family": "AV Studio 03",
+      "caption_file": "AVStudio03-Caption.ttf",
+      "heading_file": "AVStudio03-Heading.ttf",
+      "caption_size": 32,
+      "caption_weight": 600,
+      "heading_size": 60,
+      "heading_weight": 700,
+      "max_words": 7,
+      "roles": {
+        "caption": "Giữ nguyên lời nói, tối đa hai dòng; chữ sáng trên nền tối.",
+        "heading": "Phụ đề ngắn; tiêu đề hành động nổi bật, không viết cả câu in hoa.",
+        "label": "Nhãn ngắn, không lặp lại phụ đề.",
+        "brand": "Tên thương hiệu nhỏ, ổn định ở chân khung."
+      }
+    },
+    {
+      "id": "friendly",
+      "family": "Nunito Sans",
+      "label": "Gần gũi mềm mại",
+      "topics": "Gia đình, cộng đồng, sức khỏe đời sống",
+      "purpose": "Phụ đề thân thiện; tiêu đề chia sẻ và giao tiếp.",
+      "font_family": "AV Studio 04",
+      "caption_file": "AVStudio04-Caption.ttf",
+      "heading_file": "AVStudio04-Heading.ttf",
+      "caption_size": 33,
+      "caption_weight": 600,
+      "heading_size": 60,
+      "heading_weight": 700,
+      "max_words": 7,
+      "roles": {
+        "caption": "Giữ nguyên lời nói, tối đa hai dòng; chữ sáng trên nền tối.",
+        "heading": "Phụ đề thân thiện; tiêu đề chia sẻ và giao tiếp.",
+        "label": "Nhãn ngắn, không lặp lại phụ đề.",
+        "brand": "Tên thương hiệu nhỏ, ổn định ở chân khung."
+      }
+    },
+    {
+      "id": "tutorial",
+      "family": "Open Sans",
+      "label": "Hướng dẫn dễ đọc",
+      "topics": "Hướng dẫn, bài học, thao tác",
+      "purpose": "Phụ đề nhiều thông tin; tiêu đề từng bước; nhãn thao tác.",
+      "font_family": "AV Studio 05",
+      "caption_file": "AVStudio05-Caption.ttf",
+      "heading_file": "AVStudio05-Heading.ttf",
+      "caption_size": 32,
+      "caption_weight": 600,
+      "heading_size": 60,
+      "heading_weight": 700,
+      "max_words": 7,
+      "roles": {
+        "caption": "Giữ nguyên lời nói, tối đa hai dòng; chữ sáng trên nền tối.",
+        "heading": "Phụ đề nhiều thông tin; tiêu đề từng bước; nhãn thao tác.",
+        "label": "Nhãn ngắn, không lặp lại phụ đề.",
+        "brand": "Tên thương hiệu nhỏ, ổn định ở chân khung."
+      }
+    },
+    {
+      "id": "technology",
+      "family": "Noto Sans",
+      "label": "Công nghệ sáng rõ",
+      "topics": "Công nghệ, AI, phần mềm",
+      "purpose": "Phụ đề kỹ thuật; tiêu đề giải thích; nhãn sơ đồ.",
+      "font_family": "AV Studio 06",
+      "caption_file": "AVStudio06-Caption.ttf",
+      "heading_file": "AVStudio06-Heading.ttf",
+      "caption_size": 32,
+      "caption_weight": 600,
+      "heading_size": 60,
+      "heading_weight": 700,
+      "max_words": 7,
+      "roles": {
+        "caption": "Giữ nguyên lời nói, tối đa hai dòng; chữ sáng trên nền tối.",
+        "heading": "Phụ đề kỹ thuật; tiêu đề giải thích; nhãn sơ đồ.",
+        "label": "Nhãn ngắn, không lặp lại phụ đề.",
+        "brand": "Tên thương hiệu nhỏ, ổn định ở chân khung."
+      }
+    },
+    {
+      "id": "story",
+      "family": "Lora",
+      "label": "Kể chuyện cảm xúc",
+      "topics": "Kể chuyện, văn hóa, hồi tưởng",
+      "purpose": "Tiêu đề kể chuyện có chân; phụ đề chậm, đủ khoảng thở.",
+      "font_family": "AV Studio 07",
+      "caption_file": "AVStudio07-Caption.ttf",
+      "heading_file": "AVStudio07-Heading.ttf",
+      "caption_size": 33,
+      "caption_weight": 500,
+      "heading_size": 60,
+      "heading_weight": 700,
+      "max_words": 6,
+      "roles": {
+        "caption": "Giữ nguyên lời nói, tối đa hai dòng; chữ sáng trên nền tối.",
+        "heading": "Tiêu đề kể chuyện có chân; phụ đề chậm, đủ khoảng thở.",
+        "label": "Nhãn ngắn, không lặp lại phụ đề.",
+        "brand": "Tên thương hiệu nhỏ, ổn định ở chân khung."
+      }
+    },
+    {
+      "id": "editorial",
+      "family": "Noto Serif",
+      "label": "Biên tập trang nhã",
+      "topics": "Phỏng vấn, lịch sử, văn hóa, nội dung cao cấp",
+      "purpose": "Tiêu đề trang nhã; phụ đề có chân rõ ở cỡ lớn.",
+      "font_family": "AV Studio 08",
+      "caption_file": "AVStudio08-Caption.ttf",
+      "heading_file": "AVStudio08-Heading.ttf",
+      "caption_size": 33,
+      "caption_weight": 500,
+      "heading_size": 60,
+      "heading_weight": 700,
+      "max_words": 6,
+      "roles": {
+        "caption": "Giữ nguyên lời nói, tối đa hai dòng; chữ sáng trên nền tối.",
+        "heading": "Tiêu đề trang nhã; phụ đề có chân rõ ở cỡ lớn.",
+        "label": "Nhãn ngắn, không lặp lại phụ đề.",
+        "brand": "Tên thương hiệu nhỏ, ổn định ở chân khung."
+      }
+    },
+    {
+      "id": "documentary",
+      "family": "Source Sans 3",
+      "label": "Tư liệu mạch lạc",
+      "topics": "Tư liệu, báo cáo, phân tích",
+      "purpose": "Phụ đề thông tin dài; tiêu đề giải thích, nhãn dữ kiện.",
+      "font_family": "AV Studio 09",
+      "caption_file": "AVStudio09-Caption.ttf",
+      "heading_file": "AVStudio09-Heading.ttf",
+      "caption_size": 33,
+      "caption_weight": 600,
+      "heading_size": 60,
+      "heading_weight": 700,
+      "max_words": 7,
+      "roles": {
+        "caption": "Giữ nguyên lời nói, tối đa hai dòng; chữ sáng trên nền tối.",
+        "heading": "Phụ đề thông tin dài; tiêu đề giải thích, nhãn dữ kiện.",
+        "label": "Nhãn ngắn, không lặp lại phụ đề.",
+        "brand": "Tên thương hiệu nhỏ, ổn định ở chân khung."
+      }
+    },
+    {
+      "id": "impact",
+      "family": "Barlow Condensed",
+      "label": "Quảng cáo nổi bật",
+      "topics": "Quảng cáo, reels, khuyến mãi",
+      "purpose": "Tiêu đề thật ngắn; phụ đề chữ hẹp dùng cỡ lớn hơn.",
+      "font_family": "AV Studio 10",
+      "caption_file": "AVStudio10-Caption.ttf",
+      "heading_file": "AVStudio10-Heading.ttf",
+      "caption_size": 36,
+      "caption_weight": 700,
+      "heading_size": 64,
+      "heading_weight": 800,
+      "max_words": 6,
+      "roles": {
+        "caption": "Giữ nguyên lời nói, tối đa hai dòng; chữ sáng trên nền tối.",
+        "heading": "Tiêu đề thật ngắn; phụ đề chữ hẹp dùng cỡ lớn hơn.",
+        "label": "Nhãn ngắn, không lặp lại phụ đề.",
+        "brand": "Tên thương hiệu nhỏ, ổn định ở chân khung."
+      }
+    }
+  ]
+}

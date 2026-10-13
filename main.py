@@ -26,6 +26,7 @@ from ai_director import direct, ai_health, build_semantic_storyboard, ai_session
 from storyboard_compiler import compile_storyboard_scenes, run as run_render_command
 from automatic_director import automatic_direction, fallback_direction, PlanningError
 from video_branding import apply_visual_assets
+from typography import FontStyle, public_profiles, apply_typography
 from text_review import prepare_source, review_issues
 from learning_store import LearningStore
 
@@ -385,6 +386,7 @@ class Options(BaseModel):
     image_asset_ids: list[str] = Field(default_factory=list,max_length=6)
     illustrations: bool = True
     proper_names: str = Field('',max_length=600)
+    font_style: FontStyle = 'auto'
 
 
 def job_update(project_id, **changes):
@@ -505,6 +507,7 @@ def run_job(project_id, job_id, snapshot, options, mode):
                             'initial_reference_count':1 if memory.get('initial_visual_reference') else 0,
                             'applied_to_ai':plan['director']['engine']=='ollama' and bool(getattr(event,'style_memory_applied',False)),'model_weights_trained':False}
                         plan=apply_visual_assets(plan,options.prompt,options.brand_footer,options.logo_asset_id,options.image_asset_ids,options.illustrations)
+                        plan=apply_typography(plan,options.font_style,options.user_prompt)
                         warnings=list(dict.fromkeys([*warnings,*plan['director']['warnings']]))
                         issues=review_issues(plan.get('subtitles',[]))
                         plan['subtitle_review']=issues
@@ -655,7 +658,7 @@ def enqueue(project_id, background_tasks, options, mode):
         p['job'] = {'id': identifier, 'status': 'queued', 'phase': 'Đang chờ worker', 'progress': None, 'error': None, 'warnings': [], 'mode': mode, 'preview': options.preview}
         if options.automatic:
             p['job']['branding']={'brand_name':options.brand_footer,'logo_asset_id':options.logo_asset_id,
-                'image_asset_ids':options.image_asset_ids,'illustrations':options.illustrations,'proper_names':options.proper_names}
+                'image_asset_ids':options.image_asset_ids,'illustrations':options.illustrations,'proper_names':options.proper_names,'font_style':options.font_style}
         p['export_status'] = 'queued'
         if mode == 'transcribe':
             p['transcribe_status'] = 'running'
@@ -680,6 +683,12 @@ class MakeVideo(BaseModel):
     image_asset_ids: list[str] = Field(default_factory=list,max_length=6)
     illustrations: bool = True
     proper_names: str = Field('',max_length=600)
+    font_style: FontStyle = 'auto'
+
+
+@app.get('/api/typography')
+def typography_catalog():
+    return {'default':'auto','profiles':public_profiles()}
 
 
 @app.post('/api/projects/{project_id}/make-video')
@@ -703,7 +712,7 @@ def make_video(project_id: str, body: MakeVideo, background_tasks: BackgroundTas
     options=Options(planner='ai',prompt=brief,visual_style='explainer_ref',duration_policy='preserve',
         preview=False,use_current_plan=False,transcribe=bool(p['video']['metadata'].get('has_audio')),
         automatic=True,user_prompt=body.prompt.strip(),brand_footer=body.brand_name.strip(),
-        logo_asset_id=body.logo_asset_id,image_asset_ids=body.image_asset_ids,illustrations=body.illustrations,proper_names=body.proper_names.strip())
+        logo_asset_id=body.logo_asset_id,image_asset_ids=body.image_asset_ids,illustrations=body.illustrations,proper_names=body.proper_names.strip(),font_style=body.font_style)
     return enqueue(project_id,background_tasks,options,'auto')
 
 

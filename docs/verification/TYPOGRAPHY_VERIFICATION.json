@@ -1,0 +1,53 @@
+{
+  "date": "2026-10-13",
+  "suite_before_last_minor_changes": {
+    "passed": 128,
+    "seconds": 193.81
+  },
+  "font_specific_tests_after_last_changes": 33,
+  "font_profiles": 10,
+  "font_files": 20,
+  "font_asset_bytes": 1877768,
+  "vietnamese_upper_lower_glyph_coverage": "passed",
+  "real_libass_family_and_weight_selection": "passed for all ten profiles",
+  "browser": {
+    "preview_profiles": 10,
+    "manual_selection": "story",
+    "restore_after_reload": true,
+    "actual_mp4_decode": true,
+    "page_errors": 0
+  },
+  "real_source": {
+    "duration_seconds": 37.3,
+    "output_dimensions": [
+      720,
+      1280
+    ],
+    "audio": "AAC",
+    "mode": "rules",
+    "typography": {
+      "version": 1,
+      "profile_id": "business",
+      "requested": "business",
+      "selected_by": "user",
+      "family": "Be Vietnam Pro"
+    },
+    "timings": {
+      "recognition_seconds": 0.0,
+      "planning_seconds": 0.12,
+      "graphics_seconds": 38.367,
+      "scene_render_seconds": 73.397,
+      "assembly_seconds": 105.78,
+      "render_seconds": 179.217,
+      "verification_seconds": 1.584
+    },
+    "full_decode": "passed",
+    "captions_unchanged_from_reviewed_source": true,
+    "reference_logo": "demonstration LOGO MAU asset, not official brand logo"
+  },
+  "ai_font_choice": {
+    "controlled_response_test": "passed",
+    "actual_ollama_model": "unavailable; unverified, no claim of new inference or training"
+  },
+  "scope": "Caption, camera titles and Chrome card titles; existing raster/SVG graphic text unchanged"
+}

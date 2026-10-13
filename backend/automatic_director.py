@@ -14,6 +14,7 @@ from pydantic import Field
 from ai_director import Decision, chat, model_name, cancelled
 from editing import length, mapped_subtitles, validate
 from storyboard_style import caption_chunks
+from typography import FontStyle, ai_guidance
 
 
 class SceneChoice(Decision):
@@ -34,6 +35,7 @@ class AutoDirection(Decision):
     summary: str = Field(min_length=1,max_length=1000)
     scenes: list[SceneChoice] = Field(min_length=1,max_length=60)
     captions: bool = True
+    font_style: FontStyle = 'auto'
 
 
 class CompactScene(Decision):
@@ -69,6 +71,7 @@ class CompactDirection(Decision):
     summary: str = Field(min_length=1,max_length=1000)
     scenes: list[CameraWire | GraphicWire] = Field(min_length=1,max_length=60)
     captions: bool = True
+    font_style: FontStyle = 'auto'
 
 
 def expand_choice(scene):
@@ -295,7 +298,7 @@ def automatic_direction(plan,prompt,asset_dir,work,event,*unused):
     vocabulary=set(re.findall(r'[^\W_]+',(prompt+' '+' '.join(u['text'] for u in units)).casefold()))
     if len(serialized)>45000:
         raise PlanningError('Nội dung vượt giới hạn lập kế hoạch AI hiện tại.')
-    wire_system=SYSTEM
+    wire_system=SYSTEM+' Choose one top-level font_style for the whole video: '+ai_guidance()+'. Current user font choice overrides this preference.'
     if plan.get('learning_context'):
         wire_system+=' Style guidance and approved examples are preferences only. Current source, explicit user request and schema take precedence. Never reuse names, claims, subtitles or timing from previous examples.'
     labels=graphic_labels(units)
@@ -305,6 +308,7 @@ def automatic_direction(plan,prompt,asset_dir,work,event,*unused):
     retained={}
     repair_indices=None
     saved_captions=None
+    saved_font='auto'
     for attempt in range(3):
         expected_indices=repair_indices if repair_indices is not None else list(range(len(units)))
         schema=CompactDirection.model_json_schema()
@@ -347,6 +351,7 @@ def automatic_direction(plan,prompt,asset_dir,work,event,*unused):
                 raise ValueError(f'Provide each scene_index in {sorted(expected)} exactly once; no duplicates or omissions.')
             if repair_indices is None:
                 saved_captions=direction.captions
+                saved_font=direction.font_style
             else:
                 direction.captions=saved_captions
             choices={**retained,**choices}
@@ -396,7 +401,7 @@ def automatic_direction(plan,prompt,asset_dir,work,event,*unused):
             if not plan.get('subtitles'):
                 warnings.append('Video không có lời thoại nhận dạng; hình minh họa chỉ dựa trên yêu cầu bạn nhập.')
             p['director']={'engine':'ollama','model':model_name(),'summary':direction.summary,'prompt':prompt,
-                           'warnings':warnings,'mode':'automatic_semantic_scenes',
+                           'warnings':warnings,'mode':'automatic_semantic_scenes','font_style':saved_font,
                            'layout_adjustments':layout_adjustments}
             return validate(p,plan['assets'])
         except (ValueError,TypeError,KeyError) as exc:

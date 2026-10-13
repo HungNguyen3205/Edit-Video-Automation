@@ -35,7 +35,7 @@ function lock(yes) {
   $('drop-zone').disabled = yes;
   $('prompt').disabled = yes;
   $('history-toggle').disabled = yes;
-  ['approve-style','needs-changes','feedback-note','captions-checked','save-subtitles','import-corrections','brand-name','proper-names','choose-logo','choose-images','illustrations'].forEach(id=>$(id).disabled=yes);
+  ['approve-style','needs-changes','feedback-note','captions-checked','save-subtitles','import-corrections','brand-name','proper-names','choose-logo','choose-images','illustrations','font-style'].forEach(id=>$(id).disabled=yes);
   document.querySelectorAll('.asset-row input,.remove-asset,.subtitle-row textarea').forEach(el=>el.disabled=yes);
   $('create-video').disabled = yes || (!selected && !current?.video);
   $('create-video').querySelector('span').textContent = yes ? 'AI đang dựng video…' : current?.output_path ? 'Dựng lại theo yêu cầu này' : 'Tạo video của tôi';
@@ -137,6 +137,8 @@ function finish(p) {
   $('download-video').download = `${(p.video.original_name || 'video').replace(/\.[^.]+$/,'')}-AI.mp4`;
   visible('download-video',true);visible('result-note',true);
   $('result-badge').textContent = p.job?.planning_mode === 'fallback' ? 'Hoàn thành · Dự phòng' : 'Hoàn thành';if(p.edit_plan?.subtitle_review?.length)$('result-badge').textContent+=' · Cần duyệt phụ đề';$('result-badge').classList.add('done');
+  const typography=p.edit_plan?.typography;
+  $('result-note').querySelector('p').textContent=typography ? `Đã giữ giọng nói và nội dung nguồn. Bộ chữ: ${typography.family} (${({user:'bạn chọn',ai:'AI chọn',rules:'chọn theo quy tắc'})[typography.selected_by] || 'đã lưu'}). Xem lại trước khi đăng.` : 'Đã giữ giọng nói và nội dung nguồn. Xem lại trước khi đăng.';
   $('meta-name').textContent = 'Video đã dựng';
   $('meta-detail').textContent = `${Number(p.duration_audit?.ffprobe_duration || p.video.metadata.duration).toFixed(1)} giây · MP4`;
   $('warning-list').replaceChildren();
@@ -192,7 +194,7 @@ async function create() {
     await saveSubtitleDraft();
     current = await api(`/api/projects/${current.id}/make-video`,json({prompt:$('prompt').value.trim(),
       brand_name:$('brand-name').value.trim(),proper_names:$('proper-names').value.trim(),logo_asset_id:logoSelection?.asset_id || '',
-      image_asset_ids:imageSelections.map(a=>a.asset_id),illustrations:$('illustrations').checked}));
+      image_asset_ids:imageSelections.map(a=>a.asset_id),illustrations:$('illustrations').checked,font_style:$('font-style').value}));
     localStorage.setItem('danava-last-video',current.id);
     localStorage.removeItem(draftKey());
     beginPolling();
@@ -241,6 +243,8 @@ function restoreAssets(p) {
   $('brand-name').value=settings.brand_name ?? p.edit_plan?.brand_footer ?? '';
   $('proper-names').value=settings.proper_names ?? p.edit_plan?.proper_names ?? '';
   $('illustrations').checked=settings.illustrations !== false;
+  $('font-style').value=settings.font_style ?? p.edit_plan?.typography?.requested ?? 'auto';
+  showFontPreview();
   const entry=id=>{const a=p.edit_plan.assets.find(x=>x.id===id);return a?{asset_id:id,file:null,name:a.original_name,url:`/assets/${a.filename}`,keywords:a.keywords || ''}:null;};
   logoSelection=entry(settings.logo_asset_id);imageSelections=(settings.image_asset_ids || []).map(entry).filter(Boolean);renderAssets();
 }
@@ -331,7 +335,36 @@ $('history-toggle').onclick = async () => {
     });
   } catch(e) { error(e.message); }
 };
+let fontProfiles = [];
+let fontPreviewGeneration = 0;
+async function showFontPreview() {
+  const token = ++fontPreviewGeneration;
+  const profile = fontProfiles.find(p=>p.id===$('font-style').value);
+  visible('font-preview',false);
+  $('font-roles').textContent='';
+  $('font-purpose').textContent=profile ? `${profile.family} · ${profile.topics}. ${profile.purpose}` : 'AI chọn một bộ chữ theo nội dung. Khi AI không khả dụng, bộ dựng chọn theo quy tắc và ghi rõ trong kết quả.';
+  if(!profile)return;
+  try {
+    const heading = new FontFace(profile.font_family,`url("${profile.heading_url}")`,{weight:String(profile.heading_weight)});
+    const caption = new FontFace(profile.font_family,`url("${profile.caption_url}")`,{weight:String(profile.caption_weight)});
+    await Promise.all([heading.load(),caption.load()]);
+    if(token!==fontPreviewGeneration)return;
+    document.fonts.add(heading);document.fonts.add(caption);
+    $('font-heading').style.fontFamily=`"${profile.font_family}"`;
+    $('font-heading').style.fontWeight=profile.heading_weight;
+    $('font-caption').style.fontFamily=`"${profile.font_family}"`;
+    $('font-caption').style.fontWeight=profile.caption_weight;
+    $('font-roles').textContent=`Phụ đề: ${profile.roles.caption} Tiêu đề: ${profile.roles.heading} Nhãn: ${profile.roles.label} Thương hiệu: ${profile.roles.brand}`;
+    visible('font-preview',true);
+  } catch { if(token===fontPreviewGeneration)$('font-roles').textContent='Chưa tải được xem trước font. Hãy tải lại trang.'; }
+}
+$('font-style').onchange=showFontPreview;
 async function initialize() {
+  try {
+    const catalog=await api('/api/typography');fontProfiles=catalog.profiles;
+    for(const p of fontProfiles){const option=document.createElement('option');option.value=p.id;option.textContent=`${p.label} — ${p.family}`;$('font-style').append(option);}
+  } catch { $('font-purpose').textContent='Chưa tải được danh sách kiểu chữ. Đang giữ chế độ tự chọn.'; }
+
   try {
     const health = await api('/api/health');
     const ready = health.ffmpeg && health.ffprobe && health.motion?.ready && health.whisper;

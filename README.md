@@ -103,3 +103,8 @@ Kiểm thử xuất FFmpeg thật cho cắt nối, phụ đề, minh họa, nh�
 Lệnh khởi động vẫn là **`python main.py`** hoặc **`uvicorn main:app`** từ
 thư mục dự án. Cài dependency chính vẫn bằng `pip install -r requirements.txt`.
 Xem [tài liệu](docs/README.md) và [bộ skill](skills/README.md).
+
+## Kiểu chữ cho video
+
+Có 10 bộ font tiếng Việt theo chủ đề, tùy chọn tự chọn hoặc chọn cố định,
+xem trước trên web. [Danh mục, mục đích và cách dùng](docs/TYPOGRAPHY.md).

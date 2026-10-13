@@ -1,0 +1,182 @@
+[
+  {
+    "file": "AVStudio01-Caption.ttf",
+    "original_family": "Inter",
+    "original_file": "Inter-Variable.ttf",
+    "source_sha256": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031",
+    "sha256": "e21b2432ee679fcf31a96bb28312505042767e86f1630e0faaec3600220eeb96",
+    "license": "SIL OFL 1.1",
+    "source_url": "https://github.com/google/fonts/tree/main/ofl/inter"
+  },
+  {
+    "file": "AVStudio01-Heading.ttf",
+    "original_family": "Inter",
+    "original_file": "Inter-Variable.ttf",
+    "source_sha256": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031",
+    "sha256": "b44b2ef411ff53bb59dd45a907b144535d87730e3aaa739cc170ff5784c3c9f0",
+    "license": "SIL OFL 1.1",
+    "source_url": "https://github.com/google/fonts/tree/main/ofl/inter"
+  },
+  {
+    "file": "AVStudio02-Caption.ttf",
+    "original_family": "Be Vietnam Pro",
+    "original_file": "BeVietnamPro-SemiBold.ttf",
+    "source_sha256": "bd8e27eb02720b9d91e59e4f10a90878643219f25ce6a8d9a4f06a8a88d3bb71",
+    "sha256": "f144a7c4aed061531f6cdbf38ea1e83c4d869ec002e2cd292215b443b13d9c46",
+    "license": "SIL OFL 1.1",
+    "source_url": "https://github.com/google/fonts/tree/main/ofl/bevietnampro"
+  },
+  {
+    "file": "AVStudio02-Heading.ttf",
+    "original_family": "Be Vietnam Pro",
+    "original_file": "BeVietnamPro-Bold.ttf",
+    "source_sha256": "7f738fe5c43c8872807b20e2d30d42163618de8a4daf7f48a939adac32c16847",
+    "sha256": "c7f6b6f113e22833e0649a86ab578a18dd074498d1cab000e3a595435c8c10eb",
+    "license": "SIL OFL 1.1",
+    "source_url": "https://github.com/google/fonts/tree/main/ofl/bevietnampro"
+  },
+  {
+    "file": "AVStudio03-Caption.ttf",
+    "original_family": "Montserrat",
+    "original_file": "Montserrat[wght].ttf",
+    "source_sha256": "0f7b311b2f3279e4eef9b2f968bcdbab6e28f4daeb1f049f4f278a902bcd82f7",
+    "sha256": "2617bf6abd06a7128715b601abb9cdccec1a87b7be37b03ca7f2603afb4efdfb",
+    "license": "SIL OFL 1.1",
+    "source_url": "https://github.com/google/fonts/tree/main/ofl/montserrat"
+  },
+  {
+    "file": "AVStudio03-Heading.ttf",
+    "original_family": "Montserrat",
+    "original_file": "Montserrat[wght].ttf",
+    "source_sha256": "0f7b311b2f3279e4eef9b2f968bcdbab6e28f4daeb1f049f4f278a902bcd82f7",
+    "sha256": "3ab16312a116fd4655cacd82c5ef1312fe40c91df66fce69ef6a486248799df7",
+    "license": "SIL OFL 1.1",
+    "source_url": "https://github.com/google/fonts/tree/main/ofl/montserrat"
+  },
+  {
+    "file": "AVStudio04-Caption.ttf",
+    "original_family": "Nunito Sans",
+    "original_file": "NunitoSans[YTLC,opsz,wdth,wght].ttf",
+    "source_sha256": "f934d7142fb4784bf828da485b7dcbd90c0c80d514e9d49a5da0ed3a1ae2491d",
+    "sha256": "2a0d144b5770ad94e978578b927a9cd6e1bf9970a4add985ea4742eb6d440f57",
+    "license": "SIL OFL 1.1",
+    "source_url": "https://github.com/google/fonts/tree/main/ofl/nunitosans"
+  },
+  {
+    "file": "AVStudio04-Heading.ttf",
+    "original_family": "Nunito Sans",
+    "original_file": "NunitoSans[YTLC,opsz,wdth,wght].ttf",
+    "source_sha256": "f934d7142fb4784bf828da485b7dcbd90c0c80d514e9d49a5da0ed3a1ae2491d",
+    "sha256": "2802419bf5e46295c0c62e843f34f5f756cf6fd16ecd39c663d2b925a443378d",
+    "license": "SIL OFL 1.1",
+    "source_url": "https://github.com/google/fonts/tree/main/ofl/nunitosans"
+  },
+  {
+    "file": "AVStudio05-Caption.ttf",
+    "original_family": "Open Sans",
+    "original_file": "OpenSans[wdth,wght].ttf",
+    "source_sha256": "36643644f318a812aab2d2ed3bb98f8cf0872527f835fe9398d95fe6b9adb878",
+    "sha256": "c404ae8dca2782aab04fbe4ab318e65f916702c8f829a295d788d1b98a9e6136",
+    "license": "SIL OFL 1.1",
+    "source_url": "https://github.com/google/fonts/tree/main/ofl/opensans"
+  },
+  {
+    "file": "AVStudio05-Heading.ttf",
+    "original_family": "Open Sans",
+    "original_file": "OpenSans[wdth,wght].ttf",
+    "source_sha256": "36643644f318a812aab2d2ed3bb98f8cf0872527f835fe9398d95fe6b9adb878",
+    "sha256": "ad644547cfd682a78e69ab9fdb8eb4ffa70700ecaa004077ba352cac45604f5e",
+    "license": "SIL OFL 1.1",
+    "source_url": "https://github.com/google/fonts/tree/main/ofl/opensans"
+  },
+  {
+    "file": "AVStudio06-Caption.ttf",
+    "original_family": "Noto Sans",
+    "original_file": "NotoSans[wdth,wght].ttf",
+    "source_sha256": "bfb7bb691513f12e734dc346c03a03f784912432d7e3fa8e56efcf906fe86b3d",
+    "sha256": "86ed3f08ea66292a52ccf60d904eabb85c84a086d047138fe471b89f13580017",
+    "license": "SIL OFL 1.1",
+    "source_url": "https://github.com/google/fonts/tree/main/ofl/notosans"
+  },
+  {
+    "file": "AVStudio06-Heading.ttf",
+    "original_family": "Noto Sans",
+    "original_file": "NotoSans[wdth,wght].ttf",
+    "source_sha256": "bfb7bb691513f12e734dc346c03a03f784912432d7e3fa8e56efcf906fe86b3d",
+    "sha256": "a72eaf66153f4182414062257b680106d51a14854529b9dd72b8554a1adbd4bf",
+    "license": "SIL OFL 1.1",
+    "source_url": "https://github.com/google/fonts/tree/main/ofl/notosans"
+  },
+  {
+    "file": "AVStudio07-Caption.ttf",
+    "original_family": "Lora",
+    "original_file": "Lora[wght].ttf",
+    "source_sha256": "822a6621ccbe8d97d20ac88c1c41f5615c9c2c202eaa75f272cd452aac6475a7",
+    "sha256": "882c0239b45497ab07f8a6ce338dbd7ad08a7fc73309642c07e6f41e669600af",
+    "license": "SIL OFL 1.1",
+    "source_url": "https://github.com/google/fonts/tree/main/ofl/lora"
+  },
+  {
+    "file": "AVStudio07-Heading.ttf",
+    "original_family": "Lora",
+    "original_file": "Lora[wght].ttf",
+    "source_sha256": "822a6621ccbe8d97d20ac88c1c41f5615c9c2c202eaa75f272cd452aac6475a7",
+    "sha256": "d84d7168e06828b7897a7c18d174b01b2ec6785c6cef6e2a923a91a39027c863",
+    "license": "SIL OFL 1.1",
+    "source_url": "https://github.com/google/fonts/tree/main/ofl/lora"
+  },
+  {
+    "file": "AVStudio08-Caption.ttf",
+    "original_family": "Noto Serif",
+    "original_file": "NotoSerif[wdth,wght].ttf",
+    "source_sha256": "4d8e6761424656867019081a1a01336f3cb086982682698714054fc33f782713",
+    "sha256": "9fca8bfd25b3f4dd3e688706c40698fc4eb5a5aa1efa3b035a7415166521ccf6",
+    "license": "SIL OFL 1.1",
+    "source_url": "https://github.com/google/fonts/tree/main/ofl/notoserif"
+  },
+  {
+    "file": "AVStudio08-Heading.ttf",
+    "original_family": "Noto Serif",
+    "original_file": "NotoSerif[wdth,wght].ttf",
+    "source_sha256": "4d8e6761424656867019081a1a01336f3cb086982682698714054fc33f782713",
+    "sha256": "7bd514b2aa05d0ceb680862841b19f68a0993580abe52a332415ba91e5d2f8df",
+    "license": "SIL OFL 1.1",
+    "source_url": "https://github.com/google/fonts/tree/main/ofl/notoserif"
+  },
+  {
+    "file": "AVStudio09-Caption.ttf",
+    "original_family": "Source Sans 3",
+    "original_file": "SourceSans3[wght].ttf",
+    "source_sha256": "042fe2cc0b933e328410d7acbd0aa6a1873dca5aef81875f4bc214b08825c7b9",
+    "sha256": "af54d5084c80cc5b2252991641768cc3447727366d83a37dbbbfdb430f2e3429",
+    "license": "SIL OFL 1.1",
+    "source_url": "https://github.com/google/fonts/tree/main/ofl/sourcesans3"
+  },
+  {
+    "file": "AVStudio09-Heading.ttf",
+    "original_family": "Source Sans 3",
+    "original_file": "SourceSans3[wght].ttf",
+    "source_sha256": "042fe2cc0b933e328410d7acbd0aa6a1873dca5aef81875f4bc214b08825c7b9",
+    "sha256": "f04e894f021e4b7e44b7e6eac1c6163d5c66b496bfdec94f3629f52d6518d6ba",
+    "license": "SIL OFL 1.1",
+    "source_url": "https://github.com/google/fonts/tree/main/ofl/sourcesans3"
+  },
+  {
+    "file": "AVStudio10-Caption.ttf",
+    "original_family": "Barlow Condensed",
+    "original_file": "BarlowCondensed-Bold.ttf",
+    "source_sha256": "e476562ec9c1e16cf16475895b511f08c804f438cc9a9f80a44ea50a0eeb5b65",
+    "sha256": "f102b5a0a4bf7ab393b24985d07f9ac23a5dc03e3d53b241047ccf021ad3f47e",
+    "license": "SIL OFL 1.1",
+    "source_url": "https://github.com/google/fonts/tree/main/ofl/barlowcondensed"
+  },
+  {
+    "file": "AVStudio10-Heading.ttf",
+    "original_family": "Barlow Condensed",
+    "original_file": "BarlowCondensed-ExtraBold.ttf",
+    "source_sha256": "724c9c25952d5f4a2d87185d9767aa006144c5f0d944dc05bf7d5d603551c260",
+    "sha256": "55c59b0f283a34c8324d0f00dd3bdcb8c14593d71030094e7cbdb1539bd9a7fe",
+    "license": "SIL OFL 1.1",
+    "source_url": "https://github.com/google/fonts/tree/main/ofl/barlowcondensed"
+  }
+]

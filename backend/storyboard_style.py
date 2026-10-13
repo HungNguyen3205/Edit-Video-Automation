@@ -2,6 +2,7 @@
 import textwrap
 from editing import ass_time, mapped_subtitles
 from text_review import headline_layout
+from typography import profile_for, font_path
 
 
 def escape_ass(text):
@@ -47,6 +48,7 @@ def caption_chunks(subs, max_words=7, proper_names=""):
 
 
 def write_storyboard_ass(path, plan, width, height):
+    profile = profile_for(plan)
     # Render at a fixed design coordinate system; libass scales for preview.
     lines = ['[Script Info]', 'ScriptType: v4.00+', 'PlayResX: 720', 'PlayResY: 1280',
              'WrapStyle: 2', '[V4+ Styles]',
@@ -56,22 +58,53 @@ def write_storyboard_ass(path, plan, width, height):
              'Style: Label,Inter,22,&H00FFFFFF,&H00FFFFFF,&H0088940D,&H0088940D,-1,0,0,0,100,100,2,0,3,10,0,8,40,40,110,1',
              'Style: Brand,Inter,26,&H00FFFFFF,&H00FFFFFF,&H003B2D17,&H803B2D17,0,0,0,0,100,100,0,0,1,2,0,2,35,35,35,1',
              '[Events]', 'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text']
+    if profile:
+        replacements = {'Caption': (profile['caption_size'], profile['caption_weight']),
+                        'Head': (profile['heading_size'], profile['heading_weight']),
+                        'Label': (22, profile['caption_weight']), 'Brand': (26, profile['caption_weight'])}
+        for index, line in enumerate(lines):
+            if line.startswith('Style: '):
+                columns = line.split(',')
+                role = columns[0].removeprefix('Style: ')
+                columns[1] = profile['font_family']
+                columns[2] = str(replacements[role][0])
+                columns[7] = '-1' if replacements[role][1]>=700 else '0'
+                lines[index] = ','.join(columns)
     def event(start, end, style, text, tags=''):
         if end <= start or not text:
             return
+        if profile:
+            weight=profile['heading_weight'] if style=='Head' else profile['caption_weight']
+            tags='\\b'+str(weight)+tags
         safe = escape_ass(text)
         wrap = 38 if style == 'Caption' else 50 if style=='Brand' else 27
         if style=='Head':
-            formatted,font_size=headline_layout(safe,proper_names=plan.get('proper_names',''))
+            formatted,font_size=headline_layout(safe,size=profile['heading_size'] if profile else 64,proper_names=plan.get('proper_names',''),font_path=font_path(profile,'heading') if profile else None)
             wrapped=formatted.split('\n')
             tags+='\\fs'+str(font_size)
+        elif style=='Caption' and profile:
+            from PIL import ImageFont
+            font=ImageFont.truetype(str(font_path(profile,'caption')),profile['caption_size'])
+            wrapped=[]; words=[]
+            for word in safe.split():
+                if words and font.getlength(' '.join([*words,word]))>620:
+                    wrapped.append(' '.join(words));words=[]
+                words.append(word)
+            if words:wrapped.append(' '.join(words))
+            if len(wrapped)>2:
+                total=sum(len(line.split()) for line in wrapped);offset=0
+                for index in range(0,len(wrapped),2):
+                    page=' '.join(wrapped[index:index+2]);count=len(page.split())
+                    event(start+(end-start)*offset/total,start+(end-start)*(offset+count)/total,style,page,tags)
+                    offset+=count
+                return
         else:
             wrapped = textwrap.wrap(safe, width=wrap)
         if len(wrapped)>2:
             wrapped = [wrapped[0],wrapped[1].rstrip('.,')+'…']
         safe = '\\N'.join(wrapped)
         lines.append(f'Dialogue: 0,{ass_time(start)},{ass_time(end)},{style},,0,0,0,,{{\\fad(150,150){tags}}}{safe}')
-    for sub in caption_chunks(mapped_subtitles(plan),proper_names=plan.get("proper_names","")) if plan.get('show_captions',True) else []:
+    for sub in caption_chunks(mapped_subtitles(plan),max_words=profile['max_words'] if profile else 7,proper_names=plan.get("proper_names","")) if plan.get('show_captions',True) else []:
         event(sub['start'],sub['end'],'Caption',sub['text'])
     for scene in plan.get('storyboard', []):
         if scene['scene_type'] not in ('talking_head', 'broll'):
