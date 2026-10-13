@@ -79,3 +79,17 @@ def test_oversized_style_memory_does_not_displace_source(media,tmp_path,monkeypa
     assert 'style_guidance' not in seen[0]
     assert seen[0]['scenes'][0]['text']=='Lời hiện tại.'
     assert not event.style_memory_applied
+
+
+def test_basic_skill_pack_is_active_bounded_and_corruption_keeps_safety(tmp_path):
+    from learning_store import editor_skills,RULES
+    pack=editor_skills()
+    assert len(pack)==6 and sum(len(s['rule']) for s in pack)<=1800
+    context=LearningStore(tmp_path).context()
+    assert context['active_skills']==[s['id'] for s in pack]
+    assert all(rule in context['rules'] for rule in RULES)
+    broken=tmp_path/'broken.json';broken.write_text('{not-json')
+    assert editor_skills(broken)==[]
+    broken.write_text('[]');assert editor_skills(broken)==[]
+    disabled=tmp_path/'disabled.json';disabled.write_text(json.dumps({'schema_version':1,'skills':[{'id':'custom','enabled':False,'rule':'Calm style.'}]}))
+    assert editor_skills(disabled)==[]

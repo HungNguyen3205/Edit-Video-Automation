@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "skills": [
+    {
+      "id": "typography",
+      "name": "Chữ gọn và có thứ bậc",
+      "enabled": true,
+      "rule": "Use one short source-based headline per scene, usually 3-7 words. Keep explicit multiword names together. Avoid duplicate headings, crowded badges and text over the face; keep clear hierarchy within existing safe areas."
+    },
+    {
+      "id": "faithful_captions",
+      "name": "Phụ đề rõ và đúng lời",
+      "enabled": true,
+      "rule": "Keep spoken content and engine timestamps. Never guess uncertain words, add claims or rewrite reviewed captions. Use explicit current-project spelling. Leave subtitle placement and timing to the engine."
+    },
+    {
+      "id": "purposeful_zoom",
+      "name": "Zoom nhẹ có chủ đích",
+      "enabled": true,
+      "rule": "Prefer a subtle zoom peak around 1.04-1.10 at meaningful emphasis, with calm camera scenes between accents. No abrupt or constant zoom. Respect requests for no effects; never crop out the speaker's face."
+    },
+    {
+      "id": "relevant_visuals",
+      "name": "Minh họa đúng ý và cân bố cục",
+      "enabled": true,
+      "rule": "Illustrate one clear spoken idea at a time. Prefer relevant uploaded photos; otherwise use a simple grounded diagram. Keep the speaker visible in PiP. Avoid repeated labels and decorative filler; no illustration quota."
+    },
+    {
+      "id": "brand_consistency",
+      "name": "Logo và thương hiệu nhất quán",
+      "enabled": true,
+      "rule": "Use only the current project's brand spelling and supplied assets. Leave logo transparency, proportions and persistent placement to the engine. Keep scene text away from the logo and captions. Never invent or redraw a logo."
+    },
+    {
+      "id": "restrained_rhythm",
+      "name": "Nhịp dựng và âm thanh tinh tế",
+      "enabled": true,
+      "rule": "Prefer camera opening/ending and a few relevant interior visual changes. Keep source voice dominant; most camera scenes use no SFX, graphics may use a quiet pop or whoosh. Respect no-sound/no-illustration requests and the existing schema."
+    }
+  ]
+}

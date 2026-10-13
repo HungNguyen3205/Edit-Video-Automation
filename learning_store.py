@@ -15,6 +15,28 @@ RULES=[
 ]
 
 
+
+def editor_skills(path=None):
+    """Load bounded project instructions; a broken file cannot break rendering."""
+    try:
+        pack=json.loads(Path(path or Path(__file__).parent/'editing_skills.json').read_text(encoding='utf-8'))
+        if not isinstance(pack,dict):raise ValueError('Invalid skill pack')
+        skills=pack.get('skills')
+        if pack.get('schema_version')!=1 or not isinstance(skills,list) or not 1<=len(skills)<=8:
+            raise ValueError('Invalid skill pack')
+        ids=set();active=[]
+        for skill in skills:
+            if not isinstance(skill,dict) or not isinstance(skill.get('id'),str) or not 1<=len(skill['id'])<=40 or skill['id'] in ids or not isinstance(skill.get('enabled'),bool) or not isinstance(skill.get('rule'),str) or not 1<=len(skill['rule'])<=400:
+                raise ValueError('Invalid skill')
+            ids.add(skill['id'])
+            if skill['enabled']:active.append({'id':skill['id'],'rule':skill['rule']})
+        if sum(len(skill['rule']) for skill in active)>1800:
+            raise ValueError('Skill instructions are too long')
+        return active
+    except (OSError,ValueError,TypeError):
+        return []
+
+
 def visual_summary(plan):
     scenes=plan.get('storyboard',[])
     types=[s.get('scene_type','talking_head') for s in scenes]
@@ -53,7 +75,8 @@ class LearningStore:
         # Bounded summaries support new content; never replay a previous script.
         baseline=json.loads((Path(__file__).parent/'style_reference.json').read_text(encoding='utf-8'))
         changes=[r['note'][:250] for r in self.records() if r['decision']=='needs_changes' and r.get('note')][:2]
-        return {'schema_version':1,'rules':RULES,'initial_visual_reference':baseline['visual_style'],'requested_changes':changes,'approved_style_examples':[
+        skills=editor_skills()
+        return {'schema_version':1,'active_skills':[s['id'] for s in skills],'rules':RULES+[s['rule'] for s in skills],'initial_visual_reference':baseline['visual_style'],'requested_changes':changes,'approved_style_examples':[
             {'visual_style':r['visual_style'],'user_note':r['note'][:250]} for r in approved]}
 
     def status(self):
@@ -61,7 +84,7 @@ class LearningStore:
         return {'mode':'style_memory','model_weights_trained':False,
                 'initial_visual_references':1,'approved_styles':sum(r['decision']=='approve_style' for r in records),
                 'needs_changes':sum(r['decision']=='needs_changes' for r in records),
-                'reference_limit':3}
+                'reference_limit':3,'active_skills':[s['id'] for s in editor_skills()]}
 
     def export(self):
         # Export style supervision only; no private transcript/brand/asset paths.
