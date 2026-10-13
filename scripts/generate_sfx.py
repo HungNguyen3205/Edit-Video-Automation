@@ -5,7 +5,7 @@ import struct
 import wave
 from pathlib import Path
 
-SFX_DIR = Path(__file__).resolve().parent / 'data' / 'sfx'
+SFX_DIR = Path(__file__).resolve().parents[1] / 'data' / 'sfx'
 SFX_DIR.mkdir(parents=True, exist_ok=True)
 
 def write_wav(path, samples, rate=48000):

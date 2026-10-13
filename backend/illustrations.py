@@ -2,7 +2,8 @@
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
-ROOT = Path(__file__).resolve().parent
+from project_paths import PROJECT_ROOT
+ROOT = PROJECT_ROOT
 TEAL, NAVY = '#0D9488', '#172D3B'
 
 

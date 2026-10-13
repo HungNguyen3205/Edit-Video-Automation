@@ -10,6 +10,10 @@ import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+import sys
+
+# Keep the existing python main.py / uvicorn main:app entry points.
+sys.path.insert(0, str(Path(__file__).resolve().parent / "backend"))
 
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import RedirectResponse, Response
@@ -394,7 +398,7 @@ def transcribe(plan, work_dir, project_id):
     global MODEL
     engine = recognition_engine()
     if not engine:
-        raise RuntimeError('Chưa cài Whisper. Cài requirements-ai.txt hoặc nhập SRT; có thể tắt phụ đề tự động để dựng hình trước.')
+        raise RuntimeError('Chưa cài Whisper. Cài requirements/requirements-ai.txt hoặc nhập SRT; có thể tắt phụ đề tự động để dựng hình trước.')
     asset = next(a for a in plan['assets'] if a['id'] == plan['video_clips'][0]['asset_id'])
     if not asset['metadata'].get('has_audio'):
         raise RuntimeError('Video không có tiếng để nhận dạng. Tắt phụ đề tự động hoặc nhập SRT.')
@@ -646,7 +650,7 @@ def enqueue(project_id, background_tasks, options, mode):
         p['edit_plan'] = check_plan(p['edit_plan'], p['edit_plan']['assets'])
         if mode in ('auto', 'transcribe') and (mode == 'transcribe' or options.transcribe) and not p['edit_plan']['subtitles']:
             if not recognition_engine():
-                raise HTTPException(422, 'Chưa cài Whisper. Cài requirements-ai.txt, nhập SRT hoặc tắt phụ đề tự động.')
+                raise HTTPException(422, 'Chưa cài Whisper. Cài requirements/requirements-ai.txt, nhập SRT hoặc tắt phụ đề tự động.')
         identifier = uid()
         p['job'] = {'id': identifier, 'status': 'queued', 'phase': 'Đang chờ worker', 'progress': None, 'error': None, 'warnings': [], 'mode': mode, 'preview': options.preview}
         if options.automatic:

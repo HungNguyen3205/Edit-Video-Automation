@@ -15,7 +15,7 @@ Brand settings and selected assets restore on refresh/history. Assets must belon
 
 ## Validation
 
-87 tests passed, with real MP4 pixel checks for uploaded pictures, transparent logo corners, brand text and repeated exports without duplicate logos. Browser checks passed for upload, refresh, removal/rerender, mobile 390px, and no page errors. A genuine 37.3-second original video was recognised with Whisper small/int8 and exported with two source-based illustrations despite an unavailable Ollama endpoint. The final rerender reused only that same-source recognition. Full FFmpeg decode passed; six frames were inspected. The demonstration logo visibly says LOGO MẪU and is not the official DANAVA logo. Detailed evidence is in BRANDING_VERIFICATION.json.
+87 tests passed, with real MP4 pixel checks for uploaded pictures, transparent logo corners, brand text and repeated exports without duplicate logos. Browser checks passed for upload, refresh, removal/rerender, mobile 390px, and no page errors. A genuine 37.3-second original video was recognised with Whisper small/int8 and exported with two source-based illustrations despite an unavailable Ollama endpoint. The final rerender reused only that same-source recognition. Full FFmpeg decode passed; six frames were inspected. The demonstration logo visibly says LOGO MẪU and is not the official DANAVA logo. Detailed evidence is in verification/BRANDING_VERIFICATION.json.
 
 ## Update on Windows
 

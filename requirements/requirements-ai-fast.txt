@@ -1,3 +1,3 @@
--r requirements.txt
+-r ../requirements.txt
 # CPU int8 recognition; no paid API. First run downloads model weights.
 faster-whisper>=1.2,<2

@@ -56,4 +56,4 @@ See the measured verification appended below. All measurements are from the test
 - These timings are observations, not a controlled benchmark: CPU load differed across runs. An earlier successful full-AI run planned in 54.2s; the final run took 90.6s under concurrent tests.
 - Remaining limitation: source ASR has ambiguous spellings (including Veroi and chết); they were not guessed away. The automated version uses the approved visual style but is not identical to the manually curated demo.
 
-Full stage evidence is in FALLBACK_VERIFICATION.json. Publication was requested after validation.
+Full stage evidence is in verification/FALLBACK_VERIFICATION.json. Publication was requested after validation.

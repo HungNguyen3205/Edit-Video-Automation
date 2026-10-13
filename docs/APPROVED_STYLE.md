@@ -10,7 +10,7 @@ Cài Python, FFmpeg/FFprobe, Node.js 22.12+ và Chrome. Trong thư mục repo:
 python -m pip install -r requirements.txt
 npm --prefix motion_engine install
 # CPU int8, ít bộ nhớ hơn Whisper/PyTorch; chỉ cần một bộ nhận dạng:
-python -m pip install -r requirements-ai-fast.txt
+python -m pip install -r requirements/requirements-ai-fast.txt
 ollama pull qwen3:4b
 python main.py
 ```
@@ -21,7 +21,7 @@ Lần đầu model nhận dạng và model Ollama cần tải về; sau đó ch�
 $env:CHROME_PATH='C:\Program Files\Google\Chrome\Application\chrome.exe'
 ```
 
-Có thể tiếp tục dùng requirements-ai.txt / openai-whisper nếu đã cài. Khi cả hai bộ có mặt, tool ưu tiên faster-whisper. WHISPER_MODEL chọn model nhận dạng; mặc định small khi dùng faster-whisper. Model Ollama lấy từ VIDEO_AI_MODEL; chọn model đã tải phù hợp máy chạy final. Model nhỏ có thể cần sửa storyboard; engine kiểm tra và yêu cầu model sửa tối đa hai lần trong luồng một nút, rồi báo lỗi rõ nếu chưa hợp lệ.
+Có thể tiếp tục dùng requirements/requirements-ai.txt / openai-whisper nếu đã cài. Khi cả hai bộ có mặt, tool ưu tiên faster-whisper. WHISPER_MODEL chọn model nhận dạng; mặc định small khi dùng faster-whisper. Model Ollama lấy từ VIDEO_AI_MODEL; chọn model đã tải phù hợp máy chạy final. Model nhỏ có thể cần sửa storyboard; engine kiểm tra và yêu cầu model sửa tối đa hai lần trong luồng một nút, rồi báo lỗi rõ nếu chưa hợp lệ.
 
 ## Dùng tool
 

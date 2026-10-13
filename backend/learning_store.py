@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 from statistics import median
 from datetime import datetime, timezone
+from project_paths import SKILLS_DIR
 
 RULES=[
     'Preserve source speech and duration; use only facts and names in the current video/request.',
@@ -19,7 +20,7 @@ RULES=[
 def editor_skills(path=None):
     """Load bounded project instructions; a broken file cannot break rendering."""
     try:
-        pack=json.loads(Path(path or Path(__file__).parent/'editing_skills.json').read_text(encoding='utf-8'))
+        pack=json.loads(Path(path or SKILLS_DIR/'editing_skills.json').read_text(encoding='utf-8'))
         if not isinstance(pack,dict):raise ValueError('Invalid skill pack')
         skills=pack.get('skills')
         if pack.get('schema_version')!=1 or not isinstance(skills,list) or not 1<=len(skills)<=8:
@@ -73,7 +74,7 @@ class LearningStore:
     def context(self):
         approved=[r for r in self.records() if r['decision']=='approve_style'][:3]
         # Bounded summaries support new content; never replay a previous script.
-        baseline=json.loads((Path(__file__).parent/'style_reference.json').read_text(encoding='utf-8'))
+        baseline=json.loads((SKILLS_DIR/'style_reference.json').read_text(encoding='utf-8'))
         changes=[r['note'][:250] for r in self.records() if r['decision']=='needs_changes' and r.get('note')][:2]
         skills=editor_skills()
         return {'schema_version':1,'active_skills':[s['id'] for s in skills],'rules':RULES+[s['rule'] for s in skills],'initial_visual_reference':baseline['visual_style'],'requested_changes':changes,'approved_style_examples':[

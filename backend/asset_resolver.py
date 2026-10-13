@@ -20,7 +20,8 @@ import re
 from pathlib import Path
 from illustrations import draw_graphic
 
-BASE_DIR = Path(__file__).resolve().parent
+from project_paths import PROJECT_ROOT
+BASE_DIR = PROJECT_ROOT
 LIBRARY_DIR = BASE_DIR / 'data' / 'library'
 SFX_DIR = BASE_DIR / 'data' / 'sfx'
 LIBRARY_DIR.mkdir(parents=True, exist_ok=True)

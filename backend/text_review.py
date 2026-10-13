@@ -72,7 +72,8 @@ def review_issues(subtitles):
 def headline_layout(text,size=64,width=640,proper_names=''):
     """Choose at most two balanced lines using the renderer's actual font."""
     text=' '.join(str(text).split())
-    path=Path(__file__).parent/'motion_engine/fonts/BarlowCondensed-Bold.ttf'
+    from project_paths import PROJECT_ROOT
+    path=PROJECT_ROOT/'motion_engine/fonts/BarlowCondensed-Bold.ttf'
     tokens=text.split()
     protected=[line.split('|')[0].strip().casefold().split() for line in proper_names.splitlines()]
     protected=[name for name in protected if 1<len(name)<=4]

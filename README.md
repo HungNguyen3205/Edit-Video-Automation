@@ -1,12 +1,12 @@
 # DANAVA Video Studio — AI dựng video theo prompt
 
-Giao diện chính chỉ có **video + prompt + Tạo video của tôi**. Xem [hướng dẫn chuẩn bị máy](APPROVED_STYLE.md).
+Giao diện chính chỉ có **video + prompt + Tạo video của tôi**. Xem [hướng dẫn chuẩn bị máy](docs/APPROVED_STYLE.md).
 
 FastAPI + FFmpeg + JavaScript. Có hai chế độ riêng biệt: **AI theo yêu cầu** dùng model Ollama tại máy, và **hiệu ứng theo quy tắc** để dựng khi chưa có model. Không dùng khóa API trả phí hay dịch vụ render bên ngoài.
 
 ## Vì sao bản cũ vẫn dựng cố định?
 
-`auto_plan()` chỉ thêm zoom theo khoảng 7/9/12 giây và trích vài chữ đầu phụ đề. Không có model đọc prompt; `audio_tracks` bị xóa khi xác thực. Bản này bổ sung `ai_director.py`: prompt + lời thoại + mốc chuyển cảnh/khoảng im lặng → quyết định AI có schema → kiểm tra tài nguyên/thời gian → FFmpeg → MP4 thật. Không dùng kế hoạch quy tắc để giả thành AI khi model lỗi.
+`auto_plan()` chỉ thêm zoom theo khoảng 7/9/12 giây và trích vài chữ đầu phụ đề. Không có model đọc prompt; `audio_tracks` bị xóa khi xác thực. Bản này bổ sung `backend/ai_director.py`: prompt + lời thoại + mốc chuyển cảnh/khoảng im lặng → quyết định AI có schema → kiểm tra tài nguyên/thời gian → FFmpeg → MP4 thật. Không dùng kế hoạch quy tắc để giả thành AI khi model lỗi.
 
 ## Cài và chạy trên Windows
 
@@ -17,7 +17,7 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 # Để tự nhận dạng lời nói tiếng Việt:
-pip install -r requirements-ai-fast.txt
+pip install -r requirements/requirements-ai-fast.txt
 npm --prefix motion_engine install
 ```
 
@@ -46,7 +46,7 @@ Ví dụ: “Dựng đẹp và sinh động, chữ lớn rõ, minh họa đúng 
 
 Giao diện chỉnh thủ công cũ còn ở `/frontend/advanced.html` cho người cần sửa SRT/timeline/tài nguyên. Nó không phải bước bắt buộc của luồng mới.
 
-Xem [APPROVED_STYLE.md](APPROVED_STYLE.md) để chuẩn bị máy một lần. Đây vẫn là AI cục bộ: Ollama và bộ nhận dạng cần được cài trước khi dựng; không giả thành AI khi thiếu model.
+Xem [docs/APPROVED_STYLE.md](docs/APPROVED_STYLE.md) để chuẩn bị máy một lần. Đây vẫn là AI cục bộ: Ollama và bộ nhận dạng cần được cài trước khi dựng; không giả thành AI khi thiếu model.
 
 ## Phân tích nội dung và giới hạn
 
@@ -78,9 +78,28 @@ API `POST /api/projects/{id}/auto-edit` nhận `planner: "ai"`, `prompt`, `music
 ## Kiểm thử
 
 ```bash
-pip install -r requirements-dev.txt
+pip install -r requirements/requirements-dev.txt
 python -m pytest -q
 node --check frontend/app.js
 ```
 
-Kiểm thử xuất FFmpeg thật cho cắt nối, phụ đề, minh họa, nhạc và âm thanh; xác thực/repair kế hoạch, hợp đồng HTTP streaming Ollama, thiếu model, revision và tương thích dự án cũ. Các test AI dùng phản hồi kiểm soát; không thay thế đánh giá sáng tạo/inference bằng model thật. Xem `PROJECT_STATUS.md`.
+Kiểm thử xuất FFmpeg thật cho cắt nối, phụ đề, minh họa, nhạc và âm thanh; xác thực/repair kế hoạch, hợp đồng HTTP streaming Ollama, thiếu model, revision và tương thích dự án cũ. Các test AI dùng phản hồi kiểm soát; không thay thế đánh giá sáng tạo/inference bằng model thật. Xem `docs/PROJECT_STATUS.md`.
+
+
+## Cấu trúc thư mục
+
+| Thư mục | Nội dung |
+| --- | --- |
+| `backend/` | AI planner, timeline, phụ đề, minh họa, renderer và bộ nhớ phản hồi |
+| `skills/` | Toàn bộ skill, mẫu phong cách và tài liệu hướng dẫn học |
+| `docs/` | Tài liệu cài đặt, sửa lỗi và báo cáo kiểm thử |
+| `frontend/` | Giao diện web |
+| `motion_engine/` | Dựng đồ họa chuyển động và font |
+| `requirements/` | Dependency nhận dạng AI và kiểm thử tùy chọn |
+| `scripts/` | Tiện ích; tạo âm thanh bằng `python scripts/generate_sfx.py` |
+| `tests/` | Kiểm thử và file mẫu cũ trong `fixtures/legacy/` |
+| `data/` | Dữ liệu chạy cục bộ, giữ nguyên vị trí và không đưa lên Git |
+
+Lệnh khởi động vẫn là **`python main.py`** hoặc **`uvicorn main:app`** từ
+thư mục dự án. Cài dependency chính vẫn bằng `pip install -r requirements.txt`.
+Xem [tài liệu](docs/README.md) và [bộ skill](skills/README.md).

@@ -10,7 +10,8 @@ from asset_resolver import AssetResolver
 from editing import compile_render, filter_path, length, probe, validate
 from storyboard_style import write_storyboard_ass
 
-BASE_DIR = Path(__file__).resolve().parent
+from project_paths import PROJECT_ROOT
+BASE_DIR = PROJECT_ROOT
 MOTION_DIR = BASE_DIR / 'motion_engine'
 
 

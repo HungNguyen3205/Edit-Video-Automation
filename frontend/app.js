@@ -206,7 +206,7 @@ function updateModelNote() {
   const has = !!health?.whisper;
   $("model-note").textContent = has
     ? `Whisper đã cài · model ${health.model}. Lần đầu có thể cần tải model. Phụ đề luôn có thể sửa.`
-    : "Chưa cài Whisper. Bạn vẫn có thể dựng zoom/chữ, hoặc nhập SRT. Để tự nhận dạng: pip install -r requirements-ai.txt";
+    : "Chưa cài Whisper. Bạn vẫn có thể dựng zoom/chữ, hoặc nhập SRT. Để tự nhận dạng: pip install -r requirements/requirements-ai.txt";
   $("model-note").classList.toggle("good", has);
 }
 function resultPath() {
