@@ -4,8 +4,8 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#123b3c">
   <title>DANAVA — AI dựng video</title>
-  <link rel="stylesheet" href="/frontend/simple.css?v=branding-1">
-  <script src="/frontend/simple.js?v=branding-1" defer></script>
+  <link rel="stylesheet" href="/frontend/simple.css?v=review-2">
+  <script src="/frontend/simple.js?v=review-2" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -32,7 +32,12 @@
         <div class="prompt-label"><label for="prompt">Bạn muốn video như thế nào?</label><span>Tùy chọn</span></div>
         <textarea id="prompt" rows="4" maxlength="4000" placeholder="Ví dụ: Dựng thật cuốn hút, chữ rõ, thêm minh họa đúng lời nói và âm thanh nhẹ. Giữ nguyên nội dung."></textarea>
         <p class="field-note">Để trống nếu muốn AI dựng theo mẫu đã duyệt.</p>
-        <section class="brand-settings" aria-labelledby="brand-settings-title">
+        <details id="subtitle-editor" class="brand-settings" hidden>
+          <summary>Sửa phụ đề trước khi dựng lại</summary>
+          <p class="field-note">Sửa chữ và tên riêng theo lời nói. Thời gian từng câu được giữ nguyên; bấm tạo video để áp dụng.</p>
+          <div id="subtitle-rows"></div>
+        </details>
+        <section class="brand-settings"  aria-labelledby="brand-settings-title">
           <h3 id="brand-settings-title">Thương hiệu &amp; hình ảnh <span>Tùy chọn</span></h3>
           <label for="brand-name">Tên thương hiệu</label>
           <input id="brand-name" type="text" maxlength="100" placeholder="Ví dụ: DANAVA Solutions">

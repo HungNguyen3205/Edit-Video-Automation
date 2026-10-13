@@ -63,7 +63,8 @@ def test_one_button_endpoint_defaults_and_real_export(media,monkeypatch):
     plan['subtitles']=[{'id':'speech','asset_id':aid,'start':0,'end':4,'text':'Trợ lý AI hỗ trợ công việc.'}]
     plan['recognition_subtitles']=[dict(plan['subtitles'][0])]
     plan['subtitles'][0]['text']='Phụ đề bị sửa sai từ lần dựng trước.'
-    p=save(p,plan)
+    # Simulate a previously generated result, not an explicit user correction.
+    main.save_project(p['id'],p)
     monkeypatch.setattr(main,'ai_health',lambda:{'available':True,'model':'fixture'})
     seen=[]
     def reply(messages,event,schema):

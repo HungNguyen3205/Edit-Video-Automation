@@ -125,8 +125,8 @@ def compile_storyboard_scenes(plan, asset_dir, work_dir, output_path, preview=Fa
                 run(['node',str(MOTION_DIR/'render_scene.js'),'--input',str(cfg_file.resolve()),
                      '--output',str(raw.resolve()),'--width',str(w),'--height',str(h),'--fps',str(fps)],event,cwd=MOTION_DIR)
                 if typ == 'talking_head_pip':
-                    sw, sh = round(w*.9)//2*2, round(h*.40)//2*2
-                    x, y = (w-sw)//2, round(h*.55)
+                    sw, sh = round(w*.9)//2*2, round(h*.43)//2*2
+                    x, y = (w-sw)//2, round(h*.49)
                     run(['ffmpeg','-v','error','-y','-i',str(raw),'-ss',str(src_in),'-i',str(source),
                          '-filter_complex',f'[1:v]scale={sw}:{sh}:force_original_aspect_ratio=increase,crop={sw}:{sh},setsar=1[spk];[0:v][spk]overlay={x}:{y}[out]',
                          '-map','[out]','-an','-frames:v',str(frames),'-c:v','libx264','-crf','20','-preset','fast','-threads','2',str(scene_file)],event)

@@ -26,7 +26,7 @@ def apply_visual_assets(plan, prompt, brand_name='', logo_asset_id='', image_ass
     if logo_asset_id:
         p['visual_overlays'].append({'id':'brand_logo','origin':'branding','role':'logo',
             'asset_id':logo_asset_id,'mode':'pip','timeline_start':0,'duration':length(p),
-            'x':.84,'y':.025,'width':.12})
+            'x':.77,'y':.025,'width':.20})
     scenes=p.get('storyboard',[])
     if p.get('director',{}).get('engine')=='rules':
         retained=set(p['director'].get('retained_ai_scene_indices',[]))
@@ -94,7 +94,7 @@ def apply_visual_assets(plan, prompt, brand_name='', logo_asset_id='', image_ass
             if matches:
                 index=max(matches,key=lambda i:len(matches[i]));items=matches[index][:3]
                 sc=scenes[index]
-                sc.update(scene_type='explainer_card',headline=items[0].upper(),graphic_kind='network',graphic_title=items[0].capitalize(),
+                sc.update(scene_type='explainer_card',headline=items[0].upper(),graphic_kind='network',graphic_title='Ý chính',
                     graphic_items=[c.capitalize() for c in items],sound_effect='none' if no_sound else 'whoosh')
                 source.append({'scene_index':index,'source':'source_rules'})
     p['director']['visual_sources']=source

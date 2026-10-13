@@ -437,25 +437,34 @@ function buildHtml(data) {
 
       /* Talking Head PiP */
       .pip-top {
+        position: absolute;
+        top: 110px;
+        left: 40px;
+        height: 490px;
         display: flex;
         flex-direction: column;
         align-items: center;
         gap: 14px;
-        width: 100%;
-        flex: 1;
+        width: 640px;
+        justify-content: center;
       }
       .pip-card {
-        max-height: 320px;
+        max-height: 360px;
       }
       .pip-speaker-container {
+        position: absolute;
+        top: 627px;
+        left: 36px;
         width: 90%;
-        height: 480px;
+        height: 550px;
         border-radius: 28px 28px 0 0;
         background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(6, 182, 212, 0.15));
         border: 3px solid #10B981;
         border-bottom: none;
       }
 
+      .scene-explainer_card .card {max-height: 620px; max-width: 96%;}
+      .scene-explainer_card .card-img {max-height: 580px;}
       /* Footer */
       .footer {
         font-family: 'Inter', sans-serif;
@@ -495,7 +504,7 @@ function buildHtml(data) {
       }
     </style>
   </head>
-  <body>
+  <body class="scene-${type}">
     <div class="main-content">
       ${sceneContent}
     </div>

@@ -43,7 +43,7 @@ def write_storyboard_ass(path, plan, width, height):
              'Style: Caption,Inter,32,&H00FFFFFF,&H00FFFFFF,&H003B2D17,&H003B2D17,-1,0,0,0,100,100,0,0,3,12,0,2,45,45,118,1',
              'Style: Head,Barlow Condensed,64,&H00FFFFFF,&H00FFFFFF,&H003B2D17,&H803B2D17,-1,0,0,0,100,100,0,0,1,2,1,8,40,40,170,1',
              'Style: Label,Inter,22,&H00FFFFFF,&H00FFFFFF,&H0088940D,&H0088940D,-1,0,0,0,100,100,2,0,3,10,0,8,40,40,110,1',
-             'Style: Brand,Inter,22,&H00FFFFFF,&H00FFFFFF,&H003B2D17,&H803B2D17,0,0,0,0,100,100,0,0,1,2,0,2,35,35,35,1',
+             'Style: Brand,Inter,26,&H00FFFFFF,&H00FFFFFF,&H003B2D17,&H803B2D17,0,0,0,0,100,100,0,0,1,2,0,2,35,35,35,1',
              '[Events]', 'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text']
     def event(start, end, style, text, tags=''):
         if end <= start or not text:

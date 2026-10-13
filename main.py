@@ -256,6 +256,12 @@ def save_plan(project_id: str, body: dict):
             plan = body['plan']
         else:
             plan = body  # compatibility with original API
+        plan = copy.deepcopy(plan)
+        # This cache is server-owned; only a validated subtitle edit may update it.
+        if 'user_subtitles' in p['edit_plan']:
+            plan['user_subtitles'] = copy.deepcopy(p['edit_plan']['user_subtitles'])
+        else:
+            plan.pop('user_subtitles', None)
         trusted = p['edit_plan']['assets']
         incoming = {a.get('id'): a for a in plan.get('assets', [])}
         trusted = [{**a, 'keywords': str(incoming.get(a['id'], {}).get('keywords', a.get('keywords', '')))[:300]} for a in trusted]
@@ -272,6 +278,10 @@ def save_plan(project_id: str, body: dict):
                         item['duration'] = min(item['duration'], total - item['timeline_start'])
                     kept.append(item)
                 plan[key] = kept
+        if plan.get('subtitles') != p['edit_plan'].get('subtitles'):
+            # A user correction becomes the source for subsequent automatic runs.
+            plan = copy.deepcopy(plan)
+            plan['user_subtitles'] = copy.deepcopy(plan.get('subtitles', []))
         p['edit_plan'] = check_plan(plan, trusted)
         p['revision'] = p.get('revision', 0) + 1
         save_project(project_id, p)
@@ -293,6 +303,7 @@ def import_subtitles(project_id: str, file: UploadFile = File(...)):
             raise HTTPException(422, str(exc)) from exc
         plan = copy.deepcopy(p['edit_plan'])
         plan['subtitles'] = subs
+        plan['user_subtitles'] = copy.deepcopy(subs)
         p['edit_plan'] = check_plan(plan, plan['assets'])
         p['revision'] = p.get('revision', 0) + 1
         p['transcribe_status'] = 'succeeded'
@@ -388,7 +399,7 @@ def run_job(project_id, job_id, snapshot, options, mode):
                         if options.automatic and 'recognition_subtitles' in plan:
                             # Re-direct from recognizer output, not successive
                             # model rewrites of the last generated captions.
-                            plan['subtitles'] = copy.deepcopy(plan['recognition_subtitles'])
+                            plan['subtitles'] = copy.deepcopy(plan.get('user_subtitles', plan['recognition_subtitles']))
                 if mode == 'auto':
                     plan['brand_footer'] = options.brand_footer
                     plan['render_profile'] = options.visual_style

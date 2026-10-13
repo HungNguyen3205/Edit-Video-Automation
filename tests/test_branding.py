@@ -95,8 +95,8 @@ def test_real_logo_transparency_and_brand_persist_on_rerender(media,tmp_path,mon
     out=main.OUTPUTS_DIR/r['output_path'].split('/')[-1];assert probe(out)['has_audio']
     raw=subprocess.run(['ffmpeg','-v','error','-ss','1','-i',str(out),'-frames:v','1','-f','rawvideo','-pix_fmt','rgb24','-'],capture_output=True,check=True).stdout
     pixels=np.frombuffer(raw,dtype=np.uint8).reshape(1280,720,3)
-    assert pixels[74,648,1]>150 and pixels[74,648,0]<100
-    assert pixels[34,608,0]>180 and pixels[34,608,1]<80  # Transparent corner stays source red.
+    assert pixels[90,626,1]>150 and pixels[90,626,0]<100
+    assert pixels[34,556,0]>180 and pixels[34,556,1]<80  # Transparent corner stays source red.
     assert np.mean(pixels[1210:1250,260:460,1])>5  # White brand footer changes source pixels.
 
 

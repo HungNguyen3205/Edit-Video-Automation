@@ -10,3 +10,9 @@ main{max-width:1200px;margin:auto;padding:42px 40px 24px}.intro{display:flex;ali
 @media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition:none!important}}
 
 .brand-settings{border-top:1px solid var(--line);padding-top:20px;margin-bottom:24px}.brand-settings h3{font-size:13px;margin:0 0 16px;display:flex;justify-content:space-between}.brand-settings h3 span{font-size:11px;font-weight:400;color:var(--muted)}.brand-settings label{font-size:12px;color:#47655b}.brand-settings input[type=text]{width:100%;min-width:0;border:1px solid var(--line);border-radius:9px;padding:11px;margin-top:7px;font-size:12px}.asset-actions{display:flex;flex-wrap:wrap;gap:10px}.asset-button{border:1px solid #cfe2d7;border-radius:9px;background:#f2f8f4;color:#376d5d;padding:10px 12px;font-size:11px}.asset-list{display:grid;gap:10px;margin-top:12px}.asset-row{display:flex;align-items:center;gap:10px;border:1px solid var(--line);padding:9px;border-radius:10px;min-width:0}.asset-row img{width:52px;height:52px;object-fit:contain;border-radius:6px;background:#f1f4ef}.asset-row .asset-copy{flex:1;min-width:0}.asset-copy strong{display:block;font-size:10px;overflow-wrap:anywhere}.asset-row .remove-asset{border:0;background:none;font-size:11px;color:#94756a;padding:7px;flex-shrink:0}.asset-copy input{font-size:10px!important}.check-label{display:flex;gap:9px;align-items:center;margin-top:14px}.check-label input{accent-color:var(--teal)}
+
+#subtitle-editor summary {cursor:pointer;font-weight:700;}
+#subtitle-rows {max-height:360px;overflow:auto;margin-top:12px;}
+.subtitle-row {display:block;margin-bottom:12px;}
+.subtitle-row span {display:block;font-size:12px;color:#64748b;margin-bottom:4px;}
+.subtitle-row textarea {width:100%;font-size:14px;}

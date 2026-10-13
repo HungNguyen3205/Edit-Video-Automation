@@ -407,7 +407,7 @@ def automatic_direction(plan,prompt,asset_dir,work,event,*unused):
 def apply_choices(plan,prompt,units,choices,captions):
     """Shared adapter: AI and fallback both use the existing validated plan."""
     p=copy.deepcopy(plan)
-    p['recognition_subtitles']=copy.deepcopy(plan.get('subtitles',[]))
+    p['recognition_subtitles']=copy.deepcopy(plan.get('recognition_subtitles',plan.get('subtitles',[])))
     p['storyboard']=[{**choices[u['scene_index']].model_dump(),'scene_id':f"auto_{u['scene_index']}",
         'headline':choices[u['scene_index']].headline.upper(),
         'timeline_start':u['start'],'duration':u['end']-u['start'],
@@ -420,6 +420,9 @@ def apply_choices(plan,prompt,units,choices,captions):
             'start':u['start'],'end':u['end'],'text':choices[u['scene_index']].caption_text,
             'words':aligned_words([w for w in source_words if w['end']>u['start'] and w['start']<u['end']],
                 choices[u['scene_index']].caption_text,u['start'],u['end'])} for u in units if choices[u['scene_index']].caption_text.strip()]
+    if captions and 'user_subtitles' in plan:
+        # Explicit corrections are authoritative, including their existing timing.
+        p['subtitles']=copy.deepcopy(plan['user_subtitles'])
     # Replace generated decorations, retain manual project assets.
     for key in ('text_overlays','visual_overlays','effect_keyframes','audio_tracks'):
         p[key]=[e for e in p.get(key,[]) if e.get('origin')!='auto']

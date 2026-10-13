@@ -2,6 +2,7 @@
 const $ = id => document.getElementById(id);
 let current = null, selected = null, busy = false, localURL = null;
 let logoSelection = null, imageSelections = [];
+let subtitleDraft = null;
 let timer = null, pollBusy = false, generation = 0;
 const ongoing = p => ['queued','running'].includes(p?.job?.status);
 function visible(id, yes) { $(id).hidden = !yes; }
@@ -35,7 +36,7 @@ function lock(yes) {
   $('prompt').disabled = yes;
   $('history-toggle').disabled = yes;
   ['brand-name','choose-logo','choose-images','illustrations'].forEach(id=>$(id).disabled=yes);
-  document.querySelectorAll('.asset-row input,.remove-asset').forEach(el=>el.disabled=yes);
+  document.querySelectorAll('.asset-row input,.remove-asset,.subtitle-row textarea').forEach(el=>el.disabled=yes);
   $('create-video').disabled = yes || (!selected && !current?.video);
   $('create-video').querySelector('span').textContent = yes ? 'AI đang dựng video…' : current?.output_path ? 'Dựng lại theo yêu cầu này' : 'Tạo video của tôi';
 }
@@ -85,7 +86,27 @@ async function poll() {
     timer = setTimeout(poll,3000);
   } finally { pollBusy = false; }
 }
+function renderSubtitles(p) {
+  subtitleDraft=structuredClone(p.edit_plan?.user_subtitles ?? p.edit_plan?.subtitles ?? []);
+  $('subtitle-rows').replaceChildren();visible('subtitle-editor',subtitleDraft.length>0);
+  subtitleDraft.forEach(sub=>{
+    const row=document.createElement('label');row.className='subtitle-row';
+    const stamp=document.createElement('span');stamp.textContent=`${Number(sub.start).toFixed(1)}–${Number(sub.end).toFixed(1)} giây`;
+    const input=document.createElement('textarea');input.rows=2;input.maxLength=2000;input.value=sub.text;input.disabled=busy;
+    input.oninput=()=>{sub.text=input.value;delete sub.words;};row.append(stamp,input);$('subtitle-rows').append(row);
+  });
+}
+async function saveSubtitleDraft() {
+  if(!subtitleDraft)return;
+  if(subtitleDraft.some(s=>!s.text.trim()))throw new Error('Phụ đề không được để trống. Hãy nhập câu đúng theo lời nói.');
+  const plan=structuredClone(current.edit_plan);
+  const existing=plan.user_subtitles ?? plan.subtitles ?? [];
+  if(JSON.stringify(existing)===JSON.stringify(subtitleDraft))return;
+  plan.subtitles=structuredClone(subtitleDraft);
+  current=await api(`/api/projects/${current.id}/edit_plan`,json({revision:current.revision,plan}));
+}
 function finish(p) {
+  renderSubtitles(p);
   stopPolling();lock(false);visible('render-progress',false);visible('error-box',false);
   player(p.output_path);$('download-video').href = p.output_path;
   $('download-video').download = `${(p.video.original_name || 'video').replace(/\.[^.]+$/,'')}-AI.mp4`;
@@ -101,7 +122,7 @@ function finish(p) {
 function choose(file) {
   if (!file || busy) return;
   if (!/\.(mp4|mov|webm|mkv)$/i.test(file.name)) { error('Hỗ trợ video MP4, MOV, WEBM hoặc MKV.');return; }
-  generation++;stopPolling();current = null;selected = file;
+  generation++;stopPolling();current = null;selected = file;subtitleDraft=null;visible('subtitle-editor',false);
   if(logoSelection?.file)logoSelection.asset_id=null;else logoSelection=null;
   imageSelections=imageSelections.filter(a=>a.file);imageSelections.forEach(a=>a.asset_id=null);renderAssets();
   if (localURL) URL.revokeObjectURL(localURL);
@@ -143,6 +164,7 @@ async function create() {
     if (token !== generation) return;
     progress('AI đang chuẩn bị bản dựng');
     await prepareAssets();
+    await saveSubtitleDraft();
     current = await api(`/api/projects/${current.id}/make-video`,json({prompt:$('prompt').value.trim(),
       brand_name:$('brand-name').value.trim(),logo_asset_id:logoSelection?.asset_id || '',
       image_asset_ids:imageSelections.map(a=>a.asset_id),illustrations:$('illustrations').checked}));
@@ -159,7 +181,7 @@ async function openProject(id) {
   try {
     const p = await api(`/api/projects/${id}`);
     if (!p.video || generation!==token || busy) return;
-    stopPolling();current = p;selected = null;restoreAssets(p);
+    stopPolling();current = p;selected = null;restoreAssets(p);renderSubtitles(p);
     $('prompt').value = p.edit_plan?.director?.user_prompt ?? p.edit_plan?.director?.prompt ?? '';
     $('file-title').textContent = p.video.original_name;$('file-note').textContent = 'Bấm để thay video';$('drop-zone').classList.add('selected');
     visible('error-box',false);sourceInfo(p.video);player(`/assets/${p.video.filename}`);
