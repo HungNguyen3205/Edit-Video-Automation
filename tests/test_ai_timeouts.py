@@ -110,9 +110,9 @@ def test_timeout_does_not_replace_old_output_or_start_render(media,monkeypatch):
     calls=[]
     def timeout(*args):
         calls.append('ai');raise AIError('AI_TIMEOUT','AI mất quá nhiều thời gian để lập kế hoạch.')
-    monkeypatch.setattr(main,'automatic_direction',timeout)
+    monkeypatch.setattr(main,'direct',timeout)
     monkeypatch.setattr(main,'compile_storyboard_scenes',lambda *args,**kwargs:pytest.fail('Must not render after AI timeout'))
-    r=client.post(f'/api/projects/{p["id"]}/make-video',json={'prompt':'Dựng đẹp'})
+    r=client.post(f'/api/projects/{p["id"]}/auto-edit',json={'prompt':'Dựng đẹp','planner':'ai','transcribe':False})
     assert r.status_code==200
     result=client.get(f'/api/projects/{p["id"]}').json()
     assert result['job']['status']=='failed' and result['job']['error_code']=='AI_TIMEOUT'

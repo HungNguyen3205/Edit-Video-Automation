@@ -18,9 +18,9 @@ from pydantic import BaseModel, Field
 
 from editing import auto_plan, compile_render, length, mapped_subtitles, parse_srt, probe, probe_audio, srt_content, uid, validate
 
-from ai_director import direct, ai_health, build_semantic_storyboard, ai_session
-from storyboard_compiler import compile_storyboard_scenes
-from automatic_director import automatic_direction
+from ai_director import direct, ai_health, build_semantic_storyboard, ai_session, ai_seconds, AIError
+from storyboard_compiler import compile_storyboard_scenes, run as run_render_command
+from automatic_director import automatic_direction, fallback_direction, PlanningError
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.getenv('VIDEO_DATA_DIR', BASE_DIR / 'data')).resolve()
@@ -389,21 +389,39 @@ def run_job(project_id, job_id, snapshot, options, mode):
                     plan['brand_footer'] = options.brand_footer
                     plan['render_profile'] = options.visual_style
                 warnings = []
+                phase_started=time.monotonic()
+                timings={}
                 if mode in ('auto', 'transcribe'):
                     if mode == 'transcribe' or (options.transcribe and not plan.get('subtitles')):
                         plan['subtitles'] = transcribe(plan, work, project_id)
+                    timings['recognition_seconds']=round(time.monotonic()-phase_started,3)
+                    job_update(project_id,timings=timings)
+                    phase_started=time.monotonic()
                     if event.is_set():
                         raise InterruptedError('Đã hủy tác vụ.')
                     if mode == 'auto':
                         if options.planner == 'ai':
                             job_update(project_id, phase='AI đang phân tích nội dung và lập kế hoạch theo prompt…')
                             director = automatic_direction if options.automatic else direct
-                            with ai_session(event):
-                                plan = director(plan, options.prompt, ASSETS_DIR, work, event, options.music_asset_id, options.headline, options.duration_policy, options.target_duration, options.visual_style)
+                            budget=ai_seconds('VIDEO_AUTO_AI_TIMEOUT',180) if options.automatic else None
+                            source_plan=plan
+                            try:
+                                with ai_session(event,timeout=budget):
+                                    plan = director(plan, options.prompt, ASSETS_DIR, work, event, options.music_asset_id, options.headline, options.duration_policy, options.target_duration, options.visual_style)
+                            except (AIError,PlanningError) as exc:
+                                if event.is_set():
+                                    raise InterruptedError('Đã hủy tác vụ AI.') from exc
+                                if not options.automatic:
+                                    raise
+                                job_update(project_id,phase='AI chưa hoàn thành; đang tạo bản dựng dự phòng từ lời nói gốc',
+                                           planning_mode='fallback',fallback_reason=exc.code)
+                                plan=fallback_direction(source_plan,options.prompt,event,exc.code)
                             if event.is_set():
                                 raise InterruptedError('Đã hủy tác vụ AI.')
+                            event.ai_diagnostics['validation_errors']=getattr(event,'ai_validation_errors',[])
                             plan['director']['diagnostics'] = event.ai_diagnostics
-                            job_update(project_id, ai_diagnostics=event.ai_diagnostics)
+                            job_update(project_id, ai_diagnostics=event.ai_diagnostics,
+                                       planning_mode='fallback' if plan['director']['engine']=='rules' else 'ai')
                             if options.automatic:
                                 plan['director']['user_prompt']=options.user_prompt
                             warnings.extend(plan['director']['warnings'])
@@ -414,6 +432,8 @@ def run_job(project_id, job_id, snapshot, options, mode):
                                 plan['storyboard'] = build_semantic_storyboard(plan, ASSETS_DIR, headline=options.headline)
                         if options.planner != 'ai' and not plan['subtitles']:
                             warnings.append('Chưa có phụ đề: bản dựng dùng nhịp theo thời gian, chưa ghép minh họa theo lời nói.')
+                    timings['planning_seconds']=round(time.monotonic()-phase_started,3)
+                    job_update(project_id,timings=timings)
                     with LOCK:
                         if event.is_set():
                             raise InterruptedError('Đã hủy tác vụ AI.')
@@ -431,12 +451,14 @@ def run_job(project_id, job_id, snapshot, options, mode):
                         return
                 if event.is_set():
                     raise InterruptedError('Đã hủy tác vụ.')
+                phase_started=time.monotonic()
                 filename = f'{project_id}_{job_id}.mp4'
                 output = OUTPUTS_DIR / filename
                 if options.visual_style == 'explainer_ref':
                     job_update(project_id, phase='Đang render Motion Graphics theo video mẫu' if not options.preview else 'Đang render xem thử Motion Graphics', progress=20, warnings=warnings)
                     duration = compile_storyboard_scenes(plan, ASSETS_DIR, work, output, options.preview, visual_style=options.visual_style,
-                        event=event, progress=lambda value: job_update(project_id, progress=value))
+                        event=event, progress=lambda value: job_update(project_id, progress=value),metrics=timings,
+                        phase=lambda text:job_update(project_id,phase=text))
                     job_update(project_id, phase='Đang kiểm tra MP4 hoàn chỉnh', progress=95, warnings=warnings)
                 else:
                     cmd, duration = compile_render(plan, ASSETS_DIR, work, output, options.preview, visual_style=options.visual_style)
@@ -474,7 +496,17 @@ def run_job(project_id, job_id, snapshot, options, mode):
                             details = log.read()[-6000:]
                             output.unlink(missing_ok=True)
                             raise RuntimeError('FFmpeg không xuất được video: ' + details)
+                timings['render_seconds']=round(time.monotonic()-phase_started,3)
+                job_update(project_id,timings=timings)
+                verify_started=time.monotonic()
+                job_update(project_id,phase='Đang kiểm tra MP4 hoàn chỉnh')
+                run_render_command(['ffmpeg','-v','error','-xerror','-i',str(output),'-f','null','-'],event)
+                timings['verification_seconds']=round(time.monotonic()-verify_started,3)
+                job_update(project_id,timings=timings)
                 meta = probe(output)
+                if snapshot.get('video',{}).get('metadata',{}).get('has_audio') and not meta.get('has_audio'):
+                    output.unlink(missing_ok=True)
+                    raise RuntimeError('MP4 bị thiếu âm thanh; chưa lưu kết quả.')
                 if abs(meta['duration'] - duration) > 0.45:
                     output.unlink(missing_ok=True)
                     raise RuntimeError(f"Thời lượng kết quả ({meta['duration']}s) không đúng bản dựng ({duration}s).")
@@ -527,8 +559,8 @@ def enqueue(project_id, background_tasks, options, mode):
     if mode == 'auto' and options.planner == 'ai':
         if not options.prompt.strip():
             raise HTTPException(422, 'Nhập yêu cầu dựng video cho AI.')
-        ai = ai_health()
-        if not ai['available']:
+        ai = ai_health() if not options.automatic else None
+        if ai is not None and not ai['available']:
             raise HTTPException(422, 'Chưa có Ollama/model. Cài Ollama và chạy ollama pull ' + ai['model'])
     with LOCK:
         p = load_project(project_id)

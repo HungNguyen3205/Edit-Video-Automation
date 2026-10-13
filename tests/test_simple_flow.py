@@ -26,7 +26,7 @@ def test_ai_selects_content_but_cannot_shorten_video(media,tmp_path,monkeypatch)
         seen.append(json.loads(messages[1]['content']))
         assert schema['properties']['scenes']['minItems']==len(seen[-1]['scenes'])
         assert schema['properties']['scenes']['maxItems']==len(seen[-1]['scenes'])
-        assert schema['$defs']['SceneChoice']['properties']['scene_index']['enum']==list(range(len(seen[-1]['scenes'])))
+        assert schema['$defs']['CameraWire']['properties']['i']['enum']==list(range(len(seen[-1]['scenes'])))
         return json.dumps({'summary':'Thẻ trợ lý','scenes':[
             {'scene_index':u['scene_index'],'scene_type':'explainer_card','headline':'TRỢ LÝ AI','badge_text':'AI','graphic_kind':'chat','graphic_title':'AI','graphic_items':['Chào bạn!','Bạn cần hỗ trợ gì?'],'sound_effect':'pop','caption_text':u['text']}
             for u in seen[-1]['scenes']]})
@@ -85,13 +85,19 @@ def test_one_button_endpoint_defaults_and_real_export(media,monkeypatch):
     assert (meta['width'],meta['height'])==(720,1280)
 
 
-def test_simple_endpoint_requires_source_and_never_fakes_missing_ai(media,monkeypatch):
+def test_simple_endpoint_requires_source_and_labels_missing_ai_fallback(media,monkeypatch):
     empty=client.post('/api/projects',data={'name':'Empty'}).json()
     assert client.post(f'/api/projects/{empty["id"]}/make-video',json={}).status_code==422
     p=new_project(media)
     monkeypatch.setattr(main,'ai_health',lambda:{'available':False,'model':'qwen3:4b'})
-    result=client.post(f'/api/projects/{p["id"]}/make-video',json={'prompt':'Đẹp hơn'})
-    assert result.status_code==422 and 'Ollama' in result.json()['detail']
+    monkeypatch.setattr(automatic_director,'chat',lambda *args: (_ for _ in ()).throw(ai_director.AIError('AI_CONNECTION','Ollama unavailable')))
+    monkeypatch.setattr(main,'transcribe',lambda *args:[])
+    response=client.post(f'/api/projects/{p["id"]}/make-video',json={'prompt':'Đẹp hơn'})
+    assert response.status_code==200
+    result=client.get(f'/api/projects/{p["id"]}').json()
+    assert result['job']['status']=='succeeded',result['job']
+    assert result['job']['planning_mode']=='fallback'
+    assert result['edit_plan']['director']['engine']=='rules'
 
 
 def test_simple_endpoint_automatically_skips_recognition_for_silent_source(media,monkeypatch):

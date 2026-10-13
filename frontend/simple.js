@@ -67,6 +67,7 @@ async function poll() {
     const job = p.job;
     if (ongoing(p)) {
       progress(job.phase || 'Đang dựng video',job.progress);
+      $('progress-note').textContent = job.planning_mode === 'fallback' ? 'Đang dựng dự phòng từ lời nói gốc. AI chưa hoàn thành kế hoạch.' : 'Bạn không cần thêm hiệu ứng thủ công.';
       timer = setTimeout(poll,1200);
     } else if (job?.status === 'succeeded' && p.output_path && p.output_revision === p.revision) {
       finish(p);
@@ -86,7 +87,7 @@ function finish(p) {
   player(p.output_path);$('download-video').href = p.output_path;
   $('download-video').download = `${(p.video.original_name || 'video').replace(/\.[^.]+$/,'')}-AI.mp4`;
   visible('download-video',true);visible('result-note',true);
-  $('result-badge').textContent = 'Hoàn thành';$('result-badge').classList.add('done');
+  $('result-badge').textContent = p.job?.planning_mode === 'fallback' ? 'Hoàn thành · Dự phòng' : 'Hoàn thành';$('result-badge').classList.add('done');
   $('meta-name').textContent = 'Video đã dựng';
   $('meta-detail').textContent = `${Number(p.duration_audit?.ffprobe_duration || p.video.metadata.duration).toFixed(1)} giây · MP4`;
   $('warning-list').replaceChildren();
@@ -184,7 +185,7 @@ $('history-toggle').onclick = async () => {
 async function initialize() {
   try {
     const health = await api('/api/health');
-    const ready = health.ffmpeg && health.ffprobe && health.motion?.ready && health.ai?.available && health.whisper;
+    const ready = health.ffmpeg && health.ffprobe && health.motion?.ready && health.whisper;
     $('service-status').classList.toggle('ready',ready);$('service-status').lastChild.textContent = ready ? 'Sẵn sàng dựng' : 'Cần chuẩn bị máy';
   } catch { $('service-status').lastChild.textContent = 'Chưa kết nối tool'; }
   const last = localStorage.getItem('danava-last-video');if(last&&!selected&&!busy)await openProject(last);

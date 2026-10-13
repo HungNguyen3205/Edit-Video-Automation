@@ -208,14 +208,17 @@ def ai_seconds(name, default):
 
 
 @contextmanager
-def ai_session(event):
+def ai_session(event, timeout=None):
     """One planning deadline across all repairs, scoped to this worker/job."""
     current = _AI_SESSION.get()
     if current is not None:
         yield current
         return
     started = time.monotonic()
-    session = {'started': started, 'deadline': started + ai_seconds('VIDEO_AI_PLANNING_TIMEOUT', 600), 'requests': []}
+    budget = ai_seconds('VIDEO_AI_PLANNING_TIMEOUT', 600)
+    if timeout is not None:
+        budget=min(budget,timeout)
+    session = {'started': started, 'deadline': started + budget, 'requests': []}
     token = _AI_SESSION.set(session)
     try:
         yield session

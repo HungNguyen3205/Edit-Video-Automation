@@ -2,15 +2,16 @@
 
 The model never needs to calculate frame counts, cuts or output duration.
 The style engine can display valid AI-authored concepts when the model leaves
-them on camera scenes. A missing/invalid model response is never replaced.
+them on camera scenes. A failed model can use an explicitly labelled source-based fallback.
 """
 import copy
 import json
 import math
+import logging
 import re
 from difflib import SequenceMatcher
 from pydantic import Field
-from ai_director import Decision, chat, model_name
+from ai_director import Decision, chat, model_name, cancelled
 from editing import length, mapped_subtitles, validate
 from storyboard_style import caption_chunks
 
@@ -33,6 +34,67 @@ class AutoDirection(Decision):
     summary: str = Field(min_length=1,max_length=1000)
     scenes: list[SceneChoice] = Field(min_length=1,max_length=60)
     captions: bool = True
+
+
+class CompactScene(Decision):
+    i: int = Field(ge=0)
+    t: str = Field(pattern='^(talking_head|explainer_card|talking_head_pip)$')
+    h: str = Field(max_length=80)
+    k: str = Field(default='chat',pattern='^(chat|process|network)$')
+    g: str = Field(default='',max_length=60)
+    items: list[str] = Field(default_factory=list,max_length=5)
+    s: str = Field(default='none',pattern='^(none|pop|whoosh|chime|click|impact)$')
+    z: float = Field(default=1,ge=1,le=1.2)
+
+
+class CameraWire(Decision):
+    i: int = Field(ge=0)
+    t: str = Field(pattern='^talking_head$')
+    h: str = Field(max_length=80)
+    z: float = Field(default=1,ge=1,le=1.2)
+
+
+class GraphicWire(Decision):
+    i: int = Field(ge=0)
+    t: str = Field(pattern='^(explainer_card|talking_head_pip)$')
+    h: str = Field(max_length=80)
+    k: str = Field(pattern='^(chat|process|network)$')
+    g: str = Field(min_length=1,max_length=60)
+    items: list[str] = Field(min_length=2,max_length=5)
+    s: str = Field(default='none',pattern='^(none|pop|whoosh|chime|click|impact)$')
+    z: float = Field(default=1,ge=1,le=1.2)
+
+
+class CompactDirection(Decision):
+    summary: str = Field(min_length=1,max_length=1000)
+    scenes: list[CameraWire | GraphicWire] = Field(min_length=1,max_length=60)
+    captions: bool = True
+
+
+def expand_choice(scene):
+    if 'scene_index' in scene:
+        return scene  # Existing verbose repair/test responses remain readable.
+    compact=CompactScene.model_validate(scene)
+    return {'scene_index':compact.i,'scene_type':compact.t,'headline':compact.h,
+            'badge_text':'','graphic_kind':compact.k,'graphic_title':compact.g,
+            'graphic_items':compact.items,'sound_effect':compact.s,'zoom_scale':compact.z}
+
+
+def graphic_labels(units):
+    """Constrain visible graphic text to source phrases and neutral greetings."""
+    labels=['Chào bạn','Bạn cần hỗ trợ gì?','Giới thiệu']
+    fillers=set('và là thì mà cái này đó một những các đã đang sẽ rất cũng để với của cho từ như hơn tên nói dùng mình tôi anh chị em nó được có vừa rồi nhiều'.split())
+    for unit in units:
+        words=unit['text'].split()
+        for size,stride in ((2,1),(3,3)):
+            for offset in range(0,len(words)-size+1,stride):
+                phrase=' '.join(words[offset:offset+size]).strip(' ,.;:!?')
+                meaningful=not re.search(r'[,.;:!?]',phrase) and not (set(phrase.casefold().split()) & fillers)
+                if phrase and meaningful and len(phrase)<=60 and phrase not in labels:
+                    labels.append(phrase)
+                if len(labels)>=160:
+                    return labels
+    return labels
 
 
 def aligned_words(words,text,start,end):
@@ -84,7 +146,7 @@ def unsupported_graphic_words(choice, vocabulary):
     # Neutral chat/diagram vocabulary supports generic conceptual artwork.
     neutral=set(re.findall(r'[^\W_]+',
         'xin chào bạn tôi là cần hỗ trợ gì ý tưởng mới chính nội dung kết nối '
-        'lan tỏa truyền tải người nghe người xem cộng đồng mạng lưới và tới'.casefold()))
+        'lan tỏa truyền tải người nghe người xem cộng đồng mạng lưới và tới giới thiệu'.casefold()))
     missing=set()
     for item in [choice.graphic_title,*choice.graphic_items]:
         item=re.sub(r'^bước\s+\d+\s*[:.]?\s*','',item,flags=re.IGNORECASE)
@@ -137,6 +199,38 @@ def compose_requested_graphics(choices,units,prompt,total,vocabulary,has_speech)
     return adjusted
 
 
+def balance_graphics(choices,units,prompt,total):
+    """Bound illustration density by meaning while preserving source camera."""
+    if len(units)<=2:
+        return []
+    excluded=bool(re.search(r'không (?:thêm |chèn |dùng |cần )?(?:minh họa|đồ họa|hình|hiệu ứng)',prompt,re.IGNORECASE))
+    eligible=[i for i,c in choices.items() if 0<i<len(units)-1 and c.scene_type!='talking_head']
+    def score(i):
+        speech=set(re.findall(r'[^\W_]+',units[i]['text'].casefold()))
+        labels=set(re.findall(r'[^\W_]+',' '.join(choices[i].graphic_items).casefold()))
+        return len(speech & labels)
+    selected=[]
+    if not excluded:
+        chat=[i for i in eligible if choices[i].graphic_kind=='chat']
+        diagram=[i for i in eligible if choices[i].graphic_kind in {'process','network'}]
+        if chat:selected.append(max(chat,key=score))
+        if diagram and (total>20 or not selected):selected.append(max(diagram,key=score))
+    changed=[]
+    no_sound=bool(re.search(r'(?:không|tắt|bỏ|no)\s+(?:thêm |chèn |dùng )?(?:âm thanh|tiếng|sfx|sound)',prompt,re.IGNORECASE))
+    no_zoom=bool(re.search(r'(?:không|tắt|bỏ)\s+(?:thêm |chèn |dùng )?(?:zoom|hiệu ứng)',prompt,re.IGNORECASE))
+    for i,choice in choices.items():
+        typ=('talking_head_pip' if choice.graphic_kind=='chat' else 'explainer_card') if i in selected else 'talking_head'
+        if choice.scene_type!=typ:changed.append(i)
+        choice.scene_type=typ
+        if typ=='talking_head':
+            choice.sound_effect='none'
+            if units[i]['text'].strip() and not no_zoom:
+                choice.zoom_scale=max(choice.zoom_scale,1.035)
+        elif choice.sound_effect=='none' and not no_sound:
+            choice.sound_effect='pop' if choice.graphic_kind=='chat' else 'whoosh'
+    return changed
+
+
 def semantic_units(plan):
     total=length(plan)
     subs=mapped_subtitles(plan)
@@ -171,22 +265,20 @@ def semantic_units(plan):
     return [{'scene_index':i,**unit} for i,unit in enumerate(units)]
 
 
-SYSTEM='''You edit Vietnamese videos using an existing premium explainer renderer. Return JSON only.
-The engine owns ALL timing and preserves the original voice. Select content/layout for the supplied scenes; never calculate cuts or invent new scenes.
-Return every supplied scene_index exactly once. For a repair requesting ONLY certain indices, return those indices only; the engine retains the other scenes.
-Read all indexed scenes for full context, then EACH scene's own text. Never shift the next scene's speech into the current scene.
-Use talking_head for introductions/personal remarks/conclusions; talking_head_pip for a speaker with illustration; explainer_card for a useful white graphic cutaway. Keep the speaker visible for more than half the video when possible. Choose by meaning, not a fixed schedule. Avoid repetitive consecutive network diagrams.
-headline: a short accurate 2-6-word Vietnamese idea, not fillers or a whole sentence. badge_text: a short topic label. Do not add brands or facts absent from speech/user facts. Spell user-supplied names correctly.
-graphic_kind: chat for assistant/conversation; process for related ideas/steps; network for distribution/connections.
-graphic_title and graphic_items are visible display text. Use 2-3 SHORT bare labels/messages; NEVER prefix them with Chat:, Process:, or Network:. Camera scenes also supply 2 short labels, though they are not displayed.
-Graphics must use concepts/words from the transcript or explicit user facts. Neutral chat greetings are fine (Chào bạn / Bạn cần hỗ trợ gì?). Do not fabricate first/only/best claims, features, benefits, optimization/algorithm stages, statistics, prices, contacts, testimonials or real screenshots. A process can label related source ideas; it need not invent steps.
-caption_text is optional: omit it or leave it empty to keep the engine's source captions. Do not retype unchanged speech. Only supply it to correct a clear spelling error in THIS scene; never summarize, add or move sentences. Silent scene = empty string. Never promote uncertain ASR words into headings or illustrations.
-sound_effect: none on most camera scenes; subtle pop/whoosh/chime/click on useful graphics. Respect requests for no sound, no text or minimal effects. captions=true unless explicitly disabled.
-zoom_scale: 1 unless camera emphasis benefits the content; at most 1.2. animation_in: pop_in, slide_up or fade.
-The renderer supplies white/teal/navy styling, rounded cards, Vietnamese fonts and automatic captions. Do not put implementation descriptions in visible text. summary must be Vietnamese.'''
-
+SYSTEM="""Edit Vietnamese speech into a premium explainer video. JSON only.
+Engine preserves original voice, captions and timing. Return each supplied scene index exactly once, or ONLY requested repair indices.
+Each scene: i=index, t=type, h=short accurate Vietnamese headline (2-6 words). Types: talking_head, talking_head_pip, explainer_card.
+Optional k=chat/process/network, g=graphic title, items=2-3 short visible labels, s=none/pop/whoosh/chime/click/impact, z=zoom 1-1.2.
+Camera: only i,t,h, optionally z. Graphics: include k,g,items; use chat for assistant/conversation, process for source ideas, network for connections.
+Use EACH scene's own speech. Keep opening, closing and more than half the video on camera when possible. If brief requests illustrations, supply useful graphics at relevant scenes. Avoid consecutive repetitive diagrams.
+Visible words/facts must come from source or explicit brief. Neutral greetings are allowed. Never invent first/best claims, features, prices, contacts, statistics, algorithm steps or real screenshots. Do not turn uncertain recognition into a claim. Spell explicit names correctly.
+Most camera scenes s=none; graphics may use subtle pop/whoosh. Respect no effects, no sound, no text or no illustrations. captions=false only when requested; otherwise true. No caption_text/badge_text/animation fields: engine supplies them.
+Top-level: summary (short Vietnamese), scenes, captions. No implementation descriptions in visible text."""
 
 def automatic_direction(plan,prompt,asset_dir,work,event,*unused):
+    cancelled(event)
+    event.ai_valid_choices={}
+    event.ai_validation_errors=[]
     units=semantic_units(plan)
     for unit in units:
         unit['text']=correct_recognition_copy(unit['text'],prompt)
@@ -196,21 +288,26 @@ def automatic_direction(plan,prompt,asset_dir,work,event,*unused):
     serialized=json.dumps(context,ensure_ascii=False)
     vocabulary=set(re.findall(r'[^\W_]+',(prompt+' '+' '.join(u['text'] for u in units)).casefold()))
     if len(serialized)>45000:
-        raise ValueError('Video quá dài cho model hiện tại. Hãy dùng video ngắn hơn.')
-    base_messages=[{'role':'system','content':SYSTEM},{'role':'user','content':serialized}]
+        raise PlanningError('Nội dung vượt giới hạn lập kế hoạch AI hiện tại.')
+    wire_system=SYSTEM
+    labels=graphic_labels(units)
+    wire_system+=' Graphics must select meaningful source phrases permitted by the JSON schema, with labels relevant to the current scene.'
+    base_messages=[{'role':'system','content':wire_system},{'role':'user','content':serialized}]
     messages=list(base_messages)
     retained={}
     repair_indices=None
     saved_captions=None
     for attempt in range(3):
         expected_indices=repair_indices if repair_indices is not None else list(range(len(units)))
-        schema=AutoDirection.model_json_schema()
+        schema=CompactDirection.model_json_schema()
         # The constrained decoder must emit the engine's actual number of
         # scenes, rather than inventing a smaller storyboard from memory.
         schema['properties']['scenes'].update(minItems=len(expected_indices),maxItems=len(expected_indices))
-        scene_schema=schema['$defs']['SceneChoice']['properties']
-        scene_schema['scene_index']={'type':'integer','enum':expected_indices}
-        scene_schema['graphic_items']['minItems']=2
+        for kind in ('CameraWire','GraphicWire'):
+            schema['$defs'][kind]['properties']['i']={'type':'integer','enum':expected_indices}
+        graphic_schema=schema['$defs']['GraphicWire']['properties']
+        graphic_schema['g']['enum']=labels
+        graphic_schema['items']['items']['enum']=labels
         raw=chat(messages,event,schema)
         try:
             data=json.loads(raw)
@@ -218,6 +315,7 @@ def automatic_direction(plan,prompt,asset_dir,work,event,*unused):
                 raise ValueError('Expected a JSON object.')
             if not isinstance(data.get('scenes'),list) or not all(isinstance(scene,dict) for scene in data['scenes']):
                 raise ValueError('scenes must be a list of scene objects.')
+            data['scenes']=[expand_choice(scene) for scene in data['scenes']]
             clamped=False
             for scene in data.get('scenes',[]):
                 scale=scene.get('zoom_scale',1)
@@ -251,8 +349,10 @@ def automatic_direction(plan,prompt,asset_dir,work,event,*unused):
                      or unsupported_graphic_words(choices[u['scene_index']],vocabulary))]
             if invalid_graphics:
                 retained={i:s for i,s in choices.items() if i not in invalid_graphics}
+                event.ai_valid_choices=copy.deepcopy(retained)
                 repair_indices=invalid_graphics
                 raise ValueError('Repair ONLY scene_index '+str(invalid_graphics)+'. Return only those scenes; the other valid scenes are retained by the engine. Each graphic needs a meaningful graphic_title and at least 2 short graphic_items. Labels must use vocabulary from the transcript/brief or neutral greetings/connections. Do not introduce first/only/optimization/algorithm claims absent from the source. Never return empty items. Unsupported words: '+str({i:unsupported_graphic_words(choices[i],vocabulary) for i in invalid_graphics}))
+            event.ai_valid_choices=copy.deepcopy(choices)
             repair_indices=None
             retained={}
             caption_fallbacks=[]
@@ -269,6 +369,7 @@ def automatic_direction(plan,prompt,asset_dir,work,event,*unused):
                         caption_fallbacks.append(unit['scene_index']+1)
                 elif not unit['text'].strip() and choice.caption_text.strip():
                     raise ValueError('Do not invent subtitles for silent scenes.')
+            layout_adjustments=sorted(set(layout_adjustments+balance_graphics(choices,units,prompt,length(plan))))
             graphics=[s for s in choices.values() if s.scene_type!='talking_head']
             want_graphics=bool(re.search(r'minh họa|đồ họa|thẻ trắng|sinh động',prompt,re.IGNORECASE))
             no_graphics=bool(re.search(r'không (?:thêm |chèn |dùng |cần )?(?:minh họa|đồ họa|hình|hiệu ứng)',prompt,re.IGNORECASE))
@@ -278,29 +379,7 @@ def automatic_direction(plan,prompt,asset_dir,work,event,*unused):
                 kinds={s.graphic_kind for s in graphics}
                 if 'chat' not in kinds or not kinds.intersection({'process','network'}):
                     raise ValueError('The user requests both an assistant conversation illustration AND a diagram. Use at least one chat graphic and one process/network graphic at suitable semantic scenes.')
-            p=copy.deepcopy(plan)
-            p['recognition_subtitles']=copy.deepcopy(plan.get('subtitles',[]))
-            p['storyboard']=[{**choices[u['scene_index']].model_dump(),'scene_id':f"auto_{u['scene_index']}",
-                'headline':choices[u['scene_index']].headline.upper(),
-                'timeline_start':u['start'],'duration':u['end']-u['start'],
-                'transcript_meaning':u['text'],'badge_color':'teal' if choices[u['scene_index']].scene_type!='talking_head' else 'navy',
-                'sound_volume':.10,'animation_out':'none'} for u in units]
-            if direction.captions and plan.get('subtitles'):
-                source_words=[w for sub in mapped_subtitles(plan) for w in sub.get('words',[])]
-                aid=plan['video_clips'][0]['asset_id']
-                p['subtitles']=[{'id':f"caption_{u['scene_index']}",'asset_id':aid,
-                    'start':u['start'],'end':u['end'],'text':choices[u['scene_index']].caption_text,
-                    'words':aligned_words([w for w in source_words if w['end']>u['start'] and w['start']<u['end']],
-                        choices[u['scene_index']].caption_text,u['start'],u['end'])} for u in units if choices[u['scene_index']].caption_text.strip()]
-            # Replace generated decorations, retain manual project assets.
-            for key in ('text_overlays','visual_overlays','effect_keyframes','audio_tracks'):
-                p[key]=[e for e in p.get(key,[]) if e.get('origin')!='auto']
-            for unit in units:
-                choice=choices[unit['scene_index']]
-                if choice.scene_type=='talking_head' and choice.zoom_scale>1:
-                    p['effect_keyframes'].append({'id':f"zoom_{unit['scene_index']}",'origin':'auto',
-                        'timeline_start':unit['start'],'duration':unit['end']-unit['start'],'scale':choice.zoom_scale})
-            p['show_captions']=direction.captions
+            p=apply_choices(plan,prompt,units,choices,direction.captions)
             warnings=[]
             if caption_fallbacks:
                 warnings.append('Đã giữ phụ đề nhận dạng ở cảnh '+', '.join(map(str,caption_fallbacks))+' vì AI sửa quá nhiều lời nói. Xem lại chính tả trước khi đăng.')
@@ -313,9 +392,88 @@ def automatic_direction(plan,prompt,asset_dir,work,event,*unused):
                            'layout_adjustments':layout_adjustments}
             return validate(p,plan['assets'])
         except (ValueError,TypeError,KeyError) as exc:
+            errors=getattr(event,'ai_validation_errors',[])
+            errors.append({'attempt':attempt+1,'error':str(exc)[:1500]})
+            event.ai_validation_errors=errors
+            logging.getLogger('uvicorn.error').info('video_ai_validation attempt=%s error=%s',attempt+1,str(exc)[:1500])
             if attempt==2:
-                raise RuntimeError('AI chưa chọn được cảnh hợp lệ sau khi tự sửa: '+str(exc)) from exc
+                raise PlanningError('AI chưa chọn được cảnh hợp lệ sau khi tự sửa: '+str(exc)) from exc
             # Retain source context and only the latest failed response/error;
             # previous repairs are not useful additional speech context.
             messages = base_messages+[{'role':'assistant','content':raw[:15000]},
                                       {'role':'user','content':'Repair the JSON. '+str(exc)[:1500]}]
+
+
+def apply_choices(plan,prompt,units,choices,captions):
+    """Shared adapter: AI and fallback both use the existing validated plan."""
+    p=copy.deepcopy(plan)
+    p['recognition_subtitles']=copy.deepcopy(plan.get('subtitles',[]))
+    p['storyboard']=[{**choices[u['scene_index']].model_dump(),'scene_id':f"auto_{u['scene_index']}",
+        'headline':choices[u['scene_index']].headline.upper(),
+        'timeline_start':u['start'],'duration':u['end']-u['start'],
+        'transcript_meaning':u['text'],'badge_color':'teal' if choices[u['scene_index']].scene_type!='talking_head' else 'navy',
+        'sound_volume':.10,'animation_out':'none'} for u in units]
+    if captions and plan.get('subtitles'):
+        source_words=[w for sub in mapped_subtitles(plan) for w in sub.get('words',[])]
+        aid=plan['video_clips'][0]['asset_id']
+        p['subtitles']=[{'id':f"caption_{u['scene_index']}",'asset_id':aid,
+            'start':u['start'],'end':u['end'],'text':choices[u['scene_index']].caption_text,
+            'words':aligned_words([w for w in source_words if w['end']>u['start'] and w['start']<u['end']],
+                choices[u['scene_index']].caption_text,u['start'],u['end'])} for u in units if choices[u['scene_index']].caption_text.strip()]
+    # Replace generated decorations, retain manual project assets.
+    for key in ('text_overlays','visual_overlays','effect_keyframes','audio_tracks'):
+        p[key]=[e for e in p.get(key,[]) if e.get('origin')!='auto']
+    for unit in units:
+        choice=choices[unit['scene_index']]
+        if choice.scene_type=='talking_head' and choice.zoom_scale>1:
+            p['effect_keyframes'].append({'id':f"zoom_{unit['scene_index']}",'origin':'auto',
+                'timeline_start':unit['start'],'duration':unit['end']-unit['start'],'scale':choice.zoom_scale})
+    p['show_captions']=captions
+    return p
+
+
+class PlanningError(RuntimeError):
+    code = 'AI_PLAN_INVALID'
+
+
+def fallback_direction(plan,prompt,event,reason):
+    """Source-only camera composition. Never claim invented graphics are AI."""
+    cancelled(event)
+    units=semantic_units(plan)
+    for unit in units:
+        unit['text']=correct_recognition_copy(unit['text'],prompt)
+    captions=not bool(re.search(r'(?:không|tắt|bỏ|no)\s+(?:thêm |chèn |dùng )?(?:phụ đề|caption|subtitles?)',prompt,re.IGNORECASE))
+    no_text=bool(re.search(r'(?:không|tắt|bỏ)\s+(?:thêm |chèn |dùng )?(?:chữ|text)',prompt,re.IGNORECASE))
+    no_effects=bool(re.search(r'(?:không|tắt|bỏ)\s+(?:thêm |chèn |dùng )?(?:zoom|hiệu ứng)',prompt,re.IGNORECASE))
+    if no_text:
+        captions=False
+    retained=getattr(event,'ai_valid_choices',{})
+    choices={}
+    preserved=[]
+    for unit in units:
+        cancelled(event)
+        i=unit['scene_index']
+        choice=copy.deepcopy(retained.get(i))
+        if choice is not None:
+            preserved.append(i)
+        else:
+            # Exact excerpt, never paraphrase uncertain recognition as a claim.
+            headline=' '.join(unit['text'].split()[:6]).strip(' ,.;:!?')[:80] if not no_text else ''
+            choice=SceneChoice(scene_index=i,scene_type='talking_head',headline=headline,
+                badge_text='',graphic_kind='chat',graphic_title='',graphic_items=[],
+                sound_effect='none',zoom_scale=1.035 if unit['text'].strip() and not no_effects else 1)
+        # Fallback captions always use source, including partially retained AI.
+        choice.caption_text=unit['text'] if captions else ''
+        if no_text:
+            choice.scene_type='talking_head';choice.headline='';choice.badge_text=''
+        if no_effects:
+            choice.zoom_scale=1;choice.sound_effect='none'
+        choices[i]=choice
+    balance_graphics(choices,units,prompt,length(plan))
+    p=apply_choices(plan,prompt,units,choices,captions)
+    p['director']={'engine':'rules','model':None,'mode':'automatic_fallback',
+        'summary':'Bản dựng dự phòng từ lời nói gốc; AI chưa hoàn thành kế hoạch.',
+        'prompt':prompt,'fallback_reason':reason,'retained_ai_scene_indices':preserved,
+        'warnings':['Đã dùng chế độ dựng dự phòng vì AI chưa hoàn thành. Giữ lời nói và phụ đề nguồn; kiểm tra chính tả trước khi đăng. Minh họa AI mới chưa được tạo.']}
+    cancelled(event)
+    return validate(p,plan['assets'])

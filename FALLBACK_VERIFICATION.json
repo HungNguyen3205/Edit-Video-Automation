@@ -1,0 +1,118 @@
+{
+  "base_commit": "0fc525124e5a326b5552adf89169c78afc2373ad",
+  "tests_passed": 78,
+  "environment": {
+    "cpu": "AMD EPYC 9V74, 9 visible CPUs / 8 CPU quota",
+    "ram_gib": 9.7,
+    "swap_gib": 0,
+    "model": "Qwen3-4B Q4_K_M",
+    "processor": "100% CPU",
+    "ollama_version": {
+      "version": "0.40.3"
+    }
+  },
+  "recognition_first_run_seconds": 13.524924276000093,
+  "recognition_reused_for_same_source": true,
+  "baseline": {
+    "planning_seconds": 271.45130848300005,
+    "status": "failed_validation",
+    "requests": 3
+  },
+  "ai": {
+    "total_seconds": 191.2727158739999,
+    "timings": {
+      "recognition_seconds": 0.0,
+      "planning_seconds": 90.559,
+      "graphics_seconds": 21.481,
+      "scene_render_seconds": 39.59,
+      "assembly_seconds": 60.176,
+      "render_seconds": 99.773,
+      "verification_seconds": 0.856
+    },
+    "diagnostics": {
+      "elapsed_seconds": 90.556,
+      "requests": [
+        {
+          "model": "qwen3:4b",
+          "think": false,
+          "temperature": 0.35,
+          "num_ctx": 8192,
+          "num_predict": 3840,
+          "request_index": 1,
+          "input_characters": 2448,
+          "status": "succeeded",
+          "first_chunk_seconds": 12.204,
+          "load_duration": 3816998159,
+          "prompt_eval_duration": 8347467000,
+          "eval_duration": 78342372000,
+          "total_duration": 90537356518,
+          "prompt_eval_count": 681,
+          "eval_count": 502,
+          "done_reason": "stop",
+          "elapsed_seconds": 90.545,
+          "output_characters": 1386
+        }
+      ],
+      "validation_errors": []
+    },
+    "duration_audit": {
+      "source_duration": 37.3,
+      "input_timeline_duration": 37.3,
+      "ai_planned_duration": 37.3,
+      "post_cut_duration": 37.3,
+      "ffprobe_duration": 37.3,
+      "timestamp": "2026-10-12T16:34:15.015233+00:00"
+    }
+  },
+  "fallback": {
+    "total_seconds": 57.83562274900032,
+    "timings": {
+      "recognition_seconds": 0.0,
+      "planning_seconds": 0.119,
+      "graphics_seconds": 0.0,
+      "scene_render_seconds": 0.0,
+      "camera_source_reused": true,
+      "assembly_seconds": 56.539,
+      "render_seconds": 56.545,
+      "verification_seconds": 1.078
+    },
+    "reason": "AI_TIMEOUT",
+    "duration_audit": {
+      "source_duration": 37.3,
+      "input_timeline_duration": 37.3,
+      "ai_planned_duration": 37.3,
+      "post_cut_duration": 37.3,
+      "ffprobe_duration": 37.3,
+      "timestamp": "2026-10-12T16:35:12.864727+00:00"
+    }
+  },
+  "other_source": {
+    "excerpt_seconds": 12,
+    "status": "succeeded",
+    "mode": "fallback",
+    "duration_audit": {
+      "source_duration": 12.07,
+      "input_timeline_duration": 12.07,
+      "ai_planned_duration": 12.07,
+      "post_cut_duration": 12.07,
+      "ffprobe_duration": 12.07,
+      "timestamp": "2026-10-12T16:29:42.460845+00:00"
+    }
+  },
+  "browser": {
+    "badge": "Hoàn thành · Dự phòng",
+    "refresh": true,
+    "mobile_overflow": false,
+    "page_errors": []
+  },
+  "audio": {
+    "voice_correlation": 0.998277376252185,
+    "source_samples": 596637,
+    "output_samples": 596992
+  },
+  "limitations": [
+    "ASR still contains uncertain Vietnamese words; review captions before publishing.",
+    "Measurements vary with concurrent CPU load; this is not a controlled performance benchmark or a guarantee for the Windows PC.",
+    "Fallback provides a basic source-based edit, not demo-equivalent AI graphics."
+  ]
+}
