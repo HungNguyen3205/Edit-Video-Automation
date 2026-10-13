@@ -283,7 +283,16 @@ def save_plan(project_id: str, body: dict):
             # A user correction becomes the source for subsequent automatic runs.
             plan = copy.deepcopy(plan)
             plan['user_subtitles'] = copy.deepcopy(plan.get('subtitles', []))
-        p['edit_plan'] = check_plan(plan, trusted)
+        checked = check_plan(plan, trusted)
+        for sub in checked['subtitles']:
+            words = sub.get('words', [])
+            if words and ' '.join(w['word'].strip() for w in words) != ' '.join(sub['text'].split()):
+                # Text edits must not carry obsolete recognition words back
+                # into captions when the source interval is clipped later.
+                sub.pop('words', None)
+        if plan.get('subtitles') != p['edit_plan'].get('subtitles'):
+            checked['user_subtitles'] = copy.deepcopy(checked['subtitles'])
+        p['edit_plan'] = checked
         p['revision'] = p.get('revision', 0) + 1
         save_project(project_id, p)
     return p

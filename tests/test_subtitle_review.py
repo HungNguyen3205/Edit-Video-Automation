@@ -41,3 +41,18 @@ def test_review_cache_cannot_be_changed_without_subtitle_edit(media):
     r=client.post(f'/api/projects/{p["id"]}/edit_plan',json={'revision':p['revision'],'plan':plan})
     assert r.status_code==200
     assert 'user_subtitles' not in r.json()['edit_plan']
+
+
+def test_old_word_alignment_cannot_restore_text_after_manual_edit_and_cut(media):
+    from editing import mapped_subtitles
+    p=new_project(media);aid=p['video']['asset_id']
+    p['edit_plan']['subtitles']=[{'id':'s','asset_id':aid,'start':0,'end':4,'text':'chết',
+        'words':[{'word':' chết','start':0,'end':4}]}]
+    main.save_project(p['id'],p)
+    plan=copy.deepcopy(p['edit_plan']);plan['subtitles'][0]['text']='check'
+    plan['video_clips'][0].update(source_in=1,duration=2)
+    r=client.post(f'/api/projects/{p["id"]}/edit_plan',json={'revision':p['revision'],'plan':plan})
+    assert r.status_code==200,r.text
+    saved=r.json()['edit_plan']
+    assert not saved['user_subtitles'][0].get('words')
+    assert mapped_subtitles(saved)[0]['text']=='check'

@@ -18,3 +18,5 @@ main{max-width:1200px;margin:auto;padding:42px 40px 24px}.intro{display:flex;ali
 .subtitle-row textarea {width:100%;font-size:14px;}
 
 .subtitle-review-note {display:block;color:#a16207;margin-bottom:6px;}
+
+#subtitle-save-status {color:#0f766e;font-weight:600;}

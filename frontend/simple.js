@@ -35,7 +35,7 @@ function lock(yes) {
   $('drop-zone').disabled = yes;
   $('prompt').disabled = yes;
   $('history-toggle').disabled = yes;
-  ['brand-name','proper-names','choose-logo','choose-images','illustrations'].forEach(id=>$(id).disabled=yes);
+  ['save-subtitles','import-corrections','brand-name','proper-names','choose-logo','choose-images','illustrations'].forEach(id=>$(id).disabled=yes);
   document.querySelectorAll('.asset-row input,.remove-asset,.subtitle-row textarea').forEach(el=>el.disabled=yes);
   $('create-video').disabled = yes || (!selected && !current?.video);
   $('create-video').querySelector('span').textContent = yes ? 'AI đang dựng video…' : current?.output_path ? 'Dựng lại theo yêu cầu này' : 'Tạo video của tôi';
@@ -86,6 +86,24 @@ async function poll() {
     timer = setTimeout(poll,3000);
   } finally { pollBusy = false; }
 }
+function draftKey() {return current ? `video-subtitle-draft:${current.id}` : null;}
+function keepDraft() {
+  const key=draftKey();if(!key || busy)return;
+  try {localStorage.setItem(key,JSON.stringify({revision:current.revision,subtitles:subtitleDraft,
+    proper_names:$('proper-names').value,brand_name:$('brand-name').value}));
+    $('subtitle-save-status').textContent='Bản nháp được giữ trên trình duyệt. Bấm Lưu phụ đề hoặc Tạo video để lưu vào dự án.';
+  } catch {$('subtitle-save-status').textContent='Trình duyệt không lưu được bản nháp. Bấm Lưu phụ đề để lưu vào dự án.';}
+}
+function restoreDraft() {
+  const key=draftKey();if(!key || busy || ongoing(current))return;
+  let draft;try{draft=JSON.parse(localStorage.getItem(key));}catch{return;}
+  if(!draft)return;
+  if(draft.revision!==current.revision){$('subtitle-save-status').textContent='Dự án đã đổi; bản nháp cũ chưa được áp dụng để tránh ghi đè. Lưu bản sửa mới trước khi dựng.';return;}
+  if(Array.isArray(draft.subtitles))renderSubtitles({...current,edit_plan:{...current.edit_plan,user_subtitles:draft.subtitles}});
+  $('proper-names').value=draft.proper_names ?? $('proper-names').value;
+  $('brand-name').value=draft.brand_name ?? $('brand-name').value;
+  $('subtitle-save-status').textContent='Đã khôi phục bản nháp chưa lưu. Bấm Lưu phụ đề hoặc Tạo video để áp dụng.';
+}
 function renderSubtitles(p) {
   subtitleDraft=structuredClone(p.edit_plan?.user_subtitles ?? p.edit_plan?.subtitles ?? []);
   $('subtitle-rows').replaceChildren();visible('subtitle-editor',subtitleDraft.length>0);
@@ -97,7 +115,7 @@ function renderSubtitles(p) {
     if(issue){const note=document.createElement('small');note.className='subtitle-review-note';note.textContent=issue.reason;row.append(note);}
     const listen=document.createElement('button');listen.type='button';listen.className='asset-button';listen.textContent='Nghe câu gốc';
     listen.onclick=()=>{player(`/assets/${p.video.filename}`);$('player').currentTime=sub.start;$('player').play().catch(()=>{});};
-    input.oninput=()=>{sub.text=input.value;delete sub.words;};row.append(stamp,input,listen);$('subtitle-rows').append(row);
+    input.oninput=()=>{sub.text=input.value;delete sub.words;keepDraft();};row.append(stamp,input,listen);$('subtitle-rows').append(row);
   });
 }
 async function saveSubtitleDraft() {
@@ -173,6 +191,7 @@ async function create() {
       brand_name:$('brand-name').value.trim(),proper_names:$('proper-names').value.trim(),logo_asset_id:logoSelection?.asset_id || '',
       image_asset_ids:imageSelections.map(a=>a.asset_id),illustrations:$('illustrations').checked}));
     localStorage.setItem('danava-last-video',current.id);
+    localStorage.removeItem(draftKey());
     beginPolling();
   } catch (e) {
     if (token !== generation) return;
@@ -185,13 +204,13 @@ async function openProject(id) {
   try {
     const p = await api(`/api/projects/${id}`);
     if (!p.video || generation!==token || busy) return;
-    stopPolling();current = p;selected = null;restoreAssets(p);renderSubtitles(p);
+    stopPolling();current = p;selected = null;restoreAssets(p);renderSubtitles(p);restoreDraft();
     $('prompt').value = p.edit_plan?.director?.user_prompt ?? p.edit_plan?.director?.prompt ?? '';
     $('file-title').textContent = p.video.original_name;$('file-note').textContent = 'Bấm để thay video';$('drop-zone').classList.add('selected');
     visible('error-box',false);sourceInfo(p.video);player(`/assets/${p.video.filename}`);
     visible('history-panel',false);localStorage.setItem('danava-last-video',id);
     if (ongoing(p)) { lock(true);beginPolling(); }
-    else if (p.output_path && p.output_revision === p.revision && p.job?.status!=='failed') finish(p);
+    else if (p.output_path && p.output_revision === p.revision && p.job?.status!=='failed') {finish(p);restoreDraft();}
     else { lock(false);visible('download-video',false);visible('result-note',false);$('result-badge').textContent = 'Video gốc';if(p.job?.status === 'failed')error(p.job.error,p.job.error_code); }
   } catch(e) { error(e.message); }
 }
@@ -236,6 +255,43 @@ async function prepareAssets() {
   for(const a of plan.assets){if(changes.has(a.id) && a.keywords!==changes.get(a.id)){a.keywords=changes.get(a.id);changed=true;}}
   if(changed)current=await api(`/api/projects/${current.id}/edit_plan`,json({revision:current.revision,plan}));
 }
+async function saveReviewedSubtitles() {
+  if(busy || !current)return;
+  lock(true);
+  try {await saveSubtitleDraft();lock(false);keepDraft();
+    $('subtitle-save-status').textContent='Đã lưu phụ đề vào dự án. Bấm Dựng lại để MP4 dùng bản chữ này.';
+    $('result-badge').textContent='Phụ đề đã lưu · Cần dựng lại';visible('download-video',false);return true;
+  } catch(e){lock(false);error(e.message);return false;}
+}
+$('save-subtitles').onclick=saveReviewedSubtitles;
+$('proper-names').addEventListener('input',keepDraft);$('brand-name').addEventListener('input',keepDraft);
+$('import-corrections').onclick=()=>$('corrections-input').click();
+$('corrections-input').onchange=async()=>{
+  const file=$('corrections-input').files[0];$('corrections-input').value='';
+  if(!file || busy || !current?.video)return;
+  try {
+    if(file.size>32768)throw new Error('File chỉnh sửa tối đa 32 KB.');
+    const preset=JSON.parse(await file.text());
+    if(preset.version!==1 || !Number.isFinite(preset.source_duration) || Math.abs(preset.source_duration-current.video.metadata.duration)>.1 ||
+      typeof preset.proper_names!=='string' || preset.proper_names.length>600 || typeof preset.brand_name!=='string' || preset.brand_name.length>100 ||
+      !Array.isArray(preset.corrections) || !preset.corrections.length || preset.corrections.length>20 || preset.corrections.some(c=>
+        typeof c.find!=='string' || !c.find.trim() || c.find.length>200 || typeof c.replace!=='string' || !c.replace.trim() || c.replace.length>200))
+      throw new Error('File chỉnh sửa không hợp lệ hoặc không khớp thời lượng video.');
+    const draft=structuredClone(subtitleDraft || []);let matches=0;
+    for(const correction of preset.corrections){
+      let found=0;
+      for(const sub of draft){
+        if(sub.text.includes(correction.find)){const parts=sub.text.split(correction.find);found+=parts.length-1;sub.text=parts.join(correction.replace);delete sub.words;}
+      }
+      if(found!==1)throw new Error('Không tìm thấy đúng một câu khớp chỉnh sửa. Chưa thay đổi dự án; hãy nghe nguồn và sửa câu tương ứng.');
+      matches+=found;
+    }
+    $('proper-names').value=preset.proper_names;$('brand-name').value=preset.brand_name;
+    renderSubtitles({...current,edit_plan:{...current.edit_plan,user_subtitles:draft}});keepDraft();
+    if(!await saveReviewedSubtitles())return;
+    $('subtitle-save-status').textContent=`Đã nhập và lưu ${matches} chỉnh sửa đã xác nhận. Bấm Dựng lại để xuất MP4 mới.`;
+  }catch(e){error(e.message);}
+};
 $('choose-logo').onclick=()=>$('logo-input').click();
 $('logo-input').onchange=()=>{const file=$('logo-input').files[0];if(file&&!busy&&imageValid(file)){if(logoSelection?.file)URL.revokeObjectURL(logoSelection.url);logoSelection=assetEntry(file);renderAssets();}$('logo-input').value='';};
 $('choose-images').onclick=()=>$('images-input').click();

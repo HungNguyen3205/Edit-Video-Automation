@@ -61,3 +61,32 @@ browser checks covered spelling restoration, source playback, corrected
 subtitle rerendering and 390px mobile layout. Actual 37.3-second source was
 rendered using the existing recognition cache and genuine Ollama-unavailable
 fallback, then fully decoded during the production verification stage.
+
+## Durable editing and confirmed correction import
+
+The subtitle editor has an explicit **Lưu phụ đề** action. Editing text creates
+an immediate browser draft keyed by project ID and revision. Refresh restores
+only a matching draft; a stale draft is left unapplied and visibly reported.
+Submitting a new render saves text through the revision-checked edit API and
+clears the browser draft only once the new job has been accepted. Saving text
+hides the old MP4 download button until rerendering, while retaining previous
+successful output files on disk.
+
+**Nhập chỉnh sửa đã xác nhận** accepts a small JSON file containing version=1,
+source_duration, brand_name, proper_names and corrections[{find,replace}].
+It requires the current project's duration and exactly one literal match per
+correction. All validation occurs on a copy before changing the form/project.
+Files with no match, duplicate matches, excessive size or invalid structure
+are rejected. Import explicitly saves the corrected sentences; the existing
+create button then renders them. The user's specific correction file is a
+separate deliverable, not a global production substitution rule.
+
+The edit API discards obsolete word timings if they no longer spell the
+edited sentence. This prevents clipped source intervals from reconstructing
+old recognition words and silently reversing a manual text correction.
+A regression test covers a changed word followed by a source trim.
+
+Verification: 96-test full suite passed; 10 subtitle/spelling tests passed
+including the added old-word regression. Actual browser checks cover refresh,
+explicit save, stale draft rejection, valid/invalid imports, actual rerender,
+full MP4 decoding and mobile layout. This feature does not train model weights.
