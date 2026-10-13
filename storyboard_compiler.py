@@ -118,7 +118,9 @@ def compile_storyboard_scenes(plan, asset_dir, work_dir, output_path, preview=Fa
                         graphic_title=sc.get('graphic_title',''),graphic_items=sc.get('graphic_items',[]),
                         visual_asset_id=sc.get('visual_asset_id',''))
                     asset_path = info['local_path']
-                cfg = {**sc,'duration':dur,'asset_path':str(asset_path),'footer':'' if plan.get('branding') else plan.get('brand_footer','')}
+                from text_review import headline_layout
+                title,title_size=headline_layout(sc.get('headline',''),60,590)
+                cfg = {**sc,'headline':title,'headline_font_size':title_size,'duration':dur,'asset_path':str(asset_path),'footer':'' if plan.get('branding') else plan.get('brand_footer','')}
                 cfg_file = work_dir/f'motion_{i}.json'
                 cfg_file.write_text(json.dumps(cfg,ensure_ascii=False),encoding='utf-8')
                 raw = work_dir/f'motion_{i}.mp4'

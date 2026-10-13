@@ -4,8 +4,8 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#123b3c">
   <title>DANAVA — AI dựng video</title>
-  <link rel="stylesheet" href="/frontend/simple.css?v=review-2">
-  <script src="/frontend/simple.js?v=review-2" defer></script>
+  <link rel="stylesheet" href="/frontend/simple.css?v=names-3">
+  <script src="/frontend/simple.js?v=names-3" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -39,6 +39,9 @@
         </details>
         <section class="brand-settings"  aria-labelledby="brand-settings-title">
           <h3 id="brand-settings-title">Thương hiệu &amp; hình ảnh <span>Tùy chọn</span></h3>
+          <label for="proper-names">Tên riêng và cách viết đúng</label>
+          <textarea id="proper-names" rows="2" maxlength="600" placeholder="Tên đúng | cách nhận dạng sai | cách viết khác"></textarea>
+          <p class="field-note">Mỗi dòng một tên. Ví dụ: AN NA | Anna. Chỉ áp dụng cho video này; câu bạn đã sửa thủ công được ưu tiên.</p>
           <label for="brand-name">Tên thương hiệu</label>
           <input id="brand-name" type="text" maxlength="100" placeholder="Ví dụ: DANAVA Solutions">
           <p class="field-note">Tên xuất hiện ở cuối khung hình, logo ở góc trên bên phải.</p>

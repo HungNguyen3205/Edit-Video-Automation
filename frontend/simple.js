@@ -35,7 +35,7 @@ function lock(yes) {
   $('drop-zone').disabled = yes;
   $('prompt').disabled = yes;
   $('history-toggle').disabled = yes;
-  ['brand-name','choose-logo','choose-images','illustrations'].forEach(id=>$(id).disabled=yes);
+  ['brand-name','proper-names','choose-logo','choose-images','illustrations'].forEach(id=>$(id).disabled=yes);
   document.querySelectorAll('.asset-row input,.remove-asset,.subtitle-row textarea').forEach(el=>el.disabled=yes);
   $('create-video').disabled = yes || (!selected && !current?.video);
   $('create-video').querySelector('span').textContent = yes ? 'AI đang dựng video…' : current?.output_path ? 'Dựng lại theo yêu cầu này' : 'Tạo video của tôi';
@@ -89,11 +89,15 @@ async function poll() {
 function renderSubtitles(p) {
   subtitleDraft=structuredClone(p.edit_plan?.user_subtitles ?? p.edit_plan?.subtitles ?? []);
   $('subtitle-rows').replaceChildren();visible('subtitle-editor',subtitleDraft.length>0);
-  subtitleDraft.forEach(sub=>{
+  subtitleDraft.forEach((sub,index)=>{
     const row=document.createElement('label');row.className='subtitle-row';
     const stamp=document.createElement('span');stamp.textContent=`${Number(sub.start).toFixed(1)}–${Number(sub.end).toFixed(1)} giây`;
     const input=document.createElement('textarea');input.rows=2;input.maxLength=2000;input.value=sub.text;input.disabled=busy;
-    input.oninput=()=>{sub.text=input.value;delete sub.words;};row.append(stamp,input);$('subtitle-rows').append(row);
+    const issue=(p.edit_plan?.subtitle_review || []).find(x=>x.subtitle_index===index);
+    if(issue){const note=document.createElement('small');note.className='subtitle-review-note';note.textContent=issue.reason;row.append(note);}
+    const listen=document.createElement('button');listen.type='button';listen.className='asset-button';listen.textContent='Nghe câu gốc';
+    listen.onclick=()=>{player(`/assets/${p.video.filename}`);$('player').currentTime=sub.start;$('player').play().catch(()=>{});};
+    input.oninput=()=>{sub.text=input.value;delete sub.words;};row.append(stamp,input,listen);$('subtitle-rows').append(row);
   });
 }
 async function saveSubtitleDraft() {
@@ -111,7 +115,7 @@ function finish(p) {
   player(p.output_path);$('download-video').href = p.output_path;
   $('download-video').download = `${(p.video.original_name || 'video').replace(/\.[^.]+$/,'')}-AI.mp4`;
   visible('download-video',true);visible('result-note',true);
-  $('result-badge').textContent = p.job?.planning_mode === 'fallback' ? 'Hoàn thành · Dự phòng' : 'Hoàn thành';$('result-badge').classList.add('done');
+  $('result-badge').textContent = p.job?.planning_mode === 'fallback' ? 'Hoàn thành · Dự phòng' : 'Hoàn thành';if(p.edit_plan?.subtitle_review?.length)$('result-badge').textContent+=' · Cần duyệt phụ đề';$('result-badge').classList.add('done');
   $('meta-name').textContent = 'Video đã dựng';
   $('meta-detail').textContent = `${Number(p.duration_audit?.ffprobe_duration || p.video.metadata.duration).toFixed(1)} giây · MP4`;
   $('warning-list').replaceChildren();
@@ -166,7 +170,7 @@ async function create() {
     await prepareAssets();
     await saveSubtitleDraft();
     current = await api(`/api/projects/${current.id}/make-video`,json({prompt:$('prompt').value.trim(),
-      brand_name:$('brand-name').value.trim(),logo_asset_id:logoSelection?.asset_id || '',
+      brand_name:$('brand-name').value.trim(),proper_names:$('proper-names').value.trim(),logo_asset_id:logoSelection?.asset_id || '',
       image_asset_ids:imageSelections.map(a=>a.asset_id),illustrations:$('illustrations').checked}));
     localStorage.setItem('danava-last-video',current.id);
     beginPolling();
@@ -213,6 +217,7 @@ function renderAssets() {
 function restoreAssets(p) {
   const settings=p.job?.branding || p.edit_plan?.branding || {};
   $('brand-name').value=settings.brand_name ?? p.edit_plan?.brand_footer ?? '';
+  $('proper-names').value=settings.proper_names ?? p.edit_plan?.proper_names ?? '';
   $('illustrations').checked=settings.illustrations !== false;
   const entry=id=>{const a=p.edit_plan.assets.find(x=>x.id===id);return a?{asset_id:id,file:null,name:a.original_name,url:`/assets/${a.filename}`,keywords:a.keywords || ''}:null;};
   logoSelection=entry(settings.logo_asset_id);imageSelections=(settings.image_asset_ids || []).map(entry).filter(Boolean);renderAssets();

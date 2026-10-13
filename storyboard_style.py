@@ -1,6 +1,7 @@
 """Shared typography and safe areas from the approved DANAVA review edit."""
 import textwrap
 from editing import ass_time, mapped_subtitles
+from text_review import headline_layout
 
 
 def escape_ass(text):
@@ -8,16 +9,22 @@ def escape_ass(text):
     return str(text).replace('\\', '／').replace('{', '(').replace('}', ')').replace('\n', ' ')
 
 
-def caption_chunks(subs, max_words=7):
+def caption_chunks(subs, max_words=7, proper_names=""):
+    names=[line.split("|")[0].strip().casefold().split() for line in proper_names.splitlines()]
+    names=[name for name in names if 1<len(name)<=4]
+    def protected(tokens,boundary):
+        tokens=[token.strip(" ,.!?;:").casefold() for token in tokens]
+        return any(tokens[start:start+len(name)]==name and start<boundary<start+len(name)
+                   for name in names for start in range(max(0,boundary-len(name)+1),boundary))
     result = []
     for sub in subs:
         timed=sub.get('words',[])
         joined=' '.join(w['word'].strip() for w in timed)
         if timed and ' '.join(joined.split())==' '.join(sub['text'].split()):
             group=[]
-            for word in timed:
+            for index,word in enumerate(timed):
                 group.append(word)
-                if len(group)>=max_words or (len(group)>=3 and word['word'].rstrip().endswith(('.',',','!','?',';'))):
+                if (len(group)>=max_words or (len(group)>=3 and word['word'].rstrip().endswith(('.',',','!','?',';')))) and not protected([w['word'].strip() for w in timed],index+1):
                     result.append({'start':group[0]['start'],'end':group[-1]['end'],'text':' '.join(w['word'].strip() for w in group)})
                     group=[]
             if group:
@@ -27,11 +34,15 @@ def caption_chunks(subs, max_words=7):
         if not words:
             continue
         duration = sub['end'] - sub['start']
-        for index in range(0, len(words), max_words):
+        index=0
+        while index<len(words):
             end = min(len(words), index + max_words)
+            while end<len(words) and protected(words,end):
+                end+=1
             result.append({'start': sub['start'] + duration * index / len(words),
                            'end': sub['start'] + duration * end / len(words),
                            'text': ' '.join(words[index:end])})
+            index=end
     return result
 
 
@@ -50,12 +61,17 @@ def write_storyboard_ass(path, plan, width, height):
             return
         safe = escape_ass(text)
         wrap = 38 if style == 'Caption' else 50 if style=='Brand' else 27
-        wrapped = textwrap.wrap(safe, width=wrap)
+        if style=='Head':
+            formatted,font_size=headline_layout(safe)
+            wrapped=formatted.split('\n')
+            tags+='\\fs'+str(font_size)
+        else:
+            wrapped = textwrap.wrap(safe, width=wrap)
         if len(wrapped)>2:
             wrapped = [wrapped[0],wrapped[1].rstrip('.,')+'…']
         safe = '\\N'.join(wrapped)
         lines.append(f'Dialogue: 0,{ass_time(start)},{ass_time(end)},{style},,0,0,0,,{{\\fad(150,150){tags}}}{safe}')
-    for sub in caption_chunks(mapped_subtitles(plan)) if plan.get('show_captions',True) else []:
+    for sub in caption_chunks(mapped_subtitles(plan),proper_names=plan.get("proper_names","")) if plan.get('show_captions',True) else []:
         event(sub['start'],sub['end'],'Caption',sub['text'])
     for scene in plan.get('storyboard', []):
         if scene['scene_type'] not in ('talking_head', 'broll'):

@@ -240,7 +240,8 @@ function buildHtml(data) {
 
       /* Headlines */
       .headline {
-        font-size: 60px;
+        font-size: ${Math.max(18, Math.min(60, Number(data.headline_font_size) || 60))}px;
+        white-space: pre-line;
         font-weight: 800;
         color: #1E293B;
         text-transform: uppercase;

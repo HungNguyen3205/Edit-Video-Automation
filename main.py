@@ -22,6 +22,7 @@ from ai_director import direct, ai_health, build_semantic_storyboard, ai_session
 from storyboard_compiler import compile_storyboard_scenes, run as run_render_command
 from automatic_director import automatic_direction, fallback_direction, PlanningError
 from video_branding import apply_visual_assets
+from text_review import prepare_source, review_issues
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.getenv('VIDEO_DATA_DIR', BASE_DIR / 'data')).resolve()
@@ -335,6 +336,7 @@ class Options(BaseModel):
     logo_asset_id: str = Field('',max_length=100)
     image_asset_ids: list[str] = Field(default_factory=list,max_length=6)
     illustrations: bool = True
+    proper_names: str = Field('',max_length=600)
 
 
 def job_update(project_id, **changes):
@@ -366,7 +368,7 @@ def transcribe(plan, work_dir, project_id):
         segments,_ = MODEL.transcribe(np.frombuffer(raw,dtype=np.float32),language='vi',beam_size=5,
                                      word_timestamps=True,initial_prompt=plan.get('brand_footer') or None)
         result = {'segments':[{'start':s.start,'end':s.end,'text':s.text,
-                    'words':[{'start':w.start,'end':w.end,'word':w.word} for w in (s.words or [])]} for s in segments]}
+                    'words':[{'start':w.start,'end':w.end,'word':w.word,'probability':w.probability} for w in (s.words or [])]} for s in segments]}
     else:
         import whisper
         with MODEL_LOCK:
@@ -415,6 +417,8 @@ def run_job(project_id, job_id, snapshot, options, mode):
                     if event.is_set():
                         raise InterruptedError('Đã hủy tác vụ.')
                     if mode == 'auto':
+                        if options.automatic:
+                            plan=prepare_source(plan,options.brand_footer,options.proper_names)
                         if options.planner == 'ai':
                             job_update(project_id, phase='AI đang phân tích nội dung và lập kế hoạch theo prompt…')
                             director = automatic_direction if options.automatic else direct
@@ -450,6 +454,10 @@ def run_job(project_id, job_id, snapshot, options, mode):
                     if mode=='auto' and options.automatic:
                         plan=apply_visual_assets(plan,options.prompt,options.brand_footer,options.logo_asset_id,options.image_asset_ids,options.illustrations)
                         warnings=list(dict.fromkeys([*warnings,*plan['director']['warnings']]))
+                        issues=review_issues(plan.get('subtitles',[]))
+                        plan['subtitle_review']=issues
+                        if issues:
+                            warnings.append('Có '+str(len(issues))+' câu phụ đề cần nghe lại. Mở mục sửa phụ đề để kiểm tra trước khi dùng video.')
                         job_update(project_id,illustration_count=plan['director']['illustration_count'])
                     timings['planning_seconds']=round(time.monotonic()-phase_started,3)
                     job_update(project_id,timings=timings)
@@ -595,7 +603,7 @@ def enqueue(project_id, background_tasks, options, mode):
         p['job'] = {'id': identifier, 'status': 'queued', 'phase': 'Đang chờ worker', 'progress': None, 'error': None, 'warnings': [], 'mode': mode, 'preview': options.preview}
         if options.automatic:
             p['job']['branding']={'brand_name':options.brand_footer,'logo_asset_id':options.logo_asset_id,
-                'image_asset_ids':options.image_asset_ids,'illustrations':options.illustrations}
+                'image_asset_ids':options.image_asset_ids,'illustrations':options.illustrations,'proper_names':options.proper_names}
         p['export_status'] = 'queued'
         if mode == 'transcribe':
             p['transcribe_status'] = 'running'
@@ -617,6 +625,7 @@ class MakeVideo(BaseModel):
     logo_asset_id: str = Field('',max_length=100)
     image_asset_ids: list[str] = Field(default_factory=list,max_length=6)
     illustrations: bool = True
+    proper_names: str = Field('',max_length=600)
 
 
 @app.post('/api/projects/{project_id}/make-video')
@@ -640,7 +649,7 @@ def make_video(project_id: str, body: MakeVideo, background_tasks: BackgroundTas
     options=Options(planner='ai',prompt=brief,visual_style='explainer_ref',duration_policy='preserve',
         preview=False,use_current_plan=False,transcribe=bool(p['video']['metadata'].get('has_audio')),
         automatic=True,user_prompt=body.prompt.strip(),brand_footer=body.brand_name.strip(),
-        logo_asset_id=body.logo_asset_id,image_asset_ids=body.image_asset_ids,illustrations=body.illustrations)
+        logo_asset_id=body.logo_asset_id,image_asset_ids=body.image_asset_ids,illustrations=body.illustrations,proper_names=body.proper_names.strip())
     return enqueue(project_id,background_tasks,options,'auto')
 
 

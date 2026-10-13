@@ -26,3 +26,38 @@ remain active; this change does not replace the camera motion engine.
 
 Run: `CHROME_PATH=/path/to/chrome python -m pytest -q`.
 On Windows activate the existing virtual environment and run `python main.py`.
+
+## Project-specific spellings and title wrapping
+
+The optional **Tên riêng và cách viết đúng** field uses one entry per line:
+`Canonical name | recognised alias | another alias`. It is limited to 600
+characters and stored with each job/project. Explicit aliases work with
+Vietnamese and Latin names; they do not become global defaults. Brand-token
+near-spellings are corrected only when the user supplies that brand; generic
+words outside the full brand phrase remain unchanged. Manual subtitle edits
+have precedence. Retrying with a different spelling uses the original
+recognition cache, rather than accumulating previous automatic corrections.
+
+`text_review.py` owns spelling rules, source-copy preparation, review flags
+and title measurements. It preserves source recognition and aligns changed
+names within their existing word spans. Both AI and fallback receive that
+prepared copy; scene labels are normalized before rendering. Multiword names
+up to four words stay on the same caption page.
+
+Camera titles are measured with the local Barlow font and balanced over at
+most two lines. Illustrated scenes use the same layout routine and safe font
+size instead of allowing CSS to leave a lone trailing word on its own line.
+
+The subtitle editor adds **Nghe câu gốc**, seeking the uploaded source to
+that sentence's source timestamp. Low-confidence recognised words (where
+metadata exists) and potentially odd wording are review suggestions, not
+automatic meaning changes. A result requiring review is labelled accordingly.
+The confirmed 'check' correction was applied only to the user's review video,
+not hardcoded into production spelling rules.
+
+Verification: 95-test full suite passed, then 20 targeted spelling/caption/
+style/contract tests passed after adding multiword-name pagination. Actual
+browser checks covered spelling restoration, source playback, corrected
+subtitle rerendering and 390px mobile layout. Actual 37.3-second source was
+rendered using the existing recognition cache and genuine Ollama-unavailable
+fallback, then fully decoded during the production verification stage.

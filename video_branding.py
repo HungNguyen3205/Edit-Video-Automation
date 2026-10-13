@@ -4,6 +4,7 @@ import re
 from editing import length, validate
 from automatic_director import correct_recognition_copy
 from asset_resolver import normalize_text
+from text_review import normalize_names
 
 
 def words(text):
@@ -98,6 +99,19 @@ def apply_visual_assets(plan, prompt, brand_name='', logo_asset_id='', image_ass
                     graphic_items=[c.capitalize() for c in items],sound_effect='none' if no_sound else 'whoosh')
                 source.append({'scene_index':index,'source':'source_rules'})
     p['director']['visual_sources']=source
+    names=p.get('proper_names','')
+    for sc in scenes:
+        for key in ('headline','badge_text','graphic_title','subheadline'):
+            if sc.get(key):
+                sc[key]=normalize_names(sc[key],brand_name,names)
+        sc['graphic_items']=[normalize_names(x,brand_name,names) for x in sc.get('graphic_items',[])]
+    if 'user_subtitles' not in p:
+        from automatic_director import aligned_words
+        for sub in p.get('subtitles',[]):
+            text=normalize_names(sub['text'],brand_name,names)
+            if text!=sub['text']:
+                sub['words']=aligned_words(sub.get('words',[]),text,sub['start'],sub['end'])
+                sub['text']=text
     count=sum(s['scene_type']!='talking_head' for s in scenes)
     p['director']['illustration_count']=count
     if any(s['source']=='source_rules' for s in source):
