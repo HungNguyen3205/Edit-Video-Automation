@@ -69,11 +69,16 @@ def review_issues(subtitles):
     return result
 
 
-def headline_layout(text,size=64,width=640):
+def headline_layout(text,size=64,width=640,proper_names=''):
     """Choose at most two balanced lines using the renderer's actual font."""
     text=' '.join(str(text).split())
     path=Path(__file__).parent/'motion_engine/fonts/BarlowCondensed-Bold.ttf'
     tokens=text.split()
+    protected=[line.split('|')[0].strip().casefold().split() for line in proper_names.splitlines()]
+    protected=[name for name in protected if 1<len(name)<=4]
+    def forbidden(boundary):
+        return any([w.casefold() for w in tokens[start:start+len(name)]]==name and start<boundary<start+len(name)
+                   for name in protected for start in range(max(0,boundary-len(name)+1),boundary))
     if not tokens:
         return '',size
     for font_size in range(size,17,-1):
@@ -82,6 +87,7 @@ def headline_layout(text,size=64,width=640):
             return text,font_size
         candidates=[]
         for i in range(1,len(tokens)):
+            if forbidden(i):continue
             left=' '.join(tokens[:i]);right=' '.join(tokens[i:])
             lengths=[font.getlength(left),font.getlength(right)]
             if max(lengths)<=width:

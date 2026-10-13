@@ -35,13 +35,13 @@ function lock(yes) {
   $('drop-zone').disabled = yes;
   $('prompt').disabled = yes;
   $('history-toggle').disabled = yes;
-  ['save-subtitles','import-corrections','brand-name','proper-names','choose-logo','choose-images','illustrations'].forEach(id=>$(id).disabled=yes);
+  ['approve-style','needs-changes','feedback-note','captions-checked','save-subtitles','import-corrections','brand-name','proper-names','choose-logo','choose-images','illustrations'].forEach(id=>$(id).disabled=yes);
   document.querySelectorAll('.asset-row input,.remove-asset,.subtitle-row textarea').forEach(el=>el.disabled=yes);
   $('create-video').disabled = yes || (!selected && !current?.video);
   $('create-video').querySelector('span').textContent = yes ? 'AI đang dựng video…' : current?.output_path ? 'Dựng lại theo yêu cầu này' : 'Tạo video của tôi';
 }
 function progress(title, value = null, cancelable = true) {
-  visible('render-progress',true); visible('download-video',false); visible('result-note',false);
+  visible('render-progress',true);visible('learning-panel',false); visible('download-video',false); visible('result-note',false);
   $('progress-title').textContent = title;
   $('progress-percent').textContent = Number.isFinite(value) ? `${Math.round(value)}%` : '';
   if (Number.isFinite(value)) $('progress-bar').value = value; else $('progress-bar').removeAttribute('value');
@@ -128,7 +128,10 @@ async function saveSubtitleDraft() {
   current=await api(`/api/projects/${current.id}/edit_plan`,json({revision:current.revision,plan}));
 }
 function finish(p) {
-  renderSubtitles(p);
+  renderSubtitles(p);visible('learning-panel',true);
+  const review=p.style_feedback;
+  $('feedback-note').value=review?.output_path===p.output_path?review.note:'';
+  $('captions-checked').checked=review?.output_path===p.output_path && review.captions_checked;
   stopPolling();lock(false);visible('render-progress',false);visible('error-box',false);
   player(p.output_path);$('download-video').href = p.output_path;
   $('download-video').download = `${(p.video.original_name || 'video').replace(/\.[^.]+$/,'')}-AI.mp4`;
@@ -144,7 +147,7 @@ function finish(p) {
 function choose(file) {
   if (!file || busy) return;
   if (!/\.(mp4|mov|webm|mkv)$/i.test(file.name)) { error('Hỗ trợ video MP4, MOV, WEBM hoặc MKV.');return; }
-  generation++;stopPolling();current = null;selected = file;subtitleDraft=null;visible('subtitle-editor',false);
+  visible('learning-panel',false);generation++;stopPolling();current = null;selected = file;subtitleDraft=null;visible('subtitle-editor',false);
   if(logoSelection?.file)logoSelection.asset_id=null;else logoSelection=null;
   imageSelections=imageSelections.filter(a=>a.file);imageSelections.forEach(a=>a.asset_id=null);renderAssets();
   if (localURL) URL.revokeObjectURL(localURL);
@@ -204,7 +207,7 @@ async function openProject(id) {
   try {
     const p = await api(`/api/projects/${id}`);
     if (!p.video || generation!==token || busy) return;
-    stopPolling();current = p;selected = null;restoreAssets(p);renderSubtitles(p);restoreDraft();
+    stopPolling();visible('learning-panel',false);current = p;selected = null;restoreAssets(p);renderSubtitles(p);restoreDraft();
     $('prompt').value = p.edit_plan?.director?.user_prompt ?? p.edit_plan?.director?.prompt ?? '';
     $('file-title').textContent = p.video.original_name;$('file-note').textContent = 'Bấm để thay video';$('drop-zone').classList.add('selected');
     visible('error-box',false);sourceInfo(p.video);player(`/assets/${p.video.filename}`);
@@ -260,9 +263,20 @@ async function saveReviewedSubtitles() {
   lock(true);
   try {await saveSubtitleDraft();lock(false);keepDraft();
     $('subtitle-save-status').textContent='Đã lưu phụ đề vào dự án. Bấm Dựng lại để MP4 dùng bản chữ này.';
-    $('result-badge').textContent='Phụ đề đã lưu · Cần dựng lại';visible('download-video',false);return true;
+    $('result-badge').textContent='Phụ đề đã lưu · Cần dựng lại';visible('download-video',false);visible('learning-panel',false);return true;
   } catch(e){lock(false);error(e.message);return false;}
 }
+async function sendFeedback(decision) {
+  if(busy || !current?.output_path)return;
+  $('approve-style').disabled=true;$('needs-changes').disabled=true;
+  try {
+    const result=await api(`/api/projects/${current.id}/feedback`,json({revision:current.revision,output_path:current.output_path,
+      decision,note:$('feedback-note').value.trim(),captions_checked:$('captions-checked').checked}));
+    current.style_feedback=result.feedback;
+    $('learning-note').textContent=`Đã lưu phản hồi. Có ${result.learning.approved_styles} phong cách đã duyệt để AI tham khảo. Chưa thay đổi trọng số model.`;
+  }catch(e){error(e.message);}finally{$('approve-style').disabled=busy;$('needs-changes').disabled=busy;}
+}
+$('approve-style').onclick=()=>sendFeedback('approve_style');$('needs-changes').onclick=()=>sendFeedback('needs_changes');
 $('save-subtitles').onclick=saveReviewedSubtitles;
 $('proper-names').addEventListener('input',keepDraft);$('brand-name').addEventListener('input',keepDraft);
 $('import-corrections').onclick=()=>$('corrections-input').click();

@@ -23,6 +23,7 @@ from storyboard_compiler import compile_storyboard_scenes, run as run_render_com
 from automatic_director import automatic_direction, fallback_direction, PlanningError
 from video_branding import apply_visual_assets
 from text_review import prepare_source, review_issues
+from learning_store import LearningStore
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.getenv('VIDEO_DATA_DIR', BASE_DIR / 'data')).resolve()
@@ -194,6 +195,40 @@ def create_project(name: str = Form(...)):
 @app.get('/api/projects/{project_id}')
 def project(project_id: str):
     return load_project(project_id)
+
+
+class Feedback(BaseModel):
+    revision: int
+    output_path: str = Field(...,max_length=250)
+    decision: str = Field(...,pattern='^(approve_style|needs_changes)$')
+    note: str = Field('',max_length=800)
+    captions_checked: bool = False
+
+
+@app.post('/api/projects/{project_id}/feedback')
+def feedback(project_id: str, body: Feedback):
+    with LOCK:
+        p=load_project(project_id)
+        if (p.get('job') or {}).get('status')!='succeeded' or not p.get('output_path'):
+            raise HTTPException(409,'Chỉ duyệt một MP4 đã dựng và kiểm tra thành công.')
+        if body.revision!=p['revision'] or body.output_path!=p['output_path'] or p.get('output_revision')!=p['revision']:
+            raise HTTPException(409,'Bản dựng đã thay đổi; mở đúng kết quả trước khi duyệt.')
+        if body.captions_checked and p['edit_plan'].get('subtitle_review'):
+            raise HTTPException(422,'Còn câu phụ đề cần kiểm tra. Bạn vẫn có thể duyệt riêng phong cách.')
+        record=LearningStore(DATA_DIR).save(p,body.decision,body.note,body.captions_checked)
+        p['style_feedback']=record;save_project(project_id,p)
+        return {'feedback':record,'learning':LearningStore(DATA_DIR).status()}
+
+
+@app.get('/api/learning')
+def learning_status():
+    return LearningStore(DATA_DIR).status()
+
+
+@app.get('/api/learning/export')
+def learning_export():
+    return Response(LearningStore(DATA_DIR).export(),media_type='application/x-ndjson',
+        headers={'Content-Disposition':'attachment; filename="approved-style-feedback.jsonl"'})
 
 
 @app.post('/api/projects/{project_id}/upload')
@@ -461,6 +496,10 @@ def run_job(project_id, job_id, snapshot, options, mode):
                         if options.planner != 'ai' and not plan['subtitles']:
                             warnings.append('Chưa có phụ đề: bản dựng dùng nhịp theo thời gian, chưa ghép minh họa theo lời nói.')
                     if mode=='auto' and options.automatic:
+                        memory=plan.get('learning_context',{})
+                        plan['director']['style_memory']={'mode':'style_memory','reference_count':len(memory.get('approved_style_examples',[])),
+                            'initial_reference_count':1 if memory.get('initial_visual_reference') else 0,
+                            'applied_to_ai':plan['director']['engine']=='ollama' and bool(getattr(event,'style_memory_applied',False)),'model_weights_trained':False}
                         plan=apply_visual_assets(plan,options.prompt,options.brand_footer,options.logo_asset_id,options.image_asset_ids,options.illustrations)
                         warnings=list(dict.fromkeys([*warnings,*plan['director']['warnings']]))
                         issues=review_issues(plan.get('subtitles',[]))
@@ -619,6 +658,8 @@ def enqueue(project_id, background_tasks, options, mode):
         save_project(project_id, p)
         CANCEL[identifier] = threading.Event()
         snapshot = copy.deepcopy(p)
+        if options.automatic:
+            snapshot['edit_plan']['learning_context']=LearningStore(DATA_DIR).context()
     background_tasks.add_task(run_job, project_id, identifier, snapshot, options, mode)
     return p
 

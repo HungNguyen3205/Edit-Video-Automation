@@ -4,8 +4,8 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#123b3c">
   <title>DANAVA — AI dựng video</title>
-  <link rel="stylesheet" href="/frontend/simple.css?v=saved-review-4">
-  <script src="/frontend/simple.js?v=saved-review-4" defer></script>
+  <link rel="stylesheet" href="/frontend/simple.css?v=learning-5">
+  <script src="/frontend/simple.js?v=learning-5" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -75,6 +75,15 @@
           <button id="cancel-render" class="quiet">Dừng dựng</button>
         </div>
         <a id="download-video" class="download" hidden download>Tải video hoàn chỉnh <span>↓</span></a>
+        <details id="learning-panel" class="brand-settings" hidden>
+          <summary>Giúp AI dựng hợp ý bạn hơn</summary>
+          <p class="field-note">Duyệt bố cục, minh họa và nhịp dựng để AI tham khảo lần sau. Phụ đề chưa được kiểm tra không trở thành lời chuẩn.</p>
+          <textarea id="feedback-note" rows="2" maxlength="800" placeholder="Ví dụ: Tôi thích minh họa này, muốn tiêu đề ngắn hơn và zoom nhẹ hơn."></textarea>
+          <label class="check-label"><input id="captions-checked" type="checkbox"> Tôi đã kiểm tra phụ đề của bản này</label>
+          <div class="asset-actions"><button id="approve-style" class="asset-button" type="button">Duyệt phong cách</button><button id="needs-changes" class="asset-button" type="button">Cần cải thiện</button></div>
+          <p id="learning-note" class="field-note" role="status">Lưu hướng dẫn và mẫu đã duyệt; chưa huấn luyện lại model.</p>
+          <a href="/api/learning/export" download>Xuất dữ liệu phong cách đã duyệt</a>
+        </details>
         <div id="result-note" class="result-note" hidden><p>Đã giữ giọng nói và nội dung nguồn. Xem lại trước khi đăng.</p><details id="warnings" hidden><summary>Lưu ý về bản dựng</summary><ul id="warning-list"></ul></details></div>
       </section>
     </div>

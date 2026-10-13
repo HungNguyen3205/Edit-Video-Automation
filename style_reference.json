@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "origin": "user_approved_visual_reference",
+  "source_sha256": "11f170c93af59cf21fb46b73b5e5c3c4ec5428bdf7d08b081f09615c90609e40",
+  "captions_checked": false,
+  "visual_style": {
+    "layout_sequence": [
+      "talking_head",
+      "talking_head_pip",
+      "talking_head",
+      "explainer_card",
+      "talking_head"
+    ],
+    "logo_position": "top_right",
+    "illustrations": "a few relevant interior scenes",
+    "speaker_visibility": "large below illustration in PiP",
+    "headlines": "short, readable, keep explicit multiword names together"
+  }
+}

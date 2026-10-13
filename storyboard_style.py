@@ -62,7 +62,7 @@ def write_storyboard_ass(path, plan, width, height):
         safe = escape_ass(text)
         wrap = 38 if style == 'Caption' else 50 if style=='Brand' else 27
         if style=='Head':
-            formatted,font_size=headline_layout(safe)
+            formatted,font_size=headline_layout(safe,proper_names=plan.get('proper_names',''))
             wrapped=formatted.split('\n')
             tags+='\\fs'+str(font_size)
         else:

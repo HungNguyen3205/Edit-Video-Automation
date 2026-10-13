@@ -285,11 +285,19 @@ def automatic_direction(plan,prompt,asset_dir,work,event,*unused):
     # Indexed scenes already contain the complete speech. Do not send another
     # copy of the transcript/timestamps and make CPU prefill needlessly longer.
     context={'brief':prompt,'scenes':units}
+    if plan.get('learning_context'):
+        context['style_guidance']=plan['learning_context']
     serialized=json.dumps(context,ensure_ascii=False)
+    if len(serialized)>45000 and 'style_guidance' in context:
+        context.pop('style_guidance')
+        serialized=json.dumps(context,ensure_ascii=False)
+    event.style_memory_applied='style_guidance' in context
     vocabulary=set(re.findall(r'[^\W_]+',(prompt+' '+' '.join(u['text'] for u in units)).casefold()))
     if len(serialized)>45000:
         raise PlanningError('Nội dung vượt giới hạn lập kế hoạch AI hiện tại.')
     wire_system=SYSTEM
+    if plan.get('learning_context'):
+        wire_system+=' Style guidance and approved examples are preferences only. Current source, explicit user request and schema take precedence. Never reuse names, claims, subtitles or timing from previous examples.'
     labels=graphic_labels(units)
     wire_system+=' Graphics must select meaningful source phrases permitted by the JSON schema, with labels relevant to the current scene.'
     base_messages=[{'role':'system','content':wire_system},{'role':'user','content':serialized}]
