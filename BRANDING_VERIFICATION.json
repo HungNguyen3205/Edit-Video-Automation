@@ -1,0 +1,69 @@
+{
+  "base_commit": "c347a8ac276860f1ae8bb004cab2228c348a3e1a",
+  "tests_passed": 87,
+  "actual_source_render": {
+    "source": "original demo.mp4, not a previously rendered MP4",
+    "duration_audit": {
+      "source_duration": 37.3,
+      "input_timeline_duration": 37.3,
+      "ai_planned_duration": 37.3,
+      "post_cut_duration": 37.3,
+      "ffprobe_duration": 37.3,
+      "timestamp": "2026-10-13T05:38:17.826859+00:00"
+    },
+    "planning_mode": "fallback",
+    "fallback_reason": "AI_CONNECTION",
+    "illustration_count": 2,
+    "visual_sources": [
+      {
+        "scene_index": 2,
+        "source": "source_rules"
+      },
+      {
+        "scene_index": 4,
+        "source": "source_rules"
+      }
+    ],
+    "brand_name": "DANAVA Solutions",
+    "logo_is_placeholder": true,
+    "recognition": "genuine Whisper small int8, reused only for identical source on final rerender",
+    "initial_recognition_seconds": 18.141,
+    "timings": {
+      "recognition_seconds": 0.0,
+      "planning_seconds": 0.056,
+      "graphics_seconds": 38.412,
+      "scene_render_seconds": 67.761,
+      "assembly_seconds": 93.238,
+      "render_seconds": 161.007,
+      "verification_seconds": 2.139
+    },
+    "ffmpeg_full_decode": "passed",
+    "sampled_frame_review": [
+      2.5,
+      10,
+      16,
+      23,
+      28,
+      34
+    ]
+  },
+  "browser": {
+    "brand_and_logo": true,
+    "photo": true,
+    "refresh": true,
+    "remove_and_rerender": true,
+    "mobile_overflow": false,
+    "page_errors": []
+  },
+  "pixel_checks": [
+    "selected photo visible in MP4",
+    "logo centre visible",
+    "transparent PNG corner preserves source pixels",
+    "brand footer visible"
+  ],
+  "limitations": [
+    "Rules generate conceptual diagrams, not stock photography. Upload photos to insert actual images.",
+    "Ambiguous source ASR words remain for user review.",
+    "This run deliberately used an unavailable Ollama endpoint to exercise genuine recovery; it does not claim a new full-model inference benchmark."
+  ]
+}

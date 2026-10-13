@@ -21,6 +21,7 @@ from editing import auto_plan, compile_render, length, mapped_subtitles, parse_s
 from ai_director import direct, ai_health, build_semantic_storyboard, ai_session, ai_seconds, AIError
 from storyboard_compiler import compile_storyboard_scenes, run as run_render_command
 from automatic_director import automatic_direction, fallback_direction, PlanningError
+from video_branding import apply_visual_assets
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.getenv('VIDEO_DATA_DIR', BASE_DIR / 'data')).resolve()
@@ -195,7 +196,7 @@ def project(project_id: str):
 
 
 @app.post('/api/projects/{project_id}/upload')
-def upload(project_id: str, file: UploadFile = File(...), role: str = Form('auto')):
+def upload(project_id: str, file: UploadFile = File(...), role: str = Form('auto'), keywords: str = Form('')):
     p = load_project(project_id)
     ext = Path(file.filename or '').suffix.lower()
     videos = {'.mp4', '.mov', '.webm', '.mkv'}
@@ -229,7 +230,7 @@ def upload(project_id: str, file: UploadFile = File(...), role: str = Form('auto
         result = subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', str(path), '-frames:v', '1', '-vf', 'scale=480:-2', str(thumb)], capture_output=True, timeout=30)
         if result.returncode == 0:
             thumbnail = thumb.name
-    asset = {'thumbnail': thumbnail, 'id': identifier, 'filename': path.name, 'original_name': file.filename, 'type': 'video' if ext in videos else 'audio' if ext in audio else 'image', 'metadata': meta, 'keywords': ''}
+    asset = {'thumbnail': thumbnail, 'id': identifier, 'filename': path.name, 'original_name': file.filename, 'type': 'video' if ext in videos else 'audio' if ext in audio else 'image', 'metadata': meta, 'keywords': keywords[:300], 'usage':'logo' if role=='logo' else ''}
     with LOCK:
         p = load_project(project_id)
         if role != 'asset' and not p.get('video') and ext in videos:
@@ -306,7 +307,7 @@ def download_srt(project_id: str):
 
 
 class Options(BaseModel):
-    prompt: str = Field('', max_length=4000)
+    prompt: str = Field('', max_length=4500)  # Includes one-click brand/layout instructions.
     planner: str = Field('rules', pattern='^(rules|ai)$')
     music_asset_id: str = Field('', max_length=100)
     intensity: str = 'balanced'
@@ -320,6 +321,9 @@ class Options(BaseModel):
     brand_footer: str = Field('', max_length=100)
     automatic: bool = False
     user_prompt: str = Field('',max_length=4000)
+    logo_asset_id: str = Field('',max_length=100)
+    image_asset_ids: list[str] = Field(default_factory=list,max_length=6)
+    illustrations: bool = True
 
 
 def job_update(project_id, **changes):
@@ -432,6 +436,10 @@ def run_job(project_id, job_id, snapshot, options, mode):
                                 plan['storyboard'] = build_semantic_storyboard(plan, ASSETS_DIR, headline=options.headline)
                         if options.planner != 'ai' and not plan['subtitles']:
                             warnings.append('Chưa có phụ đề: bản dựng dùng nhịp theo thời gian, chưa ghép minh họa theo lời nói.')
+                    if mode=='auto' and options.automatic:
+                        plan=apply_visual_assets(plan,options.prompt,options.brand_footer,options.logo_asset_id,options.image_asset_ids,options.illustrations)
+                        warnings=list(dict.fromkeys([*warnings,*plan['director']['warnings']]))
+                        job_update(project_id,illustration_count=plan['director']['illustration_count'])
                     timings['planning_seconds']=round(time.monotonic()-phase_started,3)
                     job_update(project_id,timings=timings)
                     with LOCK:
@@ -574,6 +582,9 @@ def enqueue(project_id, background_tasks, options, mode):
                 raise HTTPException(422, 'Chưa cài Whisper. Cài requirements-ai.txt, nhập SRT hoặc tắt phụ đề tự động.')
         identifier = uid()
         p['job'] = {'id': identifier, 'status': 'queued', 'phase': 'Đang chờ worker', 'progress': None, 'error': None, 'warnings': [], 'mode': mode, 'preview': options.preview}
+        if options.automatic:
+            p['job']['branding']={'brand_name':options.brand_footer,'logo_asset_id':options.logo_asset_id,
+                'image_asset_ids':options.image_asset_ids,'illustrations':options.illustrations}
         p['export_status'] = 'queued'
         if mode == 'transcribe':
             p['transcribe_status'] = 'running'
@@ -591,6 +602,10 @@ def automate(project_id: str, options: Options, background_tasks: BackgroundTask
 
 class MakeVideo(BaseModel):
     prompt: str = Field('',max_length=4000)
+    brand_name: str = Field('',max_length=100)
+    logo_asset_id: str = Field('',max_length=100)
+    image_asset_ids: list[str] = Field(default_factory=list,max_length=6)
+    illustrations: bool = True
 
 
 @app.post('/api/projects/{project_id}/make-video')
@@ -599,9 +614,22 @@ def make_video(project_id: str, body: MakeVideo, background_tasks: BackgroundTas
     if not p.get('video'):
         raise HTTPException(422,'Tải một video trước khi bắt đầu dựng.')
     brief=body.prompt.strip() or 'Dựng video đẹp mắt và sinh động theo mẫu đã duyệt. Giữ lời nói, chữ rõ, minh họa đúng nội dung và âm thanh nhẹ.'
+    ids=([body.logo_asset_id] if body.logo_asset_id else [])+body.image_asset_ids
+    assets={a['id']:a for a in p['edit_plan']['assets']}
+    if any(aid not in assets or assets[aid]['type']!='image' for aid in ids):
+        raise HTTPException(422,'Logo và ảnh minh họa phải là ảnh thuộc dự án này.')
+    if body.logo_asset_id and body.logo_asset_id in body.image_asset_ids:
+        raise HTTPException(422,'Logo không được dùng làm ảnh minh họa.')
+    if body.brand_name.strip():
+        brief+='\nThương hiệu do người dùng cung cấp: '+body.brand_name.strip()
+    if body.illustrations:
+        brief+='\nThêm minh họa phù hợp với lời nói khi có nội dung rõ.'
+    else:
+        brief+='\nKhông thêm đồ họa tự động; ảnh người dùng chọn sẽ được engine ghép.'
     options=Options(planner='ai',prompt=brief,visual_style='explainer_ref',duration_policy='preserve',
         preview=False,use_current_plan=False,transcribe=bool(p['video']['metadata'].get('has_audio')),
-        automatic=True,user_prompt=body.prompt.strip())
+        automatic=True,user_prompt=body.prompt.strip(),brand_footer=body.brand_name.strip(),
+        logo_asset_id=body.logo_asset_id,image_asset_ids=body.image_asset_ids,illustrations=body.illustrations)
     return enqueue(project_id,background_tasks,options,'auto')
 
 

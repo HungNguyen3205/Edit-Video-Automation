@@ -43,12 +43,13 @@ def write_storyboard_ass(path, plan, width, height):
              'Style: Caption,Inter,32,&H00FFFFFF,&H00FFFFFF,&H003B2D17,&H003B2D17,-1,0,0,0,100,100,0,0,3,12,0,2,45,45,118,1',
              'Style: Head,Barlow Condensed,64,&H00FFFFFF,&H00FFFFFF,&H003B2D17,&H803B2D17,-1,0,0,0,100,100,0,0,1,2,1,8,40,40,170,1',
              'Style: Label,Inter,22,&H00FFFFFF,&H00FFFFFF,&H0088940D,&H0088940D,-1,0,0,0,100,100,2,0,3,10,0,8,40,40,110,1',
+             'Style: Brand,Inter,22,&H00FFFFFF,&H00FFFFFF,&H003B2D17,&H803B2D17,0,0,0,0,100,100,0,0,1,2,0,2,35,35,35,1',
              '[Events]', 'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text']
     def event(start, end, style, text, tags=''):
         if end <= start or not text:
             return
         safe = escape_ass(text)
-        wrap = 38 if style == 'Caption' else 27
+        wrap = 38 if style == 'Caption' else 50 if style=='Brand' else 27
         wrapped = textwrap.wrap(safe, width=wrap)
         if len(wrapped)>2:
             wrapped = [wrapped[0],wrapped[1].rstrip('.,')+'…']
@@ -70,4 +71,6 @@ def write_storyboard_ass(path, plan, width, height):
     for title in plan.get('text_overlays', []):
         start = title['timeline_start']
         event(start,start+title['duration'],'Head',title['text'])
+    if plan.get('branding',{}).get('brand_name'):
+        event(0,sum(c['duration'] for c in plan['video_clips']),'Brand',plan['branding']['brand_name'])
     path.write_text('\n'.join(lines)+'\n',encoding='utf-8')

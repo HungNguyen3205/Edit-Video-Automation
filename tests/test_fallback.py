@@ -87,7 +87,7 @@ def test_retry_reuses_recognition_and_recomputes_prompt(media,monkeypatch):
         client.post(f'/api/projects/{p["id"]}/make-video',json={'prompt':prompt})
         result=client.get(f'/api/projects/{p["id"]}').json()
         assert result['job']['status']=='succeeded',result['job']
-    assert calls==['không phụ đề','có phụ đề']
+    assert [s.split('\n')[0] for s in calls]==['không phụ đề','có phụ đề']
     assert result['edit_plan']['show_captions'] is True
 
 

@@ -446,9 +446,10 @@ def compile_render(plan, asset_dir, work_dir, output, preview=False, visual_styl
         a = assets[ov['asset_id']]
         full = ov.get('mode') == 'full'
         ow = w if full else max(2, int(w * ov.get('width', .38)) // 2 * 2)
-        oh = h if full else max(2, min(int(h * .45), round(ow * a['metadata']['height'] / a['metadata']['width'])) // 2 * 2)
+        oh = h if full else max(2, min(int(h * (.065 if ov.get('role')=='logo' else .45)), round(ow * a['metadata']['height'] / a['metadata']['width'])) // 2 * 2)
         start, end = ov['timeline_start'], ov['timeline_start'] + ov['duration']
-        filters.append(f'[{len(clips)+i}:v]{fit(ow,oh)},fps={fps},format=rgba,setpts=PTS-STARTPTS+{start}/TB,fade=t=in:st={start}:d=0.2:alpha=1,fade=t=out:st={end-0.2}:d=0.2:alpha=1[ov{i}]')
+        overlay_fit=(f'format=rgba,scale={ow}:{oh}:force_original_aspect_ratio=decrease,pad={ow}:{oh}:(ow-iw)/2:(oh-ih)/2:color=0x00000000' if ov.get('role')=='logo' else fit(ow,oh))
+        filters.append(f'[{len(clips)+i}:v]{overlay_fit},fps={fps},format=rgba,setpts=PTS-STARTPTS+{start}/TB,fade=t=in:st={start}:d=0.2:alpha=1,fade=t=out:st={end-0.2}:d=0.2:alpha=1[ov{i}]')
         x = 0 if full else min(round(ov.get('x', .05) * w), w-ow)
         y = 0 if full else min(round(ov.get('y', .08) * h), h-oh)
         filters.append(f"[{current}][ov{i}]overlay=x={x}:y={y}:eof_action=pass:repeatlast=0:enable='gte(t,{start})*lt(t,{end})'[layer{i}]")

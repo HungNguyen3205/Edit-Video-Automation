@@ -97,7 +97,7 @@ class AssetResolver:
 
         # 1. Search in user-uploaded project assets
         for a in self.project_assets:
-            if a.get('type') == 'image':
+            if a.get('type') == 'image' and (a.get('usage')!='logo' or a['id']==visual_asset_id):
                 match_target = normalize_text(f"{a.get('original_name', '')} {a.get('keywords', '')}")
                 target_words = set(re.findall(r'\w+', match_target))
                 if (visual_asset_id and a['id'] == visual_asset_id) or (not visual_asset_id and (words & target_words or (norm_query and norm_query in match_target))):

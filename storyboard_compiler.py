@@ -55,7 +55,11 @@ def compile_storyboard_scenes(plan, asset_dir, work_dir, output_path, preview=Fa
     w, h = (360, 640) if preview else (720, 1280)
     total = min(12.0, length(plan)) if preview else length(plan)
     assets = {a['id']: a for a in plan['assets']}
-    resolver = AssetResolver(plan['assets'], asset_dir, work_dir)
+    selected_images=set(plan.get('branding',{}).get('image_asset_ids',[]))
+    selected_images.update(s.get('visual_asset_id') for s in storyboard if s.get('visual_asset_id'))
+    resolver_assets=[a for a in plan['assets'] if a['id']!=plan.get('branding',{}).get('logo_asset_id')
+        and (not plan.get('branding') or a['type']!='image' or a['id'] in selected_images)]
+    resolver = AssetResolver(resolver_assets, asset_dir, work_dir)
     scene_files, cursor = [], 0.0
     clip=plan['video_clips'][0] if len(plan['video_clips'])==1 else None
     camera_source=(asset_dir/assets[clip['asset_id']]['filename']
@@ -114,7 +118,7 @@ def compile_storyboard_scenes(plan, asset_dir, work_dir, output_path, preview=Fa
                         graphic_title=sc.get('graphic_title',''),graphic_items=sc.get('graphic_items',[]),
                         visual_asset_id=sc.get('visual_asset_id',''))
                     asset_path = info['local_path']
-                cfg = {**sc,'duration':dur,'asset_path':str(asset_path),'footer':plan.get('brand_footer','')}
+                cfg = {**sc,'duration':dur,'asset_path':str(asset_path),'footer':'' if plan.get('branding') else plan.get('brand_footer','')}
                 cfg_file = work_dir/f'motion_{i}.json'
                 cfg_file.write_text(json.dumps(cfg,ensure_ascii=False),encoding='utf-8')
                 raw = work_dir/f'motion_{i}.mp4'

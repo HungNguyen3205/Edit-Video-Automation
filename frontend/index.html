@@ -4,8 +4,8 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#123b3c">
   <title>DANAVA — AI dựng video</title>
-  <link rel="stylesheet" href="/frontend/simple.css">
-  <script src="/frontend/simple.js?v=fallback-1" defer></script>
+  <link rel="stylesheet" href="/frontend/simple.css?v=branding-1">
+  <script src="/frontend/simple.js?v=branding-1" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -32,6 +32,20 @@
         <div class="prompt-label"><label for="prompt">Bạn muốn video như thế nào?</label><span>Tùy chọn</span></div>
         <textarea id="prompt" rows="4" maxlength="4000" placeholder="Ví dụ: Dựng thật cuốn hút, chữ rõ, thêm minh họa đúng lời nói và âm thanh nhẹ. Giữ nguyên nội dung."></textarea>
         <p class="field-note">Để trống nếu muốn AI dựng theo mẫu đã duyệt.</p>
+        <section class="brand-settings" aria-labelledby="brand-settings-title">
+          <h3 id="brand-settings-title">Thương hiệu &amp; hình ảnh <span>Tùy chọn</span></h3>
+          <label for="brand-name">Tên thương hiệu</label>
+          <input id="brand-name" type="text" maxlength="100" placeholder="Ví dụ: DANAVA Solutions">
+          <p class="field-note">Tên xuất hiện ở cuối khung hình, logo ở góc trên bên phải.</p>
+          <div class="asset-actions"><button id="choose-logo" type="button" class="asset-button">+ Thêm logo</button><button id="choose-images" type="button" class="asset-button">+ Thêm ảnh minh họa</button></div>
+          <input id="logo-input" type="file" accept=".png,.jpg,.jpeg,.webp" hidden>
+          <input id="images-input" type="file" accept=".png,.jpg,.jpeg,.webp" multiple hidden>
+          <div id="logo-selection" class="asset-list" hidden></div>
+          <div id="image-selections" class="asset-list"></div>
+          <p class="field-note">PNG/JPG/WEBP · tối đa 6 ảnh. Nhập chủ đề để ghép ảnh với lời nói; để trống sẽ chèn theo thứ tự. Logo PNG nền trong suốt hiển thị đẹp nhất.</p>
+          <label class="check-label"><input id="illustrations" type="checkbox" checked> Tự thêm đồ họa minh họa theo lời nói</label>
+          <p class="field-note">Dùng các ý rõ trong nội dung; không tự tải ảnh trên mạng. Ảnh bạn chọn vẫn được chèn khi tắt đồ họa tự động.</p>
+        </section>
         <button id="create-video" class="primary" disabled><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5zM20 2v4m-2-2h4"/></svg><span>Tạo video của tôi</span></button>
         <p class="automatic-note">AI tự chọn cảnh, phụ đề, minh họa và hiệu ứng.<br>Bản xuất giữ trọn nội dung video gốc.</p>
         <div id="error-box" class="error-box" role="alert" hidden><strong id="error-title">Chưa dựng được video</strong><p id="error-text"></p><details><summary>Xem chi tiết để xử lý</summary><pre id="error-detail"></pre><a href="https://github.com/HungNguyen3205/Edit-Video-Automation/blob/main/APPROVED_STYLE.md" target="_blank" rel="noopener">Hướng dẫn cài và chạy</a></details></div>
