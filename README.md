@@ -114,3 +114,9 @@ xem trước trên web. [Danh mục, mục đích và cách dùng](docs/TYPOGRAP
 10 skill mới từ tham chiếu người dùng: nhấn ý, zoom có khoảng nghỉ, danh
 sách hiện lần lượt và CTA đúng lời nói. Chọn Nhịp dựng trên giao diện;
 [cách dùng, bằng chứng và giới hạn](docs/MOTION_SKILLS.md). Chưa fine-tune model.
+
+## Duyệt tên và cache nhận dạng
+
+Tên chuẩn được gợi ý trước khi nhận dạng. Có nút áp dụng tên vào bản nháp
+để xem và lưu rõ ràng, không tự ghi đè phụ đề đã sửa. Cache mới gắn nguồn
+và cấu hình. [Cách dùng và kiểm chứng Ollama thật](docs/RECOGNITION_REVIEW.md).

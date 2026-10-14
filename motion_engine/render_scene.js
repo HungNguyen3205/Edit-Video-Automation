@@ -236,7 +236,7 @@ function buildHtml(data) {
       }
 
       .motion-dynamic { background:#101b28; }
-      .motion-dynamic .headline { color:#fff; }
+      .motion-dynamic .headline { color:#fff; width:100%; max-width:100%; letter-spacing:0; }
       .keyword-accent { color:#ffe05b; }
       .dynamic-list { width:100%; display:flex; flex-direction:column; gap:18px; }
       .motion-dynamic .card:has(.dynamic-list) { background:transparent; border:0; padding:0; width:100%; max-width:94%; max-height:650px; }
@@ -558,6 +558,22 @@ async function render() {
   const html = buildHtml(sceneData);
   await page.setContent(html, { waitUntil: 'load' });
   await page.evaluate(() => document.fonts.ready);
+  // Fit against the actual browser font metrics, including shaping and CSS.
+  // Python's planned breaks remain authoritative; never let Chrome add a third line.
+  if (sceneData.motion_style === 'dynamic_explainer') {
+    const measured=await page.evaluate(() => {
+      const results=[];
+      for(const el of document.querySelectorAll('.headline')) {
+        let size=parseFloat(getComputedStyle(el).fontSize);
+        const fits=()=>el.offsetHeight<=2*parseFloat(getComputedStyle(el).lineHeight)+1 && el.scrollWidth<=el.clientWidth+1;
+        while(size>18 && !fits()){size-=1;el.style.fontSize=`${size}px`;}
+        if(!fits())throw new Error('Title does not fit the two-line safe area');
+        results.push({font_size:size,lines:Math.round(el.offsetHeight/parseFloat(getComputedStyle(el).lineHeight))});
+      }
+      return results;
+    });
+    console.log(JSON.stringify({title_layout:measured}));
+  }
 
   const ffmpeg = spawn('ffmpeg', [
     '-y',

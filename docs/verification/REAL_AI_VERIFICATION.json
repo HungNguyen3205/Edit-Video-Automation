@@ -1,0 +1,194 @@
+{
+  "recorded_at": "2026-10-14",
+  "scope": "Measured local inference and rendering; no model weight training. One source video, not a universal quality or speed guarantee.",
+  "source": {
+    "sha256": "803ffb70ddbfab6d218f7f4d618386ce5fb6ee068628a7d2dab9636a0c295f38",
+    "seconds": 37.3,
+    "width": 720,
+    "height": 1280
+  },
+  "hardware": {
+    "cpu": "Intel Xeon Platinum 8370C",
+    "visible_logical_cpus": 9,
+    "cpu_quota": 8,
+    "ram_gib": 9.7,
+    "swap": false,
+    "gpu": false
+  },
+  "model": {
+    "runtime": "Ollama 0.40.4 CPU",
+    "model": "qwen3:4b",
+    "parameters": "4.0B",
+    "quantization": "Q4_K_M",
+    "verified_gguf_sha256": "3e4cb14174460404e7a233e531675303b2fbf7749c02f91864fe311ab6344e4f",
+    "resident_bytes": 3888675552,
+    "vram_bytes": 0,
+    "think": false,
+    "context": 8192,
+    "shared_deadline_seconds": 180,
+    "model_weights_trained": false,
+    "paid_api_used": false
+  },
+  "cold_planner_probe": {
+    "elapsed_seconds": 97.07,
+    "load_seconds": 3.598,
+    "prompt_seconds": 21.507,
+    "generation_seconds": 71.918,
+    "output_tokens": 357,
+    "scene_count": 6,
+    "graphic_count": 2
+  },
+  "initial_full_run_before_scene_grounding": {
+    "upload_seconds": 0.216,
+    "timings": {
+      "recognition_seconds": 11.838,
+      "planning_seconds": 65.694,
+      "graphics_seconds": 23.562,
+      "scene_render_seconds": 40.792,
+      "assembly_seconds": 61.395,
+      "render_seconds": 102.191,
+      "verification_seconds": 1.189
+    },
+    "limitation": "Later visual review found cross-scene labels. This was not accepted as final quality."
+  },
+  "strict_grounding_failed_experiment": {
+    "seconds": 170.052,
+    "requests": 3,
+    "result": "honest_fallback",
+    "valid_ai_scenes_retained": 5,
+    "reason": "Semantic label validation failed despite syntactically complete JSON."
+  },
+  "successful_real_model_plan": {
+    "planning_mode": "ai",
+    "planning_seconds": 111.489,
+    "recognition_seconds": 0.0,
+    "recognition_cache_reused": true,
+    "requests": [
+      {
+        "request_index": 1,
+        "model": "qwen3:4b",
+        "think": false,
+        "num_ctx": 8192,
+        "num_predict": 3840,
+        "elapsed_seconds": 92.65,
+        "first_chunk_seconds": 23.652,
+        "load_duration": 3318915633,
+        "prompt_eval_duration": 20288692000,
+        "eval_duration": 68999993000,
+        "prompt_eval_count": 1667,
+        "eval_count": 374,
+        "done_reason": "stop"
+      },
+      {
+        "request_index": 2,
+        "model": "qwen3:4b",
+        "think": false,
+        "num_ctx": 8192,
+        "num_predict": 2048,
+        "elapsed_seconds": 18.785,
+        "first_chunk_seconds": 8.332,
+        "load_duration": 3101173,
+        "prompt_eval_duration": 8256147000,
+        "eval_duration": 10452959000,
+        "prompt_eval_count": 2185,
+        "eval_count": 111,
+        "done_reason": "stop"
+      }
+    ],
+    "ollama_duration_unit": "nanoseconds",
+    "repair_count": 1,
+    "scene_count": 6,
+    "graphic_count": 2,
+    "timings": {
+      "recognition_seconds": 0.0,
+      "planning_seconds": 111.489,
+      "graphics_seconds": 23.403,
+      "scene_render_seconds": 40.387,
+      "assembly_seconds": 57.268,
+      "render_seconds": 97.662,
+      "verification_seconds": 0.782
+    },
+    "comparison_note": "Some test workloads overlapped. These runs do not establish an isolated speed improvement."
+  },
+  "final_render": {
+    "elapsed_seconds": 105.984,
+    "plan_reused": true,
+    "recognition_repeated": false,
+    "ai_repeated": false,
+    "timings": {
+      "graphics_seconds": 24.298,
+      "scene_render_seconds": 42.272,
+      "assembly_seconds": 61.325,
+      "render_seconds": 103.614,
+      "verification_seconds": 1.022
+    },
+    "duration": {
+      "source_duration": 37.3,
+      "input_timeline_duration": 37.3,
+      "ai_planned_duration": 37.3,
+      "post_cut_duration": 37.3,
+      "ffprobe_duration": 37.3,
+      "timestamp": "2026-10-14T04:57:34.915195+00:00"
+    },
+    "decode": "passed",
+    "mechanical_adapter": "Deduplicate labels, constrain chat items to current scene, reuse an already valid model-authored diagram title as a second label. No model re-inference or new prose generation.",
+    "planning_mode": "ai",
+    "active_motion_skills": [
+      "camera_breath",
+      "keyword_accent",
+      "progressive_list",
+      "quiet_accents",
+      "semantic_hook",
+      "soft_entries",
+      "visual_rest"
+    ]
+  },
+  "verification": {
+    "speech_window_seconds": [
+      2,
+      5
+    ],
+    "audio_correlation": 0.9996138130160888,
+    "best_lag_ms": 0.0,
+    "full_decode": "passed",
+    "sampled_frames": [
+      1,
+      5,
+      12,
+      17,
+      24,
+      29,
+      35
+    ],
+    "dimensions": [
+      720,
+      1280
+    ],
+    "duration": "37.300000",
+    "audio_codec": "aac"
+  },
+  "validation": {
+    "pytest": {
+      "passed": 162,
+      "failed": 0,
+      "warnings": 1,
+      "warning": "Starlette TestClient dependency deprecation"
+    },
+    "browser": {
+      "draft_changes": true,
+      "explicit_save_required": true,
+      "save_and_reload": true,
+      "mobile_width": 390,
+      "page_errors": 0
+    },
+    "actual_chrome_title_layout": "two lines; decoded test MP4",
+    "full_video_decode": "passed"
+  },
+  "limits": [
+    "Four subtitle review warnings remain. Recognition accuracy is separate from rendering validity.",
+    "Audio comparison covers speech seconds 2-5; no human listening approval is claimed.",
+    "One real source video was tested this turn. No claim of generalization or approved-demo parity.",
+    "The final video uses actual model decisions plus explicit engine normalization; it is not a new model response after the final label adapter.",
+    "Fine-tuning must use separately reviewed data; no automatic training on raw transcripts."
+  ]
+}

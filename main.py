@@ -1,5 +1,6 @@
 """Local-first video studio: validated plans, offline automation, serialized workers."""
 import copy
+import hashlib
 import importlib.util
 import json
 import os
@@ -30,6 +31,7 @@ from typography import FontStyle, public_profiles, apply_typography
 from motion_style import MotionStyle, apply_motion_style, skill_context
 from text_review import prepare_source, review_issues
 from learning_store import LearningStore
+from recognition_config import name_hint, recognition_config, cache_changed
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.getenv('VIDEO_DATA_DIR', BASE_DIR / 'data')).resolve()
@@ -45,6 +47,7 @@ LOCK = threading.RLock()
 WORKER = threading.Semaphore(1)
 CANCEL = {}
 MODEL = None
+MODEL_KEY = None
 MODEL_LOCK = threading.Lock()
 MAX_UPLOAD = int(os.getenv('MAX_UPLOAD_MB', '500')) * 1024 * 1024
 
@@ -203,6 +206,31 @@ def project(project_id: str):
     return load_project(project_id)
 
 
+class NameDraft(BaseModel):
+    revision: int
+    brand_name: str = Field('',max_length=100)
+    proper_names: str = Field('',max_length=600)
+    subtitles: list[dict] = Field(default_factory=list,max_length=2000)
+
+
+@app.post('/api/projects/{project_id}/subtitle-name-draft')
+def subtitle_name_draft(project_id: str, body: NameDraft):
+    p=load_project(project_id)
+    if body.revision!=p['revision']:
+        raise HTTPException(409,'Dự án đã thay đổi; tải lại trước khi áp dụng tên.')
+    from text_review import normalize_names
+    rows=copy.deepcopy(body.subtitles);changes=[]
+    for i,row in enumerate(rows):
+        text=row.get('text')
+        if not isinstance(text,str) or not text.strip() or len(text)>2000:
+            raise HTTPException(422,'Phụ đề phải là câu chữ hợp lệ.')
+        revised=normalize_names(text,body.brand_name,body.proper_names)
+        if revised!=text:
+            changes.append({'subtitle_index':i,'before':text,'after':revised})
+            row['text']=revised;row.pop('words',None)
+    return {'revision':p['revision'],'subtitles':rows,'changes':changes,'saved':False}
+
+
 class Feedback(BaseModel):
     revision: int
     output_path: str = Field(...,max_length=250)
@@ -252,12 +280,14 @@ def upload(project_id: str, file: UploadFile = File(...), role: str = Form('auto
     path = ASSETS_DIR / f'{identifier}{ext}'
     try:
         size = 0
+        digest = hashlib.sha256()
         with path.open('wb') as target:
             while chunk := file.file.read(1024 * 1024):
                 size += len(chunk)
                 if size > MAX_UPLOAD:
                     raise HTTPException(413, 'File vượt giới hạn dung lượng upload.')
                 target.write(chunk)
+                digest.update(chunk)
         meta = probe_audio(path) if ext in audio else probe(path)
         if ext in videos and meta['duration'] <= 0:
             raise ValueError('Không xác định được thời lượng video.')
@@ -272,7 +302,7 @@ def upload(project_id: str, file: UploadFile = File(...), role: str = Form('auto
         result = subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', str(path), '-frames:v', '1', '-vf', 'scale=480:-2', str(thumb)], capture_output=True, timeout=30)
         if result.returncode == 0:
             thumbnail = thumb.name
-    asset = {'thumbnail': thumbnail, 'id': identifier, 'filename': path.name, 'original_name': file.filename, 'type': 'video' if ext in videos else 'audio' if ext in audio else 'image', 'metadata': meta, 'keywords': keywords[:300], 'usage':'logo' if role=='logo' else ''}
+    asset = {'sha256':digest.hexdigest(),'thumbnail': thumbnail, 'id': identifier, 'filename': path.name, 'original_name': file.filename, 'type': 'video' if ext in videos else 'audio' if ext in audio else 'image', 'metadata': meta, 'keywords': keywords[:300], 'usage':'logo' if role=='logo' else ''}
     with LOCK:
         p = load_project(project_id)
         if role != 'asset' and not p.get('video') and ext in videos:
@@ -304,6 +334,10 @@ def save_plan(project_id: str, body: dict):
             plan['user_subtitles'] = copy.deepcopy(p['edit_plan']['user_subtitles'])
         else:
             plan.pop('user_subtitles', None)
+        if 'recognition_cache' in p['edit_plan']:
+            plan['recognition_cache']=copy.deepcopy(p['edit_plan']['recognition_cache'])
+        else:
+            plan.pop('recognition_cache',None)
         trusted = p['edit_plan']['assets']
         incoming = {a.get('id'): a for a in plan.get('assets', [])}
         trusted = [{**a, 'keywords': str(incoming.get(a['id'], {}).get('keywords', a.get('keywords', '')))[:300]} for a in trusted]
@@ -399,7 +433,7 @@ def job_update(project_id, **changes):
 
 
 def transcribe(plan, work_dir, project_id):
-    global MODEL
+    global MODEL, MODEL_KEY
     engine = recognition_engine()
     if not engine:
         raise RuntimeError('Chưa cài Whisper. Cài requirements/requirements-ai.txt hoặc nhập SRT; có thể tắt phụ đề tự động để dựng hình trước.')
@@ -413,21 +447,23 @@ def transcribe(plan, work_dir, project_id):
         import numpy as np
         from faster_whisper import WhisperModel
         with MODEL_LOCK:
-            if MODEL is None:
+            if MODEL is None or MODEL_KEY!=('faster_whisper',os.getenv('WHISPER_MODEL','small')):
                 MODEL = WhisperModel(os.getenv('WHISPER_MODEL','small'),device='cpu',compute_type='int8',cpu_threads=4)
+                MODEL_KEY=('faster_whisper',os.getenv('WHISPER_MODEL','small'))
         # FFmpeg decoding avoids differences between PyAV versions.
         raw = subprocess.run(['ffmpeg','-v','error','-i',str(audio),'-f','f32le','-ac','1','-ar','16000','-'],capture_output=True,check=True).stdout
         segments,_ = MODEL.transcribe(np.frombuffer(raw,dtype=np.float32),language='vi',beam_size=5,
-                                     word_timestamps=True,initial_prompt=plan.get('brand_footer') or None)
+                                     word_timestamps=True,initial_prompt=name_hint(plan.get('brand_footer',''),plan.get('proper_names','')) or None)
         result = {'segments':[{'start':s.start,'end':s.end,'text':s.text,
                     'words':[{'start':w.start,'end':w.end,'word':w.word,'probability':w.probability} for w in (s.words or [])]} for s in segments]}
     else:
         import whisper
         with MODEL_LOCK:
-            if MODEL is None:
+            if MODEL is None or MODEL_KEY!=('whisper',os.getenv('WHISPER_MODEL','base')):
                 MODEL = whisper.load_model(os.getenv('WHISPER_MODEL', 'base'), device='cpu')
+                MODEL_KEY=('whisper',os.getenv('WHISPER_MODEL','base'))
         result = MODEL.transcribe(str(audio), language='vi', fp16=False,word_timestamps=True,
-                                  initial_prompt=plan.get('brand_footer') or None)
+                                  initial_prompt=name_hint(plan.get('brand_footer',''),plan.get('proper_names','')) or None)
     return [{'id': uid(), 'asset_id': asset['id'], 'start': float(s['start']), 'end': float(s['end']),
              'text': s['text'].strip(),'words':s.get('words',[])} for s in result['segments'] if s['text'].strip() and s['end'] > s['start']]
 
@@ -456,13 +492,18 @@ def run_job(project_id, job_id, snapshot, options, mode):
                             plan['subtitles'] = copy.deepcopy(plan.get('user_subtitles', plan['recognition_subtitles']))
                 if mode == 'auto':
                     plan['brand_footer'] = options.brand_footer
+                    if options.automatic or 'proper_names' in options.model_fields_set:
+                        plan['proper_names'] = options.proper_names
                     plan['render_profile'] = options.visual_style
                 warnings = []
                 phase_started=time.monotonic()
                 timings={}
                 if mode in ('auto', 'transcribe'):
-                    if mode == 'transcribe' or (options.transcribe and not plan.get('subtitles')):
+                    config=recognition_config(plan,recognition_engine(),plan.get('brand_footer',''),plan.get('proper_names',''))
+                    if mode == 'transcribe' or (options.transcribe and (not plan.get('subtitles') or cache_changed(plan,config))):
                         plan['subtitles'] = transcribe(plan, work, project_id)
+                        plan['recognition_subtitles']=copy.deepcopy(plan['subtitles'])
+                        plan['recognition_cache']=config
                     timings['recognition_seconds']=round(time.monotonic()-phase_started,3)
                     job_update(project_id,timings=timings)
                     phase_started=time.monotonic()
@@ -650,6 +691,10 @@ def enqueue(project_id, background_tasks, options, mode):
             raise HTTPException(422, 'Chưa có Ollama/model. Cài Ollama và chạy ollama pull ' + ai['model'])
     with LOCK:
         p = load_project(project_id)
+        if mode=='render' and 'visual_style' not in options.model_fields_set:
+            profile=p['edit_plan'].get('render_profile')
+            if profile in ('clean_expert','dynamic_reels','danava_brand','explainer_ref'):
+                options=options.model_copy(update={'visual_style':profile})
         if options.music_asset_id and not any(a['id'] == options.music_asset_id and a['type'] == 'audio' for a in p['edit_plan']['assets']):
             raise HTTPException(422, 'Chọn file nhạc nền thuộc dự án.')
         if p.get('job') and p['job']['status'] in ('queued', 'running'):

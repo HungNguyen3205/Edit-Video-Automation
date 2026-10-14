@@ -5,6 +5,7 @@
 - [Chẩn đoán](AUDIT.md)
 - [Timeout AI](TIMEOUT_FIX.md)
 - [Dựng dự phòng](FALLBACK_FIX.md)
+- [Nhận dạng tên, cache và AI thật](RECOGNITION_REVIEW.md)
 - [10 skill dựng năng động](MOTION_SKILLS.md)
 - [10 bộ chữ theo chủ đề](TYPOGRAPHY.md)
 - [Logo và ảnh](BRANDING_IMAGES.md)

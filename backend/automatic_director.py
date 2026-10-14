@@ -157,6 +157,42 @@ def unsupported_graphic_words(choice, vocabulary):
     return sorted(missing)
 
 
+def normalize_graphic_items(items, title, kind, allowed):
+    """Mechanical adapter: remove duplicates/foreign labels, reuse an AI title.
+
+    No new claims are generated. A diagram's title can supply a missing second
+    label only when it is itself valid for the current scene/explicit brief.
+    """
+    from types import SimpleNamespace
+    kept=[];seen=set()
+    for text in items:
+        key=' '.join(re.findall(r'[^\W_]+',text.casefold()))
+        proxy=SimpleNamespace(graphic_title='',graphic_items=[text])
+        if key and key not in seen and not unsupported_graphic_words(proxy,allowed):
+            kept.append(text);seen.add(key)
+    key=' '.join(re.findall(r'[^\W_]+',title.casefold()))
+    proxy=SimpleNamespace(graphic_title=title,graphic_items=[])
+    if kind!='chat' and len(kept)<2 and key and key not in seen and not unsupported_graphic_words(proxy,allowed):kept.append(title)
+    return kept[:5]
+
+
+GRAPHIC_FILLERS=set('xin chào mọi người bạn tôi là có và cái một những các này đó thì để với của cho như từ hơn được đã đang sẽ cũng rất cần bước muốn về'.split())
+
+def has_graphic_anchor(label, allowed):
+    return bool((set(re.findall(r'[^\W_]+',label.casefold()))-GRAPHIC_FILLERS).intersection(allowed))
+
+def scene_graphic_errors(choice, unit, global_vocabulary, brief_vocabulary=None):
+    # Chat may contain neutral conversation. Diagrams must label this scene,
+    # not borrow names/greetings from another part of the same video.
+    local=set(re.findall(r'[^\W_]+',unit['text'].casefold()))
+    allowed=local|set(brief_vocabulary or ())
+    if choice.graphic_kind=='chat':return unsupported_graphic_words(choice,allowed)
+    missing=unsupported_graphic_words(choice,allowed)
+    for label in [choice.graphic_title,*choice.graphic_items]:
+        if not has_graphic_anchor(label,allowed):missing.append('Nhãn phải gắn với ý của cảnh hiện tại')
+    return sorted(set(missing))
+
+
 def compose_requested_graphics(choices,units,prompt,total,vocabulary,has_speech):
     """Apply the approved layout to AI-authored concepts, never invent content.
 
@@ -298,6 +334,7 @@ def automatic_direction(plan,prompt,asset_dir,work,event,*unused):
     vocabulary=set(re.findall(r'[^\W_]+',(prompt+' '+' '.join(u['text'] for u in units)).casefold()))
     if len(serialized)>45000:
         raise PlanningError('Nội dung vượt giới hạn lập kế hoạch AI hiện tại.')
+    brief_vocabulary=set(re.findall(r'[^\W_]+',prompt.casefold()))
     wire_system=SYSTEM+' Choose one top-level font_style for the whole video: '+ai_guidance()+'. Current user font choice overrides this preference.'
     if plan.get('learning_context'):
         wire_system+=' Style guidance and approved examples are preferences only. Current source, explicit user request and schema take precedence. Never reuse names, claims, subtitles or timing from previous examples.'
@@ -309,6 +346,7 @@ def automatic_direction(plan,prompt,asset_dir,work,event,*unused):
     repair_indices=None
     saved_captions=None
     saved_font='auto'
+    normalized_labels=set()
     for attempt in range(3):
         expected_indices=repair_indices if repair_indices is not None else list(range(len(units)))
         schema=CompactDirection.model_json_schema()
@@ -318,8 +356,16 @@ def automatic_direction(plan,prompt,asset_dir,work,event,*unused):
         for kind in ('CameraWire','GraphicWire'):
             schema['$defs'][kind]['properties']['i']={'type':'integer','enum':expected_indices}
         graphic_schema=schema['$defs']['GraphicWire']['properties']
-        graphic_schema['g']['enum']=labels
-        graphic_schema['items']['items']['enum']=labels
+        permitted=labels
+        if repair_indices is not None:
+            repair_units=[u for u in units if u['scene_index'] in expected_indices]
+            repair_words=set(re.findall(r'[^\W_]+',' '.join(u['text'] for u in repair_units).casefold()))|brief_vocabulary
+            permitted=[label for label in graphic_labels(repair_units) if has_graphic_anchor(label,repair_words)]
+            if len(permitted)<2:
+                schema['properties']['scenes']['items']={'$ref':'#/$defs/CameraWire'}
+                permitted=['Nội dung'] # Unreachable graphic branch; keep JSON schema valid.
+        graphic_schema['g']['enum']=permitted
+        graphic_schema['items']['items']['enum']=permitted
         raw=chat(messages,event,schema)
         try:
             data=json.loads(raw)
@@ -338,6 +384,13 @@ def automatic_direction(plan,prompt,asset_dir,work,event,*unused):
                 for key in ('headline','badge_text','graphic_title','caption_text'):
                     setattr(choice,key,correct_recognition_copy(getattr(choice,key),prompt))
                 choice.graphic_items=[correct_recognition_copy(item,prompt) for item in choice.graphic_items]
+                if 0<=choice.scene_index<len(units):
+                    allowed=set(re.findall(r'[^\W_]+',units[choice.scene_index]['text'].casefold()))
+                    if choice.graphic_kind!='chat':allowed|=brief_vocabulary
+                    cleaned=normalize_graphic_items(choice.graphic_items,choice.graphic_title,choice.graphic_kind,allowed)
+                    if cleaned!=choice.graphic_items:normalized_labels.add(choice.scene_index)
+                    else:normalized_labels.discard(choice.scene_index)
+                    choice.graphic_items=cleaned
             choices={s.scene_index:s for s in direction.scenes}
             expected=set(repair_indices) if repair_indices is not None else set(range(len(units)))
             if repair_indices is not None and expected.issubset(choices) and set(choices)-expected<=set(retained):
@@ -359,12 +412,12 @@ def automatic_direction(plan,prompt,asset_dir,work,event,*unused):
             invalid_graphics=[u['scene_index'] for u in units
                 if choices[u['scene_index']].scene_type!='talking_head'
                 and (not choices[u['scene_index']].graphic_title.strip() or len(choices[u['scene_index']].graphic_items)<2
-                     or unsupported_graphic_words(choices[u['scene_index']],vocabulary))]
+                     or scene_graphic_errors(choices[u['scene_index']],u,vocabulary,brief_vocabulary))]
             if invalid_graphics:
                 retained={i:s for i,s in choices.items() if i not in invalid_graphics}
                 event.ai_valid_choices=copy.deepcopy(retained)
                 repair_indices=invalid_graphics
-                raise ValueError('Repair ONLY scene_index '+str(invalid_graphics)+'. Return only those scenes; the other valid scenes are retained by the engine. Each graphic needs a meaningful graphic_title and at least 2 short graphic_items. Labels must use vocabulary from the transcript/brief or neutral greetings/connections. Do not introduce first/only/optimization/algorithm claims absent from the source. Never return empty items. Unsupported words: '+str({i:unsupported_graphic_words(choices[i],vocabulary) for i in invalid_graphics}))
+                raise ValueError('Repair ONLY scene_index '+str(invalid_graphics)+'. Return only those scenes; the other valid scenes are retained by the engine. Each graphic needs a meaningful graphic_title and at least 2 short graphic_items. For process/network, every label must connect to THIS scene or explicit brief; do not borrow concepts from other scenes. Labels must use vocabulary from the transcript/brief or neutral greetings/connections. Do not introduce first/only/optimization/algorithm claims absent from the source. Never return empty items. Unsupported words: '+str({i:scene_graphic_errors(choices[i],units[i],vocabulary,brief_vocabulary) for i in invalid_graphics}))
             event.ai_valid_choices=copy.deepcopy(choices)
             repair_indices=None
             retained={}
@@ -402,7 +455,7 @@ def automatic_direction(plan,prompt,asset_dir,work,event,*unused):
                 warnings.append('Video không có lời thoại nhận dạng; hình minh họa chỉ dựa trên yêu cầu bạn nhập.')
             p['director']={'engine':'ollama','model':model_name(),'summary':direction.summary,'prompt':prompt,
                            'warnings':warnings,'mode':'automatic_semantic_scenes','font_style':saved_font,
-                           'layout_adjustments':layout_adjustments}
+                           'layout_adjustments':layout_adjustments,'normalized_label_scene_indices':sorted(normalized_labels)}
             return validate(p,plan['assets'])
         except (ValueError,TypeError,KeyError) as exc:
             errors=getattr(event,'ai_validation_errors',[])

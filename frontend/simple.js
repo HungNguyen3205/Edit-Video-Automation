@@ -35,7 +35,7 @@ function lock(yes) {
   $('drop-zone').disabled = yes;
   $('prompt').disabled = yes;
   $('history-toggle').disabled = yes;
-  ['approve-style','needs-changes','feedback-note','captions-checked','save-subtitles','import-corrections','brand-name','proper-names','choose-logo','choose-images','illustrations','font-style','motion-style'].forEach(id=>$(id).disabled=yes);
+  ['approve-style','needs-changes','feedback-note','captions-checked','save-subtitles','apply-draft-names','import-corrections','brand-name','proper-names','choose-logo','choose-images','illustrations','font-style','motion-style'].forEach(id=>$(id).disabled=yes);
   document.querySelectorAll('.asset-row input,.remove-asset,.subtitle-row textarea').forEach(el=>el.disabled=yes);
   $('create-video').disabled = yes || (!selected && !current?.video);
   $('create-video').querySelector('span').textContent = yes ? 'AI đang dựng video…' : current?.output_path ? 'Dựng lại theo yêu cầu này' : 'Tạo video của tôi';
@@ -105,6 +105,7 @@ function restoreDraft() {
   $('subtitle-save-status').textContent='Đã khôi phục bản nháp chưa lưu. Bấm Lưu phụ đề hoặc Tạo video để áp dụng.';
 }
 function renderSubtitles(p) {
+  $('name-draft-changes').replaceChildren();
   subtitleDraft=structuredClone(p.edit_plan?.user_subtitles ?? p.edit_plan?.subtitles ?? []);
   $('subtitle-rows').replaceChildren();visible('subtitle-editor',subtitleDraft.length>0);
   subtitleDraft.forEach((sub,index)=>{
@@ -310,6 +311,18 @@ $('corrections-input').onchange=async()=>{
     if(!await saveReviewedSubtitles())return;
     $('subtitle-save-status').textContent=`Đã nhập và lưu ${matches} chỉnh sửa đã xác nhận. Bấm Dựng lại để xuất MP4 mới.`;
   }catch(e){error(e.message);}
+};
+$('apply-draft-names').onclick=async()=>{
+  if(!current||busy||!subtitleDraft?.length)return;
+  lock(true);visible('error-box',false);
+  try{
+    const result=await api(`/api/projects/${current.id}/subtitle-name-draft`,json({revision:current.revision,subtitles:subtitleDraft,brand_name:$('brand-name').value.trim(),proper_names:$('proper-names').value.trim()}));
+    renderSubtitles({...current,edit_plan:{...current.edit_plan,user_subtitles:result.subtitles}});
+    $('name-draft-changes').replaceChildren();
+    for(const change of result.changes){const row=document.createElement('p');row.textContent=`Câu ${change.subtitle_index+1}: ${change.before} → ${change.after}`;$('name-draft-changes').append(row);}
+    lock(false);keepDraft();
+    $('subtitle-save-status').textContent=result.changes.length ? `Đã áp dụng tên cho ${result.changes.length} câu trong bản nháp. Nghe lại và bấm Lưu phụ đề để xác nhận.` : 'Không có tên cần đổi. Chưa thay đổi dự án.';
+  }catch(e){lock(false);error(e.message);}
 };
 $('choose-logo').onclick=()=>$('logo-input').click();
 $('logo-input').onchange=()=>{const file=$('logo-input').files[0];if(file&&!busy&&imageValid(file)){if(logoSelection?.file)URL.revokeObjectURL(logoSelection.url);logoSelection=assetEntry(file);renderAssets();}$('logo-input').value='';};

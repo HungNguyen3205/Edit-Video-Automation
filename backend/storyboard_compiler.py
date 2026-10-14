@@ -81,6 +81,14 @@ def compile_storyboard_scenes(plan, asset_dir, work_dir, output_path, preview=Fa
     else:
         # Cumulative frame boundaries avoid drift across many short scenes.
         for i, sc in enumerate(storyboard):
+            if plan.get('director',{}).get('engine')=='ollama' and sc.get('transcript_meaning'):
+                from automatic_director import normalize_graphic_items
+                import re
+                sc=copy.deepcopy(sc)
+                label_source=sc['transcript_meaning']
+                if sc.get('graphic_kind','chat')!='chat':label_source+=' '+plan['director'].get('prompt','')
+                allowed=set(re.findall(r'[^\W_]+',label_source.casefold()))
+                sc['graphic_items']=normalize_graphic_items(sc.get('graphic_items',[]),sc.get('graphic_title',''),sc.get('graphic_kind','chat'),allowed)
             if cursor >= total - .0001:
                 break
             end = min(total, sc['timeline_start'] + sc['duration'])

@@ -4,8 +4,8 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#123b3c">
   <title>DANAVA — AI dựng video</title>
-  <link rel="stylesheet" href="/frontend/simple.css?v=motion-8">
-  <script src="/frontend/simple.js?v=motion-8" defer></script>
+  <link rel="stylesheet" href="/frontend/simple.css?v=review-9">
+  <script src="/frontend/simple.js?v=review-9" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -35,9 +35,10 @@
         <details id="subtitle-editor" class="brand-settings" hidden>
           <summary>Sửa phụ đề trước khi dựng lại</summary>
           <p class="field-note">Sửa chữ và tên riêng theo lời nói. Thời gian từng câu được giữ nguyên; bấm tạo video để áp dụng.</p>
-          <div class="asset-actions"><button id="save-subtitles" type="button" class="asset-button">Lưu phụ đề</button><button id="import-corrections" type="button" class="asset-button">Nhập chỉnh sửa đã xác nhận</button></div>
+          <div class="asset-actions"><button id="apply-draft-names" type="button" class="asset-button">Áp dụng tên riêng vào bản nháp</button><button id="save-subtitles" type="button" class="asset-button">Lưu phụ đề</button><button id="import-corrections" type="button" class="asset-button">Nhập chỉnh sửa đã xác nhận</button></div>
           <input id="corrections-input" type="file" accept=".json,application/json" hidden>
           <p id="subtitle-save-status" class="field-note" role="status"></p>
+          <div id="name-draft-changes" class="field-note" role="status"></div>
           <div id="subtitle-rows"></div>
         </details>
         <section class="brand-settings"  aria-labelledby="brand-settings-title">
