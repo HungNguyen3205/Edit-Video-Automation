@@ -4,8 +4,8 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#123b3c">
   <title>DANAVA — AI dựng video</title>
-  <link rel="stylesheet" href="/frontend/simple.css?v=review-9">
-  <script src="/frontend/simple.js?v=review-9" defer></script>
+  <link rel="stylesheet" href="/frontend/simple.css?v=review-10">
+  <script src="/frontend/simple.js?v=review-10" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -96,6 +96,8 @@
           <label class="check-label"><input id="captions-checked" type="checkbox"> Tôi đã kiểm tra phụ đề của bản này</label>
           <div class="asset-actions"><button id="approve-style" class="asset-button" type="button">Duyệt phong cách</button><button id="needs-changes" class="asset-button" type="button">Cần cải thiện</button></div>
           <p id="learning-note" class="field-note" role="status">Lưu hướng dẫn và mẫu đã duyệt; chưa huấn luyện lại model.</p>
+          <p id="learning-readiness" class="field-note" role="status"></p>
+          <a href="/api/learning/reviewed-export" download>Xuất bản đã duyệt cả chữ và hình</a><br>
           <a href="/api/learning/export" download>Xuất dữ liệu phong cách đã duyệt</a>
         </details>
         <div id="result-note" class="result-note" hidden><p>Đã giữ giọng nói và nội dung nguồn. Xem lại trước khi đăng.</p><details id="warnings" hidden><summary>Lưu ý về bản dựng</summary><ul id="warning-list"></ul></details></div>

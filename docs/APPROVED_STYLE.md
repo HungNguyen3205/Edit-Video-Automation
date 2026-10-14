@@ -21,7 +21,7 @@ Lần đầu model nhận dạng và model Ollama cần tải về; sau đó ch�
 $env:CHROME_PATH='C:\Program Files\Google\Chrome\Application\chrome.exe'
 ```
 
-Có thể tiếp tục dùng requirements/requirements-ai.txt / openai-whisper nếu đã cài. Khi cả hai bộ có mặt, tool ưu tiên faster-whisper. WHISPER_MODEL chọn model nhận dạng; mặc định small khi dùng faster-whisper. Model Ollama lấy từ VIDEO_AI_MODEL; chọn model đã tải phù hợp máy chạy final. Model nhỏ có thể cần sửa storyboard; engine kiểm tra và yêu cầu model sửa tối đa hai lần trong luồng một nút, rồi báo lỗi rõ nếu chưa hợp lệ.
+Có thể tiếp tục dùng requirements/requirements-ai.txt / openai-whisper nếu đã cài. Khi cả hai bộ có mặt, tool ưu tiên faster-whisper. WHISPER_MODEL chọn model nhận dạng; mặc định small khi dùng faster-whisper. Model Ollama lấy từ VIDEO_AI_MODEL; chọn model đã tải phù hợp máy chạy final. Model nhỏ có thể cần sửa storyboard; engine kiểm tra và yêu cầu model sửa tối đa hai lần trong luồng một nút, rồi chuyển sang dựng dự phòng có nhãn rõ nếu lỗi thuộc bước AI. Hủy, video hỏng và renderer lỗi không được coi là thành công dự phòng.
 
 ## Dùng tool
 
@@ -48,7 +48,7 @@ Render dùng chung typography/đồ họa của mẫu đã duyệt. Phụ đề 
 
 ## Giới hạn được ghi rõ
 
-Bộ dựng không tự tìm stock trên Internet hoặc tạo ảnh photorealistic. Đồ họa tạo tại máy là minh họa khái niệm, không phải screenshot thật hay số liệu chứng thực. Nhạc chỉ được thêm khi tải file lên; SFX tổng hợp tại máy. Kiểm thử tự động dùng phản hồi kiểm soát để kiểm tra hợp đồng, repair và API. Kết quả chạy model thật và kiểm tra video nguồn được ghi riêng trong PROJECT_STATUS.md. Chất lượng chọn cảnh còn phụ thuộc model và transcript. Nếu AI sửa phụ đề quá khác lời nhận dạng, engine giữ phụ đề nguồn ở cảnh đó và ghi cảnh báo; đây không phải xác minh chính tả bằng âm thanh. Tên riêng trong prompt được dùng để sửa cách viết trong kế hoạch, không ép bộ nhận dạng lặp theo prompt. Luồng một nút mặc định tắt suy luận dài để giảm thời gian chờ trên CPU. Có thể thử VIDEO_AI_THINK=1; cách này cần nhiều thời gian hơn và không bảo đảm chọn cảnh tốt hơn. Schema khóa số cảnh/mã cảnh và có ít nhất hai nhãn minh họa; engine chỉ hiển thị khái niệm hợp lệ, không tạo storyboard thay thế khi model thiếu/lỗi.
+Bộ dựng không tự tìm stock trên Internet hoặc tạo ảnh photorealistic. Đồ họa tạo tại máy là minh họa khái niệm, không phải screenshot thật hay số liệu chứng thực. Nhạc chỉ được thêm khi tải file lên; SFX tổng hợp tại máy. Kiểm thử tự động dùng phản hồi kiểm soát để kiểm tra hợp đồng, repair và API. Kết quả chạy model thật và kiểm tra video nguồn được ghi riêng trong PROJECT_STATUS.md. Chất lượng chọn cảnh còn phụ thuộc model và transcript. Nếu AI sửa phụ đề quá khác lời nhận dạng, engine giữ phụ đề nguồn ở cảnh đó và ghi cảnh báo; đây không phải xác minh chính tả bằng âm thanh. Tên riêng trong prompt được dùng để sửa cách viết trong kế hoạch, không ép bộ nhận dạng lặp theo prompt. Luồng một nút mặc định tắt suy luận dài để giảm thời gian chờ trên CPU. Có thể thử VIDEO_AI_THINK=1; cách này cần nhiều thời gian hơn và không bảo đảm chọn cảnh tốt hơn. Schema khóa số cảnh/mã cảnh và có ít nhất hai nhãn minh họa; engine chỉ hiển thị khái niệm hợp lệ. Khi model thiếu/lỗi, luồng một nút có thể dùng storyboard dự phòng dựa trên lời nhận dạng và timestamp; giao diện ghi rõ chế độ đó.
 
 Hai chế độ AI và quy tắc vẫn riêng biệt. Chế độ quy tắc không đọc prompt bằng model và không được báo như AI.
 
@@ -58,4 +58,6 @@ Bộ phong cách có thể chuyển cảnh camera thành PIP/thẻ để hiển 
 
 ## Timeout và chẩn đoán AI
 
-Xem [TIMEOUT_FIX.md](TIMEOUT_FIX.md). Giai đoạn AI có budget chung 600 giây, bao gồm repair; hủy được cả khi đang chờ dữ liệu. Model không phải chép lại phụ đề khi không sửa. Log ghi token/thời gian Ollama thực tế; timeout không còn được báo nhầm là thiếu model. API/giao diện/renderer và thời lượng nguồn giữ nguyên.
+Xem [TIMEOUT_FIX.md](TIMEOUT_FIX.md). Luồng một nút có budget AI chung mặc định 180 giây, bao gồm repair; trang nâng cao mặc định 600 giây; hủy được cả khi đang chờ dữ liệu. Model không phải chép lại phụ đề khi không sửa. Log ghi token/thời gian Ollama thực tế; timeout không còn được báo nhầm là thiếu model. API/giao diện/renderer và thời lượng nguồn giữ nguyên.
+
+Xác nhận câu đã nghe, dữ liệu chữ/hình và giới hạn huấn luyện: [REVIEW_DATASET.md](REVIEW_DATASET.md).

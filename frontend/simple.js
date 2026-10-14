@@ -36,7 +36,7 @@ function lock(yes) {
   $('prompt').disabled = yes;
   $('history-toggle').disabled = yes;
   ['approve-style','needs-changes','feedback-note','captions-checked','save-subtitles','apply-draft-names','import-corrections','brand-name','proper-names','choose-logo','choose-images','illustrations','font-style','motion-style'].forEach(id=>$(id).disabled=yes);
-  document.querySelectorAll('.asset-row input,.remove-asset,.subtitle-row textarea').forEach(el=>el.disabled=yes);
+  document.querySelectorAll('.asset-row input,.remove-asset,.subtitle-row textarea,.confirm-subtitle').forEach(el=>el.disabled=yes);
   $('create-video').disabled = yes || (!selected && !current?.video);
   $('create-video').querySelector('span').textContent = yes ? 'AI đang dựng video…' : current?.output_path ? 'Dựng lại theo yêu cầu này' : 'Tạo video của tôi';
 }
@@ -116,7 +116,12 @@ function renderSubtitles(p) {
     if(issue){const note=document.createElement('small');note.className='subtitle-review-note';note.textContent=issue.reason;row.append(note);}
     const listen=document.createElement('button');listen.type='button';listen.className='asset-button';listen.textContent='Nghe câu gốc';
     listen.onclick=()=>{player(`/assets/${p.video.filename}`);$('player').currentTime=sub.start;$('player').play().catch(()=>{});};
-    input.oninput=()=>{sub.text=input.value;delete sub.words;keepDraft();};row.append(stamp,input,listen);$('subtitle-rows').append(row);
+    const confirm=document.createElement('button');confirm.type='button';confirm.className='asset-button confirm-subtitle';
+    const saved=p.edit_plan?.subtitles?.[index];
+    const confirmed=(p.subtitle_review_status?.confirmed_indices || []).includes(index) && saved?.text===sub.text && saved?.start===sub.start && saved?.end===sub.end;
+    confirm.textContent=confirmed?'Bỏ xác nhận câu này':'Đã nghe và xác nhận câu này';confirm.disabled=busy;
+    confirm.onclick=()=>confirmSubtitle(index,confirmed);
+    input.oninput=()=>{sub.text=input.value;delete sub.words;confirm.disabled=true;keepDraft();};row.append(stamp,input,listen,confirm);$('subtitle-rows').append(row);
   });
 }
 async function saveSubtitleDraft() {
@@ -128,8 +133,22 @@ async function saveSubtitleDraft() {
   plan.subtitles=structuredClone(subtitleDraft);
   current=await api(`/api/projects/${current.id}/edit_plan`,json({revision:current.revision,plan}));
 }
+function showWarnings(p) {
+  $('warning-list').replaceChildren();
+  const warnings=(p.job?.warnings || []).filter(text=>!/^Có \d+ câu phụ đề cần nghe lại\./.test(text));
+  const count=p.edit_plan?.subtitle_review?.length || 0;
+  if(count)warnings.push(`Có ${count} câu phụ đề cần nghe lại. Mở mục sửa phụ đề để kiểm tra trước khi dùng video.`);
+  warnings.forEach(text=>{const li=document.createElement('li');li.textContent=text;$('warning-list').append(li);});
+  visible('warnings',warnings.length>0);
+}
+function showResultBadge(p) {
+  $('result-badge').textContent=p.job?.planning_mode==='fallback'?'Hoàn thành · Dự phòng':'Hoàn thành';
+  if(p.edit_plan?.subtitle_review?.length)$('result-badge').textContent+=' · Cần duyệt phụ đề';
+  $('result-badge').classList.add('done');
+}
 function finish(p) {
   renderSubtitles(p);visible('learning-panel',true);
+  refreshLearning();
   const review=p.style_feedback;
   $('feedback-note').value=review?.output_path===p.output_path?review.note:'';
   $('captions-checked').checked=review?.output_path===p.output_path && review.captions_checked;
@@ -137,15 +156,12 @@ function finish(p) {
   player(p.output_path);$('download-video').href = p.output_path;
   $('download-video').download = `${(p.video.original_name || 'video').replace(/\.[^.]+$/,'')}-AI.mp4`;
   visible('download-video',true);visible('result-note',true);
-  $('result-badge').textContent = p.job?.planning_mode === 'fallback' ? 'Hoàn thành · Dự phòng' : 'Hoàn thành';if(p.edit_plan?.subtitle_review?.length)$('result-badge').textContent+=' · Cần duyệt phụ đề';$('result-badge').classList.add('done');
+  showResultBadge(p);
   const typography=p.edit_plan?.typography;
   $('result-note').querySelector('p').textContent=typography ? `Đã giữ giọng nói và nội dung nguồn. Bộ chữ: ${typography.family} (${({user:'bạn chọn',ai:'AI chọn',rules:'chọn theo quy tắc'})[typography.selected_by] || 'đã lưu'}). Xem lại trước khi đăng.` : 'Đã giữ giọng nói và nội dung nguồn. Xem lại trước khi đăng.';
   $('meta-name').textContent = 'Video đã dựng';
   $('meta-detail').textContent = `${Number(p.duration_audit?.ffprobe_duration || p.video.metadata.duration).toFixed(1)} giây · MP4`;
-  $('warning-list').replaceChildren();
-  const warnings = [...(p.job?.warnings || [])];
-  warnings.forEach(text => { const li = document.createElement('li');li.textContent = text;$('warning-list').append(li); });
-  visible('warnings',warnings.length > 0);
+  showWarnings(p);
 }
 function choose(file) {
   if (!file || busy) return;
@@ -272,13 +288,32 @@ async function saveReviewedSubtitles() {
     $('result-badge').textContent='Phụ đề đã lưu · Cần dựng lại';visible('download-video',false);visible('learning-panel',false);return true;
   } catch(e){lock(false);error(e.message);return false;}
 }
+function showLearning(status) {
+  $('learning-readiness').textContent=`${status.reviewed_examples || 0} bản đã duyệt cả chữ và hình từ ${status.reviewed_sources || 0} video nguồn; ${status.style_only_examples || 0} bản chỉ duyệt phong cách. Chưa huấn luyện lại model.`;
+}
+async function refreshLearning() {
+  try{showLearning(await api('/api/learning'));}catch{$('learning-readiness').textContent='Chưa đọc được số bản đã duyệt; thử tải lại trang.';}
+}
+async function confirmSubtitle(index,wasConfirmed) {
+  if(busy || !current)return;
+  const saved=current.edit_plan.subtitles || [];
+  if(JSON.stringify(subtitleDraft.map(s=>[s.text,s.start,s.end]))!==JSON.stringify(saved.map(s=>[s.text,s.start,s.end]))){error('Có bản nháp chưa lưu. Lưu phụ đề và dựng lại trước khi xác nhận.');return;}
+  lock(true);
+  try {
+    current=await api(`/api/projects/${current.id}/subtitle-review`,json({revision:current.revision,subtitle_index:index,confirmed:!wasConfirmed}));
+    renderSubtitles(current);$('captions-checked').checked=false;
+    $('subtitle-save-status').textContent=wasConfirmed?'Đã bỏ xác nhận câu này.':'Đã lưu xác nhận đúng câu và thời điểm. Bạn vẫn cần xem lại toàn bộ MP4 trước khi duyệt.';
+    refreshLearning();
+    if(current.output_path && current.output_revision===current.revision){player(current.output_path);showResultBadge(current);showWarnings(current);}
+  }catch(e){error(e.message);}finally{lock(false);}
+}
 async function sendFeedback(decision) {
   if(busy || !current?.output_path)return;
   $('approve-style').disabled=true;$('needs-changes').disabled=true;
   try {
     const result=await api(`/api/projects/${current.id}/feedback`,json({revision:current.revision,output_path:current.output_path,
       decision,note:$('feedback-note').value.trim(),captions_checked:$('captions-checked').checked}));
-    current.style_feedback=result.feedback;
+    current.style_feedback=result.feedback;showLearning(result.learning);
     $('learning-note').textContent=`Đã lưu phản hồi. Có ${result.learning.approved_styles} phong cách đã duyệt để AI tham khảo. Chưa thay đổi trọng số model.`;
   }catch(e){error(e.message);}finally{$('approve-style').disabled=busy;$('needs-changes').disabled=busy;}
 }

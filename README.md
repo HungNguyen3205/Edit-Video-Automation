@@ -65,13 +65,13 @@ Xem [docs/APPROVED_STYLE.md](docs/APPROVED_STYLE.md) để chuẩn bị máy m�
 | --- | --- | --- |
 | `VIDEO_DATA_DIR` | `./data` | Dự án, nguồn và kết quả |
 | `MAX_UPLOAD_MB` | `500` | Giới hạn mỗi file |
-| `WHISPER_MODEL` | `base` | Model nhận dạng lời nói trên CPU; `tiny` nhẹ hơn |
+| `WHISPER_MODEL` | `small` / `base` | faster-whisper dùng small CPU int8; openai-whisper dùng base nếu chưa cấu hình |
 | `OLLAMA_URL` | `http://127.0.0.1:11434` | Runtime Ollama; cấu hình địa chỉ máy render riêng nếu cần |
 | `VIDEO_AI_MODEL` | `qwen3:4b` | Tên model đã tải, tùy cấu hình máy |
 | `VIDEO_AI_VISION` | `0` | Bật gửi khung hình tới model hỗ trợ ảnh |
 | `VIDEO_FONT_FILE` | unset | Đường dẫn TTF hỗ trợ tiếng Việt |
 
-Một tác vụ nặng chạy mỗi lần. Hủy render dừng FFmpeg; hủy nhận dạng/phân tích có hiệu lực ở ranh giới bước, hủy Ollama khi nhận chunk tiếp theo (read timeout 30 giây). Ollama giới hạn đọc phản hồi 10 phút sau khi nhận chunk. Sao lưu toàn bộ `data` trước khi cập nhật/chuyển máy. Ứng dụng đơn người dùng tại localhost; chưa dành cho public hosting/multi-worker.
+Một tác vụ nặng chạy mỗi lần. Hủy render dừng FFmpeg; hủy nhận dạng có hiệu lực ở ranh giới bước. Hủy Ollama đóng request cả khi stream không gửi chunk. Budget AI chung của luồng một nút mặc định 180 giây (VIDEO_AUTO_AI_TIMEOUT); AI lỗi hợp lệ sẽ chuyển sang dựng dự phòng có trạng thái rõ. Trang nâng cao giữ budget mặc định 600 giây (VIDEO_AI_PLANNING_TIMEOUT). Sao lưu toàn bộ `data` trước khi cập nhật/chuyển máy. Ứng dụng đơn người dùng tại localhost; chưa dành cho public hosting/multi-worker.
 
 API `POST /api/projects/{id}/auto-edit` nhận `planner: "ai"`, `prompt`, `music_asset_id` tùy chọn, `transcribe`, `preview`. Khi không chỉ định planner, API giữ `rules` để tương thích với client cũ. Giao diện chính luôn dùng luồng AI tự động; trang nâng cao vẫn giữ API và chế độ cũ. `GET /api/health` trả trạng thái Ollama/model.
 
@@ -120,3 +120,9 @@ sách hiện lần lượt và CTA đúng lời nói. Chọn Nhịp dựng trên
 Tên chuẩn được gợi ý trước khi nhận dạng. Có nút áp dụng tên vào bản nháp
 để xem và lưu rõ ràng, không tự ghi đè phụ đề đã sửa. Cache mới gắn nguồn
 và cấu hình. [Cách dùng và kiểm chứng Ollama thật](docs/RECOGNITION_REVIEW.md).
+
+## Duyệt dữ liệu trước khi train
+
+Nghe và xác nhận từng câu bị cảnh báo, sau đó duyệt cả MP4 và phụ đề. Tool
+đếm riêng bản chỉ duyệt phong cách và bản đã duyệt chữ/hình, có hai tệp xuất
+riêng. Đây là style memory, chưa fine-tune trọng số. Xem [quy trình duyệt](docs/REVIEW_DATASET.md).

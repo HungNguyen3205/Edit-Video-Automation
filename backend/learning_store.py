@@ -7,6 +7,7 @@ from statistics import median
 from datetime import datetime, timezone
 from project_paths import SKILLS_DIR
 from motion_style import motion_skills
+from text_review import valid_confirmations, unconfirmed_issues
 
 RULES=[
     'Preserve source speech and duration; use only facts and names in the current video/request.',
@@ -49,6 +50,28 @@ def visual_summary(plan):
         'headline_words_median':round(median([len(s.get('headline','').split()) for s in scenes])) if scenes else 0}
 
 
+def review_evidence(project,captions_checked):
+    plan=project['edit_plan'];subs=plan.get('subtitles',[])
+    asset_id=plan.get('video_clips',[{}])[0].get('asset_id')
+    asset=next((a for a in plan.get('assets',[]) if a.get('id')==asset_id),{})
+    return {'version':1,'source_sha256':asset.get('sha256',''),
+        'subtitle_count':len(subs),'pending_subtitles':len(unconfirmed_issues(plan)),
+        'confirmed_subtitles':len(valid_confirmations(plan)),
+        'captions_checked':bool(captions_checked),
+        'output_current':project.get('output_revision')==project.get('revision')
+            and (project.get('job') or {}).get('status')=='succeeded'}
+
+
+def reviewed_record(record):
+    evidence=record.get('review_evidence',{})
+    if not isinstance(evidence,dict):return False
+    return (record.get('decision')=='approve_style' and record.get('captions_checked') is True
+        and evidence.get('version')==1 and evidence.get('captions_checked') is True
+        and evidence.get('output_current') is True and evidence.get('pending_subtitles')==0
+        and isinstance(evidence.get('subtitle_count'),int) and evidence['subtitle_count']>0
+        and isinstance(evidence.get('source_sha256'),str) and len(evidence['source_sha256'])==64)
+
+
 class LearningStore:
     def __init__(self,data_dir):
         self.root=Path(data_dir)/'learning';self.root.mkdir(parents=True,exist_ok=True)
@@ -69,7 +92,8 @@ class LearningStore:
             'decision':decision,'note':note.strip()[:800],'captions_checked':captions_checked,
             'visual_style':visual_summary(project['edit_plan']),
             'planning_mode':(project.get('job') or {}).get('planning_mode','unknown'),
-            'updated_at':datetime.now(timezone.utc).isoformat()}
+            'updated_at':datetime.now(timezone.utc).isoformat(),
+            'review_evidence':review_evidence(project,captions_checked)}
         path=self.root/(identifier+'.json');temporary=path.with_suffix('.tmp')
         temporary.write_text(json.dumps(record,ensure_ascii=False,indent=2),encoding='utf-8');os.replace(temporary,path)
         return record
@@ -84,16 +108,23 @@ class LearningStore:
             {'visual_style':r['visual_style'],'user_note':r['note'][:250]} for r in approved]}
 
     def status(self):
-        records=self.records()
+        records=self.records();reviewed=[r for r in records if reviewed_record(r)]
         return {'mode':'style_memory','model_weights_trained':False,
                 'available_motion_skills':[{'id':s['id'],'name':s.get('name',s['id']),'purpose':s.get('purpose','')} for s in motion_skills()],
                 'initial_visual_references':1,'approved_styles':sum(r['decision']=='approve_style' for r in records),
                 'needs_changes':sum(r['decision']=='needs_changes' for r in records),
-                'reference_limit':3,'active_skills':[s['id'] for s in editor_skills()]}
+                'reference_limit':3,'active_skills':[s['id'] for s in editor_skills()],
+                'reviewed_examples':len(reviewed),
+                'reviewed_sources':len({r['review_evidence']['source_sha256'] for r in reviewed}),
+                'dataset_kind':'style_supervision',
+                'style_only_examples':sum(r['decision']=='approve_style' and not reviewed_record(r) for r in records)}
 
-    def export(self):
+    def reviewed_records(self):
+        return [r for r in self.records() if reviewed_record(r)]
+
+    def export(self,reviewed_only=False):
         # Export style supervision only; no private transcript/brand/asset paths.
         return '\n'.join(json.dumps({'schema_version':1,'decision':r['decision'],
             'note':r['note'],'captions_checked':r['captions_checked'],
             'visual_style':r['visual_style'],'planning_mode':r['planning_mode']},ensure_ascii=False)
-            for r in self.records() if r['decision']=='approve_style')
+            for r in (self.reviewed_records() if reviewed_only else self.records()) if r['decision']=='approve_style')

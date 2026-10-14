@@ -10,6 +10,7 @@
 - [10 bộ chữ theo chủ đề](TYPOGRAPHY.md)
 - [Logo và ảnh](BRANDING_IMAGES.md)
 - [Duyệt và lưu phụ đề](SUBTITLE_REVIEW.md)
+- [Xác nhận câu và dữ liệu đã duyệt](REVIEW_DATASET.md)
 - [Bộ skill dựng cơ bản](../skills/README.md)
 - [Bộ nhớ phong cách và phản hồi](../skills/STYLE_LEARNING.md)
 

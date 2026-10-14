@@ -1,4 +1,25 @@
-# DANAVA Video Studio — luồng một nút (12/10/2026)
+# Tình trạng hiện tại — 14/10/2026
+
+- Luồng một nút đã xuất MP4 bằng Qwen3 4B thật trong lần kiểm chứng trước:
+  [REAL_AI_VERIFICATION.json](verification/REAL_AI_VERIFICATION.json).
+  Đó là inference kết hợp skill, chưa fine-tune trọng số.
+- Cache nhận dạng gắn nguồn và cấu hình; phụ đề người dùng sửa được giữ.
+  AI có budget chung 180 giây và fallback minh bạch, không fallback sau hủy
+  hoặc lỗi renderer. Xuất lại giữ render_profile và minh họa đã lưu.
+- Lần tiếp tục này hoàn thiện xác nhận từng câu và dữ liệu đã duyệt chữ/hình:
+  [REVIEW_DATASET.md](REVIEW_DATASET.md). Các test/đo đạc nằm trong
+  [REVIEW_DATASET_VERIFICATION.json](verification/REVIEW_DATASET_VERIFICATION.json).
+- Nguồn marketing khác 115 giây đã được nhận dạng và dựng qua API thật.
+  Môi trường lần này không cài Ollama nên dùng fallback thật; không dùng
+  phản hồi model giả hoặc MP4 dựng sẵn làm kết quả. Bản thử này có zoom,
+  phụ đề và giọng gốc, không có minh họa tự động; còn câu cần người nghe duyệt.
+- Chưa xác nhận tương đương mẫu chuyên nghiệp, chưa theo dõi mặt, tìm stock
+  Internet hoặc huấn luyện trọng số. JSONL phản hồi phong cách không phải
+  tập SFT transcript → storyboard. Chưa triển khai hosting công khai/multi-user.
+
+Báo cáo lịch sử phía dưới mô tả bản ngày 12/10; không thay thế trạng thái trên.
+
+## Báo cáo lịch sử — 12/10/2026
 
 ## Đã hoàn thành
 

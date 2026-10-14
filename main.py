@@ -29,7 +29,7 @@ from automatic_director import automatic_direction, fallback_direction, Planning
 from video_branding import apply_visual_assets
 from typography import FontStyle, public_profiles, apply_typography
 from motion_style import MotionStyle, apply_motion_style, skill_context
-from text_review import prepare_source, review_issues
+from text_review import prepare_source, review_issues, subtitle_fingerprint, valid_confirmations, unconfirmed_issues, record_review_evidence
 from learning_store import LearningStore
 from recognition_config import name_hint, recognition_config, cache_changed
 
@@ -201,9 +201,17 @@ def create_project(name: str = Form(...)):
     return p
 
 
+def review_status(project):
+    plan=project['edit_plan']
+    if 'subtitle_confirmations' not in plan:return project
+    tokens=set(valid_confirmations(plan))
+    return {**project,'subtitle_review_status':{'confirmed_indices':[
+        i for i,sub in enumerate(plan.get('subtitles',[])) if subtitle_fingerprint(plan,sub) in tokens]}}
+
+
 @app.get('/api/projects/{project_id}')
 def project(project_id: str):
-    return load_project(project_id)
+    return review_status(load_project(project_id))
 
 
 class NameDraft(BaseModel):
@@ -231,6 +239,36 @@ def subtitle_name_draft(project_id: str, body: NameDraft):
     return {'revision':p['revision'],'subtitles':rows,'changes':changes,'saved':False}
 
 
+class SubtitleConfirmation(BaseModel):
+    revision: int
+    subtitle_index: int = Field(...,ge=0)
+    confirmed: bool
+
+
+@app.post('/api/projects/{project_id}/subtitle-review')
+def confirm_subtitle(project_id: str, body: SubtitleConfirmation):
+    with LOCK:
+        p=load_project(project_id)
+        if body.revision!=p['revision'] or (p.get('job') or {}).get('status') in ('queued','running'):
+            raise HTTPException(409,'Dự án đang thay đổi; tải lại trước khi xác nhận phụ đề.')
+        plan=p['edit_plan'];subs=plan.get('subtitles',[])
+        if body.subtitle_index>=len(subs):raise HTTPException(422,'Không tìm thấy câu phụ đề.')
+        record_review_evidence(plan)
+        tokens=set(valid_confirmations(plan));key=subtitle_fingerprint(plan,subs[body.subtitle_index])
+        if body.confirmed:tokens.add(key)
+        else:tokens.discard(key)
+        plan['subtitle_confirmations']=sorted(tokens)
+        plan['subtitle_review']=unconfirmed_issues(plan,review_issues(subs))
+        # Review metadata changes no pixels/audio; the verified output revision stays valid.
+        # A previous global caption approval must be revoked when any confirmation is undone.
+        previous=p.get('style_feedback')
+        if (not body.confirmed and previous and previous.get('revision')==p['revision']
+                and previous.get('output_path')==p.get('output_path')):
+            p['style_feedback']=LearningStore(DATA_DIR).save(p,previous['decision'],previous['note'],False)
+        save_project(project_id,p)
+        return review_status(p)
+
+
 class Feedback(BaseModel):
     revision: int
     output_path: str = Field(...,max_length=250)
@@ -247,7 +285,7 @@ def feedback(project_id: str, body: Feedback):
             raise HTTPException(409,'Chỉ duyệt một MP4 đã dựng và kiểm tra thành công.')
         if body.revision!=p['revision'] or body.output_path!=p['output_path'] or p.get('output_revision')!=p['revision']:
             raise HTTPException(409,'Bản dựng đã thay đổi; mở đúng kết quả trước khi duyệt.')
-        if body.captions_checked and p['edit_plan'].get('subtitle_review'):
+        if body.captions_checked and unconfirmed_issues(p['edit_plan']):
             raise HTTPException(422,'Còn câu phụ đề cần kiểm tra. Bạn vẫn có thể duyệt riêng phong cách.')
         record=LearningStore(DATA_DIR).save(p,body.decision,body.note,body.captions_checked)
         p['style_feedback']=record;save_project(project_id,p)
@@ -263,6 +301,12 @@ def learning_status():
 def learning_export():
     return Response(LearningStore(DATA_DIR).export(),media_type='application/x-ndjson',
         headers={'Content-Disposition':'attachment; filename="approved-style-feedback.jsonl"'})
+
+
+@app.get('/api/learning/reviewed-export')
+def reviewed_learning_export():
+    return Response(LearningStore(DATA_DIR).export(reviewed_only=True),media_type='application/x-ndjson',
+        headers={'Content-Disposition':'attachment; filename="reviewed-style-examples.jsonl"'})
 
 
 @app.post('/api/projects/{project_id}/upload')
@@ -358,7 +402,14 @@ def save_plan(project_id: str, body: dict):
             # A user correction becomes the source for subsequent automatic runs.
             plan = copy.deepcopy(plan)
             plan['user_subtitles'] = copy.deepcopy(plan.get('subtitles', []))
+        # Confirmation keys are server-owned and cannot be imported through the editor.
+        plan['subtitle_confirmations']=p['edit_plan'].get('subtitle_confirmations',[])
+        plan['subtitle_review_evidence']=copy.deepcopy(p['edit_plan'].get('subtitle_review_evidence',{}))
         checked = check_plan(plan, trusted)
+        checked['subtitle_review']=review_issues(checked.get('subtitles',[]))
+        record_review_evidence(checked)
+        checked['subtitle_confirmations']=valid_confirmations(checked)
+        checked['subtitle_review']=unconfirmed_issues(checked,review_issues(checked.get('subtitles',[])))
         for sub in checked['subtitles']:
             words = sub.get('words', [])
             if words and ' '.join(w['word'].strip() for w in words) != ' '.join(sub['text'].split()):
@@ -554,7 +605,7 @@ def run_job(project_id, job_id, snapshot, options, mode):
                         plan=apply_typography(plan,options.font_style,options.user_prompt)
                         plan=apply_motion_style(plan,options.motion_style,options.user_prompt)
                         warnings=list(dict.fromkeys([*warnings,*plan['director']['warnings']]))
-                        issues=review_issues(plan.get('subtitles',[]))
+                        issues=unconfirmed_issues(plan,review_issues(plan.get('subtitles',[])))
                         plan['subtitle_review']=issues
                         if issues:
                             warnings.append('Có '+str(len(issues))+' câu phụ đề cần nghe lại. Mở mục sửa phụ đề để kiểm tra trước khi dùng video.')

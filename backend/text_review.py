@@ -1,5 +1,7 @@
 """Project-scoped spelling and measured title layout; no invented transcript."""
 import copy
+import hashlib
+import json
 import re
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -99,3 +101,46 @@ def headline_layout(text,size=64,width=640,proper_names='',font_path=None):
     # Pathological unbroken text must still stay inside the title safe area.
     chars=list(text);middle=len(chars)//2
     return ''.join(chars[:middle])+'\n'+''.join(chars[middle:]),18
+
+
+def subtitle_fingerprint(plan, subtitle):
+    """Bind a human confirmation to the exact source, sentence and interval."""
+    asset_id=subtitle.get('asset_id') or plan['video_clips'][0]['asset_id']
+    asset=next((a for a in plan['assets'] if a['id']==asset_id),{})
+    value=[asset_id,asset.get('sha256',''),float(subtitle['start']),float(subtitle['end']),subtitle['text']]
+    return hashlib.sha256(json.dumps(value,ensure_ascii=False,separators=(',',':')).encode()).hexdigest()
+
+
+def valid_confirmations(plan):
+    current={subtitle_fingerprint(plan,s) for s in plan.get('subtitles',[])}
+    return sorted(current.intersection(x for x in plan.get('subtitle_confirmations',[]) if isinstance(x,str)))
+
+
+def unconfirmed_issues(plan, issues=None):
+    confirmed=set(valid_confirmations(plan));subs=plan.get('subtitles',[])
+    if issues is None:issues=plan.get('subtitle_review',review_issues(subs))
+    issues=list(issues)
+    history=plan.get('subtitle_review_evidence',{})
+    if isinstance(history,dict):
+        indices={x.get('subtitle_index') for x in issues}
+        for i,sub in enumerate(subs):
+            reason=history.get(subtitle_fingerprint(plan,sub))
+            if i not in indices and isinstance(reason,str):
+                issues.append({'subtitle_index':i,'start':sub['start'],'end':sub['end'],'reason':reason})
+    pending=[]
+    for issue in issues:
+        index=issue.get('subtitle_index')
+        if not isinstance(index,int) or not 0<=index<len(subs) or subtitle_fingerprint(plan,subs[index]) not in confirmed:
+            pending.append(issue)
+    return pending
+
+
+def record_review_evidence(plan):
+    """Keep known recognition warnings even when a render rebuilds word alignment."""
+    subs=plan.get('subtitles',[]);history=dict(plan.get('subtitle_review_evidence',{}))
+    for issue in [*plan.get('subtitle_review',[]),*review_issues(subs)]:
+        i=issue.get('subtitle_index')
+        if isinstance(i,int) and 0<=i<len(subs):
+            history[subtitle_fingerprint(plan,subs[i])]=str(issue['reason'])[:1000]
+    current={subtitle_fingerprint(plan,s) for s in subs}
+    plan['subtitle_review_evidence']={k:v for k,v in history.items() if k in current}

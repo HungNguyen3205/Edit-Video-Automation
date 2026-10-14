@@ -1,0 +1,172 @@
+{
+  "date": "2026-10-14",
+  "base_commit": "75566abbad0947ea4cd53fc90b10649e53b3a12a",
+  "changes": [
+    "Source/text/time-bound sentence confirmation with undo and server-owned evidence.",
+    "Separate style-only and fully reviewed supervision exports; legacy API preserved.",
+    "No model weight training or synthetic approval of user videos."
+  ],
+  "validation": {
+    "pytest": {
+      "passed": 170,
+      "failed": 0,
+      "seconds": 128.11,
+      "warnings": 1,
+      "warning": "Starlette TestClient dependency deprecation"
+    },
+    "new_tests": 8,
+    "browser": {
+      "fixture": "Synthetic four-second source with controlled low-confidence subtitle; actual API and FFmpeg output.",
+      "confirmation": true,
+      "reload": true,
+      "reviewed_export": true,
+      "undo_revokes_export": true,
+      "edit_invalidates_confirmation": true,
+      "explicit_save": true,
+      "mobile_width": 390,
+      "horizontal_overflow": false,
+      "page_errors": []
+    },
+    "syntax": [
+      "Python compileall passed",
+      "node --check frontend/simple.js passed",
+      "git diff --check passed"
+    ]
+  },
+  "hardware": {
+    "cpu": "Intel Xeon Platinum 8370C",
+    "visible_logical_cpus": 9,
+    "ram_gib": 9.7,
+    "available_before_gib": 9.0,
+    "swap": false,
+    "gpu": false
+  },
+  "recognition": {
+    "engine": "faster-whisper",
+    "model": "small",
+    "compute_type": "int8",
+    "cpu_threads": 4,
+    "cold_download_and_load_seconds": 49.51,
+    "download_cache_warm_during_api_run": true
+  },
+  "real_video": {
+    "elapsed_seconds": 167.782,
+    "upload_seconds": 0.209,
+    "timings": {
+      "recognition_seconds": 36.37,
+      "planning_seconds": 0.136,
+      "graphics_seconds": 0.0,
+      "scene_render_seconds": 0.0,
+      "camera_source_reused": true,
+      "assembly_seconds": 124.084,
+      "render_seconds": 124.112,
+      "verification_seconds": 3.678
+    },
+    "planning_mode": "fallback",
+    "fallback_reason": "AI_CONNECTION",
+    "duration": {
+      "source_duration": 115.03,
+      "input_timeline_duration": 115.03,
+      "ai_planned_duration": 115.03,
+      "post_cut_duration": 115.03,
+      "ffprobe_duration": 115.03,
+      "timestamp": "2026-10-14T16:55:09.362185+00:00"
+    },
+    "source": {
+      "width": 638,
+      "height": 720,
+      "duration": 115.029002,
+      "has_audio": true,
+      "rotation": 0
+    },
+    "source_sha256": "c740116652d304a1700bb1f513f5ad07818b4192c99997755b6c3aadf35c4a63",
+    "subtitles": 23,
+    "review_warnings": 12,
+    "illustrations": 0,
+    "motion": {
+      "version": 1,
+      "preset": "dynamic_explainer",
+      "requested": "dynamic_explainer",
+      "active_skills": [
+        "camera_breath",
+        "grounded_numbers",
+        "keyword_accent",
+        "progressive_list",
+        "quiet_accents",
+        "semantic_hook",
+        "soft_entries",
+        "visual_rest"
+      ],
+      "source": "reference_rules",
+      "model_weights_trained": false,
+      "number_scene_indices": [],
+      "cta_scene_indices": [],
+      "effects_disabled": false
+    },
+    "full_decode": "passed",
+    "weights_trained": false,
+    "source_note": "Left camera half cropped from the user-provided comparison reference. Baked-in source label retained. Full 115-second source speech preserved; not a newly shot raw video."
+  },
+  "video_qa": {
+    "width": 720,
+    "height": 1280,
+    "duration": 115.029,
+    "audio_codec": "aac",
+    "frame_samples": [
+      1,
+      18,
+      38,
+      56,
+      78,
+      96,
+      112
+    ],
+    "audio_checks": [
+      {
+        "source_seconds": [
+          2,
+          5
+        ],
+        "correlation": 0.9996074131573673,
+        "best_lag_ms": 0.0
+      },
+      {
+        "source_seconds": [
+          56,
+          59
+        ],
+        "correlation": 0.9996647572107675,
+        "best_lag_ms": 0.0
+      },
+      {
+        "source_seconds": [
+          108,
+          111
+        ],
+        "correlation": 0.9998750943473816,
+        "best_lag_ms": 0.0
+      }
+    ],
+    "full_decode": "passed",
+    "independent_human_listening": false
+  },
+  "user_video_approvals_created": 0,
+  "model_weights_trained": false,
+  "notes": [
+    "The second source is camera footage cropped from the original side of a user-provided comparison reference. The original source remains unchanged.",
+    "The current environment has no Ollama runtime; actual AI_CONNECTION fallback was used. No fake model response was used for the real video.",
+    "Real Qwen3 inference was already verified in the preceding commit; it was not repeated for these review-only backend changes.",
+    "No illustrations were inserted in this fallback output. Twelve low-confidence caption segments still require human review.",
+    "Waveform correlation and sampled frame review do not equal full human listening or professional demo parity.",
+    "The JSONL export contains style supervision, not transcript-to-storyboard SFT pairs. No reviewed dataset was fabricated from unapproved user media.",
+    "All stage timings are nested; assembly is part of render. Concurrent tests may affect timings; no before/after speed claim."
+  ],
+  "files": {
+    "main.py": "Revision and busy guards, confirmation endpoint, reviewed export, pending review checks.",
+    "backend/text_review.py": "Caption fingerprints and durable warning evidence.",
+    "backend/learning_store.py": "Review provenance, source counts and filtered supervision export.",
+    "frontend/simple.js": "Sentence confirmation/undo, reviewed counts, correct fallback badge/warnings.",
+    "frontend/index.html": "Reviewed export link and script cache version.",
+    "tests/test_review_confirmations.py": "Eight regressions including real fallback render and API revocation."
+  }
+}
