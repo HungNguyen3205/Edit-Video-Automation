@@ -108,3 +108,9 @@ Xem [tài liệu](docs/README.md) và [bộ skill](skills/README.md).
 
 Có 10 bộ font tiếng Việt theo chủ đề, tùy chọn tự chọn hoặc chọn cố định,
 xem trước trên web. [Danh mục, mục đích và cách dùng](docs/TYPOGRAPHY.md).
+
+## Nhịp dựng năng động
+
+10 skill mới từ tham chiếu người dùng: nhấn ý, zoom có khoảng nghỉ, danh
+sách hiện lần lượt và CTA đúng lời nói. Chọn Nhịp dựng trên giao diện;
+[cách dùng, bằng chứng và giới hạn](docs/MOTION_SKILLS.md). Chưa fine-tune model.

@@ -6,6 +6,7 @@ from pathlib import Path
 from statistics import median
 from datetime import datetime, timezone
 from project_paths import SKILLS_DIR
+from motion_style import motion_skills
 
 RULES=[
     'Preserve source speech and duration; use only facts and names in the current video/request.',
@@ -41,7 +42,9 @@ def editor_skills(path=None):
 def visual_summary(plan):
     scenes=plan.get('storyboard',[])
     types=[s.get('scene_type','talking_head') for s in scenes]
-    return {'scene_types':types[:12],'scene_count':len(scenes),
+    return {'motion_preset':plan.get('motion_style',{}).get('preset','clean'),
+        'font_profile':plan.get('typography',{}).get('profile_id','legacy'),
+        'scene_types':types[:12],'scene_count':len(scenes),
         'illustration_fraction':round(sum(t!='talking_head' for t in types)/max(1,len(types)),2),
         'headline_words_median':round(median([len(s.get('headline','').split()) for s in scenes])) if scenes else 0}
 
@@ -83,6 +86,7 @@ class LearningStore:
     def status(self):
         records=self.records()
         return {'mode':'style_memory','model_weights_trained':False,
+                'available_motion_skills':[{'id':s['id'],'name':s.get('name',s['id']),'purpose':s.get('purpose','')} for s in motion_skills()],
                 'initial_visual_references':1,'approved_styles':sum(r['decision']=='approve_style' for r in records),
                 'needs_changes':sum(r['decision']=='needs_changes' for r in records),
                 'reference_limit':3,'active_skills':[s['id'] for s in editor_skills()]}

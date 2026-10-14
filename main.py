@@ -27,6 +27,7 @@ from storyboard_compiler import compile_storyboard_scenes, run as run_render_com
 from automatic_director import automatic_direction, fallback_direction, PlanningError
 from video_branding import apply_visual_assets
 from typography import FontStyle, public_profiles, apply_typography
+from motion_style import MotionStyle, apply_motion_style, skill_context
 from text_review import prepare_source, review_issues
 from learning_store import LearningStore
 
@@ -387,6 +388,7 @@ class Options(BaseModel):
     illustrations: bool = True
     proper_names: str = Field('',max_length=600)
     font_style: FontStyle = 'auto'
+    motion_style: MotionStyle = 'clean'
 
 
 def job_update(project_id, **changes):
@@ -469,6 +471,7 @@ def run_job(project_id, job_id, snapshot, options, mode):
                     if mode == 'auto':
                         if options.automatic:
                             plan=prepare_source(plan,options.brand_footer,options.proper_names)
+                            plan.setdefault('learning_context',{})['motion_skills']=skill_context(plan,options.motion_style,options.user_prompt)
                         if options.planner == 'ai':
                             job_update(project_id, phase='AI đang phân tích nội dung và lập kế hoạch theo prompt…')
                             director = automatic_direction if options.automatic else direct
@@ -508,6 +511,7 @@ def run_job(project_id, job_id, snapshot, options, mode):
                             'applied_to_ai':plan['director']['engine']=='ollama' and bool(getattr(event,'style_memory_applied',False)),'model_weights_trained':False}
                         plan=apply_visual_assets(plan,options.prompt,options.brand_footer,options.logo_asset_id,options.image_asset_ids,options.illustrations)
                         plan=apply_typography(plan,options.font_style,options.user_prompt)
+                        plan=apply_motion_style(plan,options.motion_style,options.user_prompt)
                         warnings=list(dict.fromkeys([*warnings,*plan['director']['warnings']]))
                         issues=review_issues(plan.get('subtitles',[]))
                         plan['subtitle_review']=issues
@@ -658,7 +662,7 @@ def enqueue(project_id, background_tasks, options, mode):
         p['job'] = {'id': identifier, 'status': 'queued', 'phase': 'Đang chờ worker', 'progress': None, 'error': None, 'warnings': [], 'mode': mode, 'preview': options.preview}
         if options.automatic:
             p['job']['branding']={'brand_name':options.brand_footer,'logo_asset_id':options.logo_asset_id,
-                'image_asset_ids':options.image_asset_ids,'illustrations':options.illustrations,'proper_names':options.proper_names,'font_style':options.font_style}
+                'image_asset_ids':options.image_asset_ids,'illustrations':options.illustrations,'proper_names':options.proper_names,'font_style':options.font_style,'motion_style':options.motion_style}
         p['export_status'] = 'queued'
         if mode == 'transcribe':
             p['transcribe_status'] = 'running'
@@ -667,6 +671,7 @@ def enqueue(project_id, background_tasks, options, mode):
         snapshot = copy.deepcopy(p)
         if options.automatic:
             snapshot['edit_plan']['learning_context']=LearningStore(DATA_DIR).context()
+            snapshot['edit_plan']['learning_context']['motion_skills']=skill_context(snapshot['edit_plan'],options.motion_style,options.user_prompt)
     background_tasks.add_task(run_job, project_id, identifier, snapshot, options, mode)
     return p
 
@@ -684,6 +689,7 @@ class MakeVideo(BaseModel):
     illustrations: bool = True
     proper_names: str = Field('',max_length=600)
     font_style: FontStyle = 'auto'
+    motion_style: MotionStyle = 'clean'
 
 
 @app.get('/api/typography')
@@ -712,7 +718,7 @@ def make_video(project_id: str, body: MakeVideo, background_tasks: BackgroundTas
     options=Options(planner='ai',prompt=brief,visual_style='explainer_ref',duration_policy='preserve',
         preview=False,use_current_plan=False,transcribe=bool(p['video']['metadata'].get('has_audio')),
         automatic=True,user_prompt=body.prompt.strip(),brand_footer=body.brand_name.strip(),
-        logo_asset_id=body.logo_asset_id,image_asset_ids=body.image_asset_ids,illustrations=body.illustrations,proper_names=body.proper_names.strip(),font_style=body.font_style)
+        logo_asset_id=body.logo_asset_id,image_asset_ids=body.image_asset_ids,illustrations=body.illustrations,proper_names=body.proper_names.strip(),font_style=body.font_style,motion_style=body.motion_style)
     return enqueue(project_id,background_tasks,options,'auto')
 
 

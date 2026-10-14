@@ -49,6 +49,7 @@ def caption_chunks(subs, max_words=7, proper_names=""):
 
 def write_storyboard_ass(path, plan, width, height):
     profile = profile_for(plan)
+    dynamic = plan.get('motion_style',{}).get('preset')=='dynamic_explainer'
     # Render at a fixed design coordinate system; libass scales for preview.
     lines = ['[Script Info]', 'ScriptType: v4.00+', 'PlayResX: 720', 'PlayResY: 1280',
              'WrapStyle: 2', '[V4+ Styles]',
@@ -70,7 +71,7 @@ def write_storyboard_ass(path, plan, width, height):
                 columns[2] = str(replacements[role][0])
                 columns[7] = '-1' if replacements[role][1]>=700 else '0'
                 lines[index] = ','.join(columns)
-    def event(start, end, style, text, tags=''):
+    def event(start, end, style, text, tags='', accent=False, animate=False):
         if end <= start or not text:
             return
         if profile:
@@ -102,8 +103,20 @@ def write_storyboard_ass(path, plan, width, height):
             wrapped = textwrap.wrap(safe, width=wrap)
         if len(wrapped)>2:
             wrapped = [wrapped[0],wrapped[1].rstrip('.,')+'…']
+        if accent:
+            count=sum(len(line.split()) for line in wrapped);offset=0;colored=[]
+            for line in wrapped:
+                tokens=[]
+                for word in line.split():
+                    tokens.append(('{\\c&H00C8F2FF&}'+word+'{\\c&H00FFFFFF&}') if offset>=count-2 else word)
+                    offset+=1
+                colored.append(' '.join(tokens))
+            wrapped=colored
+        if animate:
+            tags+='\\fscx96\\fscy96\\t(0,220,\\fscx100\\fscy100)'
         safe = '\\N'.join(wrapped)
-        lines.append(f'Dialogue: 0,{ass_time(start)},{ass_time(end)},{style},,0,0,0,,{{\\fad(150,150){tags}}}{safe}')
+        fade='' if dynamic and plan['motion_style'].get('effects_disabled') else '\\fad(150,150)'
+        lines.append(f'Dialogue: 0,{ass_time(start)},{ass_time(end)},{style},,0,0,0,,{{{fade}{tags}}}{safe}')
     for sub in caption_chunks(mapped_subtitles(plan),max_words=profile['max_words'] if profile else 7,proper_names=plan.get("proper_names","")) if plan.get('show_captions',True) else []:
         event(sub['start'],sub['end'],'Caption',sub['text'])
     for scene in plan.get('storyboard', []):
@@ -111,10 +124,17 @@ def write_storyboard_ass(path, plan, width, height):
             continue
         start = scene['timeline_start']
         end = start + scene['duration']
+        motion=scene.get('motion',{}) if dynamic else {}
+        closing=motion.get('closing_text','')
+        headline_end=min(end,start+motion.get('headline_seconds',scene['duration']))
+        closing_start=max(start,end-2.6) if closing else end
+        if closing:headline_end=min(headline_end,closing_start-.15)
         color = {'teal':'&H0088940D&','navy':'&H003B2D17&','red':'&H002626DC&'}.get(scene.get('badge_color'), '&H0088940D&')
         event(start,end,'Label',scene.get('badge_text',''),f'\\3c{color}\\4c{color}')
         if not any(t['timeline_start'] < end and t['timeline_start']+t['duration'] > start for t in plan.get('text_overlays', [])):
-            event(start+.15,end,'Head',scene.get('headline',''), '\\move(360,194,360,176,0,260)')
+            event(start+.15,headline_end,'Head',scene.get('headline',''), '\\move(360,194,360,176,0,260)' if motion.get('animate',True) else '',accent=bool(motion.get('accent_words')),animate=bool(motion.get('animate',False)))
+        if closing:
+            event(closing_start,end,'Head',closing,accent=True,animate=motion.get('animate',False))
     # Explicit titles remain editable. Hide camera headings during their span.
     # AI is instructed to use scene headlines instead of duplicate title tracks.
     for title in plan.get('text_overlays', []):

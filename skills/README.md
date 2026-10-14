@@ -36,3 +36,9 @@ model thật chưa được benchmark trong đợt bổ sung hướng dẫn này
 
 `typography.json` chứa 10 bộ font với mục đích riêng cho phụ đề, tiêu đề,
 nhãn và thương hiệu. [Cách dùng và giấy phép](../docs/TYPOGRAPHY.md).
+
+## 10 skill chuyển động mới
+
+`motion_skills.json` được nạp có điều kiện khi chọn Nhịp dựng năng động.
+Giữ nguyên sáu skill cơ bản; không gửi cả thư viện không giới hạn cho model.
+[Điều kiện, khả năng renderer và giới hạn](../docs/MOTION_SKILLS.md).

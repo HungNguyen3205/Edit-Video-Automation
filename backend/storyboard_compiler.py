@@ -126,6 +126,8 @@ def compile_storyboard_scenes(plan, asset_dir, work_dir, output_path, preview=Fa
                 cfg = {**sc,'headline':title,'headline_font_size':title_size,'duration':dur,'asset_path':str(asset_path),'footer':'' if plan.get('branding') else plan.get('brand_footer','')}
                 if profile:
                     cfg.update(heading_font_file=profile['heading_file'],caption_font_file=profile['caption_file'],heading_weight=profile['heading_weight'],caption_weight=profile['caption_weight'])
+                if plan.get('motion_style',{}).get('preset')=='dynamic_explainer':
+                    cfg['motion_style']='dynamic_explainer'
                 cfg_file = work_dir/f'motion_{i}.json'
                 cfg_file.write_text(json.dumps(cfg,ensure_ascii=False),encoding='utf-8')
                 raw = work_dir/f'motion_{i}.mp4'

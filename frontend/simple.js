@@ -35,7 +35,7 @@ function lock(yes) {
   $('drop-zone').disabled = yes;
   $('prompt').disabled = yes;
   $('history-toggle').disabled = yes;
-  ['approve-style','needs-changes','feedback-note','captions-checked','save-subtitles','import-corrections','brand-name','proper-names','choose-logo','choose-images','illustrations','font-style'].forEach(id=>$(id).disabled=yes);
+  ['approve-style','needs-changes','feedback-note','captions-checked','save-subtitles','import-corrections','brand-name','proper-names','choose-logo','choose-images','illustrations','font-style','motion-style'].forEach(id=>$(id).disabled=yes);
   document.querySelectorAll('.asset-row input,.remove-asset,.subtitle-row textarea').forEach(el=>el.disabled=yes);
   $('create-video').disabled = yes || (!selected && !current?.video);
   $('create-video').querySelector('span').textContent = yes ? 'AI đang dựng video…' : current?.output_path ? 'Dựng lại theo yêu cầu này' : 'Tạo video của tôi';
@@ -194,7 +194,7 @@ async function create() {
     await saveSubtitleDraft();
     current = await api(`/api/projects/${current.id}/make-video`,json({prompt:$('prompt').value.trim(),
       brand_name:$('brand-name').value.trim(),proper_names:$('proper-names').value.trim(),logo_asset_id:logoSelection?.asset_id || '',
-      image_asset_ids:imageSelections.map(a=>a.asset_id),illustrations:$('illustrations').checked,font_style:$('font-style').value}));
+      image_asset_ids:imageSelections.map(a=>a.asset_id),illustrations:$('illustrations').checked,font_style:$('font-style').value,motion_style:$('motion-style').value}));
     localStorage.setItem('danava-last-video',current.id);
     localStorage.removeItem(draftKey());
     beginPolling();
@@ -243,6 +243,7 @@ function restoreAssets(p) {
   $('brand-name').value=settings.brand_name ?? p.edit_plan?.brand_footer ?? '';
   $('proper-names').value=settings.proper_names ?? p.edit_plan?.proper_names ?? '';
   $('illustrations').checked=settings.illustrations !== false;
+  $('motion-style').value=settings.motion_style ?? p.edit_plan?.motion_style?.requested ?? 'clean';
   $('font-style').value=settings.font_style ?? p.edit_plan?.typography?.requested ?? 'auto';
   showFontPreview();
   const entry=id=>{const a=p.edit_plan.assets.find(x=>x.id===id);return a?{asset_id:id,file:null,name:a.original_name,url:`/assets/${a.filename}`,keywords:a.keywords || ''}:null;};

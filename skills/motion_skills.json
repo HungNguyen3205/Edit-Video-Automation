@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "reference_sha256": "e4833008c6e7503ea3f7698e3dea56ae6ee8c6d302a5cdab0052d003c0e1ab1e",
+  "model_weights_trained": false,
+  "skills": [
+    {
+      "id": "semantic_hook",
+      "name": "Mở đầu theo nội dung",
+      "purpose": "Mở đoạn",
+      "rule": "Use the opening source idea as a short hook; do not add promises or insert a silent intro. Keep original speech.",
+      "triggers": [
+        "always"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "keyword_accent",
+      "name": "Nhấn từ khóa",
+      "purpose": "Chữ nhấn",
+      "rule": "Use at most one source-based phrase per camera scene; briefly accent its last two words. Do not animate entire subtitles.",
+      "triggers": [
+        "always"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "camera_breath",
+      "name": "Zoom vào rồi trả khung",
+      "purpose": "Chuyển động",
+      "rule": "Alternate gentle eased zoom accents with calm camera intervals; never simulate a second camera angle or crop faces.",
+      "triggers": [
+        "always"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "progressive_list",
+      "name": "Danh sách hiện lần lượt",
+      "purpose": "Giải thích",
+      "rule": "Reveal 2-5 grounded list items one at a time; only use source concepts. Allow time for the last item to be read.",
+      "triggers": [
+        "lists"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "source_broll",
+      "name": "Minh họa bằng tài nguyên thật",
+      "purpose": "Ảnh / cảnh chèn",
+      "rule": "Prefer relevant uploaded assets with quiet motion. Do not claim a conceptual graphic is product footage or borrow reference footage.",
+      "triggers": [
+        "assets"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "soft_entries",
+      "name": "Chuyển động vào cảnh mềm",
+      "purpose": "Chuyển cảnh",
+      "rule": "Use short ease-out slide/fade entries without flashes, spins or voice cuts. Preserve total duration and scene boundaries.",
+      "triggers": [
+        "always"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "grounded_numbers",
+      "name": "Số liệu đúng lời",
+      "purpose": "Giá / số liệu",
+      "rule": "Emphasize only numbers, units and prices present in the current speech. Never invent discounts, crossed-out prices or percentages.",
+      "triggers": [
+        "numbers"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "grounded_cta",
+      "name": "Kết video đúng yêu cầu",
+      "purpose": "Kêu gọi hành động",
+      "rule": "Use a closing action only when it exists in the closing speech; do not invent links, countdowns, scarcity or guarantees.",
+      "triggers": [
+        "cta"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "visual_rest",
+      "name": "Khoảng nghỉ thị giác",
+      "purpose": "Bố cục",
+      "rule": "Return to the speaker between explanatory cards. Keep captions, logo and main heading in separate safe areas.",
+      "triggers": [
+        "always"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "quiet_accents",
+      "name": "Âm thanh nhấn nhẹ",
+      "purpose": "Âm thanh",
+      "rule": "Keep voice dominant; quiet SFX on relevant graphics only. Respect no-sound and no-effects requests.",
+      "triggers": [
+        "always"
+      ],
+      "enabled": true
+    }
+  ]
+}

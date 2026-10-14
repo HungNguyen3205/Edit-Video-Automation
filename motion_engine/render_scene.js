@@ -48,7 +48,9 @@ function buildHtml(data) {
   const headingWeight = data.heading_weight === 700 ? 700 : 800;
   const captionWeight = [500,600,700].includes(data.caption_weight) ? data.caption_weight : 600;
   const type = data.scene_type || 'explainer_card';
-  const headline = data.headline || '';
+  const dynamic = data.motion_style === 'dynamic_explainer';
+  let headline = data.headline || '';
+  if(dynamic && data.motion?.accent_words) headline=headline.replace(/(\S+\s+\S+)\s*$/, '<span class="keyword-accent">$1</span>');
   const subheadline = data.subheadline || '';
   const badgeText = data.badge_text || '';
   const badgeColor = data.badge_color || 'teal'; // teal, navy, red
@@ -179,6 +181,10 @@ function buildHtml(data) {
     `;
   }
 
+  if(dynamic && data.motion?.stagger && Array.isArray(data.graphic_items)) {
+    const list=`<div class="dynamic-list">${data.graphic_items.map(item=>`<div class="motion-list-item anim-stagger">${item}</div>`).join('')}</div>`;
+    sceneContent=sceneContent.replace(/<img src="[^"]*" class="card-img" \/>/,list);
+  }
   return `
   <!DOCTYPE html>
   <html>
@@ -229,6 +235,13 @@ function buildHtml(data) {
         gap: 20px;
       }
 
+      .motion-dynamic { background:#101b28; }
+      .motion-dynamic .headline { color:#fff; }
+      .keyword-accent { color:#ffe05b; }
+      .dynamic-list { width:100%; display:flex; flex-direction:column; gap:18px; }
+      .motion-dynamic .card:has(.dynamic-list) { background:transparent; border:0; padding:0; width:100%; max-width:94%; max-height:650px; }
+      .motion-list-item { padding:20px 24px; border:1px solid #486471; border-left:5px solid #ffe05b; border-radius:16px; background:#1c3342; color:#fff; font:600 30px/1.25 'VideoCaption',sans-serif; text-align:left; overflow-wrap:anywhere; }
+      .pip-card .motion-list-item { padding:12px 18px; font-size:25px; }
       /* Badges */
       .badge {
         display: inline-flex;
@@ -517,7 +530,7 @@ function buildHtml(data) {
       }
     </style>
   </head>
-  <body class="scene-${type}">
+  <body class="scene-${type}${dynamic ? ' motion-dynamic' : ''}">
     <div class="main-content">
       ${sceneContent}
     </div>
@@ -566,6 +579,11 @@ async function render() {
     // Calculate smooth spring/ease animations
     await page.evaluate((cfg) => {
       const currTime = cfg.time;
+      if(cfg.dynamic && !cfg.animate){
+        for(const el of document.querySelectorAll('.anim-badge,.anim-card,.anim-headline,.anim-stat,.anim-sub,.anim-stagger')){el.style.opacity='1';el.style.transform='none';}
+        document.querySelector('.main-content').style.opacity='1';
+        return;
+      }
       // Badge pop-in: 0.0s -> 0.35s
       const badgeT = Math.min(1, Math.max(0, currTime / 0.35));
       const badgeScale = badgeT < 1 ? 0.7 + 0.35 * Math.sin(badgeT * Math.PI) : 1;
@@ -589,11 +607,16 @@ async function render() {
       document.body.style.setProperty('--ty-stagger', `${(1 - stagT) * 20}px`);
       document.body.style.setProperty('--op-stagger', stagT);
       document.querySelectorAll('.anim-stagger').forEach((el, index) => {
-        const t = Math.min(1, Math.max(0, (currTime - 0.5 - index * 0.18) / 0.4));
+        const step=cfg.dynamic && el.classList.contains('motion-list-item') ? Math.min(.7,Math.max(.18,(cfg.duration-2.1)/Math.max(1,document.querySelectorAll('.motion-list-item').length-1))) : .18;
+        const t = Math.min(1, Math.max(0, (currTime - 0.5 - index * step) / 0.4));
         el.style.opacity = t;
         el.style.transform = `translateY(${(1-t)*20}px)`;
       });
 
+      if(cfg.dynamic && cfg.animate){
+        const image=document.querySelector('.card-img');
+        if(image)image.style.transform=`scale(${1+.025*Math.min(1,currTime/Math.max(1,cfg.duration))})`;
+      }
       // Subtext fade
       const subT = Math.min(1, Math.max(0, (currTime - 0.6) / 0.4));
       document.body.style.setProperty('--op-sub', subT);
@@ -610,7 +633,7 @@ async function render() {
         }
       }
       document.querySelector('.main-content').style.opacity = cfg.exit === 'fade' ? Math.min(1, Math.max(0, (cfg.duration-currTime)/.18)) : 1;
-    }, {time: t, animation: sceneData.animation_in || 'pop_in', exit: sceneData.animation_out || 'none', duration});
+    }, {time: t, dynamic: sceneData.motion_style==='dynamic_explainer', animate:sceneData.motion?.animate!==false, animation: sceneData.animation_in || 'pop_in', exit: sceneData.animation_out || 'none', duration});
 
     const buffer = await page.screenshot({ type: 'png' });
     if (!ffmpeg.stdin.write(buffer)) await new Promise(resolve => ffmpeg.stdin.once('drain', resolve));

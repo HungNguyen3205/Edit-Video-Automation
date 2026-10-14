@@ -4,8 +4,8 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#123b3c">
   <title>DANAVA — AI dựng video</title>
-  <link rel="stylesheet" href="/frontend/simple.css?v=typography-7">
-  <script src="/frontend/simple.js?v=typography-7" defer></script>
+  <link rel="stylesheet" href="/frontend/simple.css?v=motion-8">
+  <script src="/frontend/simple.js?v=motion-8" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -57,6 +57,11 @@
           <label class="check-label"><input id="illustrations" type="checkbox" checked> Tự thêm đồ họa minh họa theo lời nói</label>
           <p class="field-note">Dùng các ý rõ trong nội dung; không tự tải ảnh trên mạng. Ảnh bạn chọn vẫn được chèn khi tắt đồ họa tự động.</p>
         </section>
+        <div class="brand-settings">
+          <label for="motion-style">Nhịp dựng</label>
+          <select id="motion-style"><option value="dynamic_explainer">Năng động theo mẫu mới</option><option value="clean">Tinh gọn theo mẫu cũ</option></select>
+          <p class="field-note">Nhấn ý ngắn, zoom có khoảng nghỉ và danh sách hiện lần lượt khi phù hợp. Giữ nguyên lời nói; không tự tạo giá hay lời kêu gọi.</p>
+        </div>
         <details class="brand-settings" id="typography-settings">
           <summary>Kiểu chữ theo chủ đề · 10 lựa chọn</summary>
           <label for="font-style">Bộ chữ cho video</label>

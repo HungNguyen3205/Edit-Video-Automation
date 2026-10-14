@@ -21,7 +21,7 @@ main{max-width:1200px;margin:auto;padding:42px 40px 24px}.intro{display:flex;ali
 
 #subtitle-save-status {color:#0f766e;font-weight:600;}
 
-#font-style { width:100%; padding:12px; border:1px solid #d4deda; border-radius:10px; background:#fff; color:#173b3b; font:inherit; }
+#font-style, #motion-style { width:100%; padding:12px; border:1px solid #d4deda; border-radius:10px; background:#fff; color:#173b3b; font:inherit; }
 .font-preview { margin-top:12px; padding:22px 16px; border-radius:14px; background:#f3f7f5; text-align:center; }
 #font-heading { display:block; font-size:28px; line-height:1.25; }
 #font-caption { display:inline-block; margin:14px 0 0; padding:8px 12px; border-radius:7px; background:#172d3b; color:#fff; font-size:20px; line-height:1.4; }

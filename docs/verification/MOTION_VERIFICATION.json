@@ -1,0 +1,147 @@
+{
+  "date": "2026-10-14",
+  "reference": {
+    "sha256": "e4833008c6e7503ea3f7698e3dea56ae6ee8c6d302a5cdab0052d003c0e1ab1e",
+    "duration_seconds": 168.149,
+    "dimensions": [
+      640,
+      360
+    ],
+    "sampled_frames": 35,
+    "large_scene_score_changes": 20,
+    "scene_score_threshold": 0.25,
+    "note": "Multiple flash/rotation frames may trigger one edit more than once; not an exact cut count."
+  },
+  "machine": {
+    "cpu": "Xeon Platinum 8370C, 9 visible logical CPUs",
+    "memory_gib": 9.7,
+    "available_before_start_gib": 9.1,
+    "swap": false,
+    "gpu_used": false
+  },
+  "recognition": {
+    "engine": "faster-whisper",
+    "version": "1.2.1",
+    "model": "small",
+    "compute_type": "int8",
+    "cpu_threads": 4,
+    "cold_download_and_load_seconds": 37.865,
+    "source_37_seconds_recognition": 7.76,
+    "source_115_seconds_recognition": 72.578,
+    "previous_base_model_seconds": [
+      4.119,
+      22.654
+    ],
+    "interpretation": "Different model/load conditions, not a controlled speed benchmark. Small still made Vietnamese recognition errors. Actual recognition results reused for source-specific render; no mock transcripts."
+  },
+  "ollama": {
+    "available": false,
+    "real_model_inference_tested": false,
+    "model_weights_trained": false,
+    "ai_guidance_test": "controlled response only"
+  },
+  "tests": {
+    "existing_suite_passed": 138,
+    "new_motion_tests_passed": 11,
+    "latest_focused_suite_passed": 17,
+    "browser": {
+      "default_new_preset": true,
+      "render_mp4": true,
+      "restore_after_reload": true,
+      "switch_clean_drops_old_motion": true,
+      "page_errors": 0
+    },
+    "chrome_reveal_and_no_effects_real_render": "passed",
+    "last_regression_suite_passed": 62
+  },
+  "real_renders": [
+    {
+      "name": "Motion-Source-37s",
+      "source_seconds": 37.3,
+      "elapsed": 140.891,
+      "timings": {
+        "recognition_seconds": 0.0,
+        "planning_seconds": 0.054,
+        "graphics_seconds": 26.747,
+        "scene_render_seconds": 50.611,
+        "assembly_seconds": 87.798,
+        "render_seconds": 138.416,
+        "verification_seconds": 1.165
+      },
+      "mode": "rules",
+      "motion_style": {
+        "version": 1,
+        "preset": "dynamic_explainer",
+        "requested": "dynamic_explainer",
+        "active_skills": [
+          "camera_breath",
+          "keyword_accent",
+          "progressive_list",
+          "quiet_accents",
+          "semantic_hook",
+          "soft_entries",
+          "visual_rest"
+        ],
+        "source": "reference_rules",
+        "model_weights_trained": false,
+        "number_scene_indices": [],
+        "cta_scene_indices": [],
+        "effects_disabled": false
+      },
+      "illustrations": 2,
+      "list_scenes": 1,
+      "audio": true,
+      "decode": "passed"
+    },
+    {
+      "name": "Motion-Marketing-32s",
+      "source_seconds": 32.0,
+      "elapsed": 92.825,
+      "timings": {
+        "recognition_seconds": 0.0,
+        "planning_seconds": 0.038,
+        "graphics_seconds": 6.669,
+        "scene_render_seconds": 23.308,
+        "assembly_seconds": 67.181,
+        "render_seconds": 90.503,
+        "verification_seconds": 1.14
+      },
+      "mode": "rules",
+      "motion_style": {
+        "version": 1,
+        "preset": "dynamic_explainer",
+        "requested": "dynamic_explainer",
+        "active_skills": [
+          "camera_breath",
+          "grounded_numbers",
+          "keyword_accent",
+          "progressive_list",
+          "quiet_accents",
+          "semantic_hook",
+          "soft_entries",
+          "visual_rest"
+        ],
+        "source": "reference_rules",
+        "model_weights_trained": false,
+        "number_scene_indices": [],
+        "cta_scene_indices": [],
+        "effects_disabled": false
+      },
+      "illustrations": 1,
+      "list_scenes": 1,
+      "audio": true,
+      "decode": "passed"
+    }
+  ],
+  "source_notes": [
+    "37.3-second original speech used. Previous user-confirmed check correction was applied only to that project; other recognition errors still need review.",
+    "Second output is a 32-second crop of existing source footage with original speech; original source already contains a label. It is not a generated alternate camera angle.",
+    "Reference footage, voice, prices, names and branding are not replayed by skills for other projects."
+  ],
+  "audio_37s": {
+    "mean_volume_db": -24.4,
+    "max_volume_db": -1.0,
+    "listening_validation": "not independently verified; technical audio checks only"
+  },
+  "quality_limit": "Style approximation with actual renderer, not demonstrated parity with professional reference; no true model fine-tuning."
+}
