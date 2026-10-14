@@ -126,3 +126,10 @@ và cấu hình. [Cách dùng và kiểm chứng Ollama thật](docs/RECOGNITION
 Nghe và xác nhận từng câu bị cảnh báo, sau đó duyệt cả MP4 và phụ đề. Tool
 đếm riêng bản chỉ duyệt phong cách và bản đã duyệt chữ/hình, có hai tệp xuất
 riêng. Đây là style memory, chưa fine-tune trọng số. Xem [quy trình duyệt](docs/REVIEW_DATASET.md).
+
+## Ảnh minh họa và chuyển cảnh
+
+Nhịp năng động dùng ảnh phù hợp từ kho nhỏ có sẵn, xen toàn khung/PIP và
+dissolve ngắn, giữ nguyên tiếng/thời lượng. Ảnh tải lên được ưu tiên. Kho
+ban đầu có chủ đề trợ lý AI và chiến lược thương hiệu; chủ đề khác cần tài
+nguyên phù hợp, không tự lấy ảnh trên Internet. [Chi tiết và giới hạn](docs/REFERENCE_VISUALS.md).

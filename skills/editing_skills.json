@@ -36,6 +36,12 @@
       "name": "Nhịp dựng và âm thanh tinh tế",
       "enabled": true,
       "rule": "Prefer camera opening/ending and a few relevant interior visual changes. Keep source voice dominant; most camera scenes use no SFX, graphics may use a quiet pop or whoosh. Respect no-sound/no-illustration requests and the existing schema."
+    },
+    {
+      "id": "speech_cleanup",
+      "name": "Bỏ tiếng đệm, nối lời tự nhiên",
+      "enabled": true,
+      "rule": "Only when the user enables filler cleanup, let the engine remove confidently recognized hesitation tokens with reliable word timestamps. Keep meaningful words, breaths and uncertain sounds. Never invent cut times or rewrite speech; remap captions after cuts."
     }
   ]
 }

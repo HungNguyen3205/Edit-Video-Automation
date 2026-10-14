@@ -35,7 +35,7 @@ function lock(yes) {
   $('drop-zone').disabled = yes;
   $('prompt').disabled = yes;
   $('history-toggle').disabled = yes;
-  ['approve-style','needs-changes','feedback-note','captions-checked','save-subtitles','apply-draft-names','import-corrections','brand-name','proper-names','choose-logo','choose-images','illustrations','font-style','motion-style'].forEach(id=>$(id).disabled=yes);
+  ['approve-style','needs-changes','feedback-note','captions-checked','save-subtitles','apply-draft-names','import-corrections','brand-name','proper-names','choose-logo','choose-images','illustrations','font-style','motion-style','remove-fillers'].forEach(id=>$(id).disabled=yes);
   document.querySelectorAll('.asset-row input,.remove-asset,.subtitle-row textarea,.confirm-subtitle').forEach(el=>el.disabled=yes);
   $('create-video').disabled = yes || (!selected && !current?.video);
   $('create-video').querySelector('span').textContent = yes ? 'AI đang dựng video…' : current?.output_path ? 'Dựng lại theo yêu cầu này' : 'Tạo video của tôi';
@@ -159,6 +159,8 @@ function finish(p) {
   showResultBadge(p);
   const typography=p.edit_plan?.typography;
   $('result-note').querySelector('p').textContent=typography ? `Đã giữ giọng nói và nội dung nguồn. Bộ chữ: ${typography.family} (${({user:'bạn chọn',ai:'AI chọn',rules:'chọn theo quy tắc'})[typography.selected_by] || 'đã lưu'}). Xem lại trước khi đăng.` : 'Đã giữ giọng nói và nội dung nguồn. Xem lại trước khi đăng.';
+  const cleanup=p.edit_plan?.speech_cleanup;
+  if(cleanup?.enabled)$('result-note').querySelector('p').textContent += cleanup.applied ? ` Đã cắt ${cleanup.removed_count} tiếng đệm (${Number(cleanup.removed_seconds).toFixed(2)} giây), đồng bộ hình, tiếng và phụ đề.` : ' Chưa có tiếng đệm đủ chắc để cắt; đã giữ nguồn.';
   $('meta-name').textContent = 'Video đã dựng';
   $('meta-detail').textContent = `${Number(p.duration_audit?.ffprobe_duration || p.video.metadata.duration).toFixed(1)} giây · MP4`;
   showWarnings(p);
@@ -166,7 +168,7 @@ function finish(p) {
 function choose(file) {
   if (!file || busy) return;
   if (!/\.(mp4|mov|webm|mkv)$/i.test(file.name)) { error('Hỗ trợ video MP4, MOV, WEBM hoặc MKV.');return; }
-  visible('learning-panel',false);generation++;stopPolling();current = null;selected = file;subtitleDraft=null;visible('subtitle-editor',false);
+  visible('learning-panel',false);generation++;stopPolling();current = null;selected = file;$('remove-fillers').checked=false;subtitleDraft=null;visible('subtitle-editor',false);
   if(logoSelection?.file)logoSelection.asset_id=null;else logoSelection=null;
   imageSelections=imageSelections.filter(a=>a.file);imageSelections.forEach(a=>a.asset_id=null);renderAssets();
   if (localURL) URL.revokeObjectURL(localURL);
@@ -211,7 +213,7 @@ async function create() {
     await saveSubtitleDraft();
     current = await api(`/api/projects/${current.id}/make-video`,json({prompt:$('prompt').value.trim(),
       brand_name:$('brand-name').value.trim(),proper_names:$('proper-names').value.trim(),logo_asset_id:logoSelection?.asset_id || '',
-      image_asset_ids:imageSelections.map(a=>a.asset_id),illustrations:$('illustrations').checked,font_style:$('font-style').value,motion_style:$('motion-style').value}));
+      image_asset_ids:imageSelections.map(a=>a.asset_id),illustrations:$('illustrations').checked,font_style:$('font-style').value,motion_style:$('motion-style').value,remove_fillers:$('remove-fillers').checked}));
     localStorage.setItem('danava-last-video',current.id);
     localStorage.removeItem(draftKey());
     beginPolling();
@@ -257,6 +259,7 @@ function renderAssets() {
 }
 function restoreAssets(p) {
   const settings=p.job?.branding || p.edit_plan?.branding || {};
+  $('remove-fillers').checked=settings.remove_fillers ?? p.edit_plan?.speech_cleanup?.enabled ?? false;
   $('brand-name').value=settings.brand_name ?? p.edit_plan?.brand_footer ?? '';
   $('proper-names').value=settings.proper_names ?? p.edit_plan?.proper_names ?? '';
   $('illustrations').checked=settings.illustrations !== false;

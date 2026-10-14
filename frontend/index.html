@@ -4,8 +4,8 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#123b3c">
   <title>DANAVA — AI dựng video</title>
-  <link rel="stylesheet" href="/frontend/simple.css?v=review-10">
-  <script src="/frontend/simple.js?v=review-10" defer></script>
+  <link rel="stylesheet" href="/frontend/simple.css?v=cleanup-12">
+  <script src="/frontend/simple.js?v=cleanup-12" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -55,10 +55,12 @@
           <div id="logo-selection" class="asset-list" hidden></div>
           <div id="image-selections" class="asset-list"></div>
           <p class="field-note">PNG/JPG/WEBP · tối đa 6 ảnh. Nhập chủ đề để ghép ảnh với lời nói; để trống sẽ chèn theo thứ tự. Logo PNG nền trong suốt hiển thị đẹp nhất.</p>
-          <label class="check-label"><input id="illustrations" type="checkbox" checked> Tự thêm đồ họa minh họa theo lời nói</label>
-          <p class="field-note">Dùng các ý rõ trong nội dung; không tự tải ảnh trên mạng. Ảnh bạn chọn vẫn được chèn khi tắt đồ họa tự động.</p>
+          <label class="check-label"><input id="illustrations" type="checkbox" checked> Tự thêm ảnh và đồ họa minh họa theo lời nói</label>
+          <p class="field-note">Chọn ảnh có sẵn trong tool khi khớp chủ đề, kết hợp đồ họa theo lời nói; không tự tải ảnh trên mạng. Ảnh bạn chọn vẫn được chèn khi tắt đồ họa tự động.</p>
         </section>
         <div class="brand-settings">
+          <label class="check-label"><input id="remove-fillers" type="checkbox"> Bỏ tiếng đệm “ờ, ừm”</label>
+          <p class="field-note">Cắt cả hình và tiếng khi xác định chắc điểm nối, giữ lời nói có nghĩa và đồng bộ lại phụ đề. Video sẽ ngắn hơn; tiếng chưa chắc được giữ để nghe lại.</p>
           <label for="motion-style">Nhịp dựng</label>
           <select id="motion-style"><option value="dynamic_explainer">Năng động theo mẫu mới</option><option value="clean">Tinh gọn theo mẫu cũ</option></select>
           <p class="field-note">Nhấn ý ngắn, zoom có khoảng nghỉ và danh sách hiện lần lượt khi phù hợp. Giữ nguyên lời nói; không tự tạo giá hay lời kêu gọi.</p>
@@ -72,7 +74,7 @@
           <p id="font-roles" class="field-note"></p>
         </details>
         <button id="create-video" class="primary" disabled><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5zM20 2v4m-2-2h4"/></svg><span>Tạo video của tôi</span></button>
-        <p class="automatic-note">AI tự chọn cảnh, phụ đề, minh họa và hiệu ứng.<br>Bản xuất giữ trọn nội dung video gốc.</p>
+        <p class="automatic-note">AI tự chọn cảnh, phụ đề, minh họa và hiệu ứng.<br>Giữ lời nói có nghĩa; chỉ cắt tiếng đệm khi bạn bật tùy chọn.</p>
         <div id="error-box" class="error-box" role="alert" hidden><strong id="error-title">Chưa dựng được video</strong><p id="error-text"></p><details><summary>Xem chi tiết để xử lý</summary><pre id="error-detail"></pre><a href="https://github.com/HungNguyen3205/Edit-Video-Automation/blob/main/docs/APPROVED_STYLE.md" target="_blank" rel="noopener">Hướng dẫn cài và chạy</a></details></div>
       </section>
       <section class="result card" aria-labelledby="result-title">

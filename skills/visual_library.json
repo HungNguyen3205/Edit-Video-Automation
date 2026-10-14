@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "images": [
+    {
+      "id": "ai_assistant",
+      "file": "ai-assistant.webp",
+      "keywords": [
+        "trợ lý AI",
+        "trợ lý",
+        "chatbot",
+        "trí tuệ nhân tạo",
+        "AI"
+      ],
+      "description": "Generic fictional AI assistant concept; not a product screenshot.",
+      "sha256": "fa63457a2ace93b8187e41c90b1ef8ba7f7b6b2a0f8a7ebb0e09feb7fb614fc4",
+      "provenance": "Created with built-in imagegen for this project; distributed as local illustration. No runtime API call."
+    },
+    {
+      "id": "brand_strategy",
+      "file": "brand-strategy.webp",
+      "keywords": [
+        "thương hiệu",
+        "chiến lược",
+        "truyền thông",
+        "quảng cáo",
+        "marketing",
+        "kế hoạch nội dung"
+      ],
+      "description": "Fictional professionals planning visual strategy; not an actual client case.",
+      "sha256": "0372ade686b7aae593f650bf18a636e2eb16e45b44eff401d1fa456210aaa92a",
+      "provenance": "Created with built-in imagegen for this project; distributed as local illustration. No runtime API call."
+    }
+  ]
+}

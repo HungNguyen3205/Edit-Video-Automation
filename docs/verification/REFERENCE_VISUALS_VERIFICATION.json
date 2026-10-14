@@ -1,0 +1,218 @@
+{
+  "date": "2026-10-15",
+  "base_commit": "57709831143b2806739bbace4efc67ece1d073cd",
+  "reference": {
+    "sha256": "e4833008c6e7503ea3f7698e3dea56ae6ee8c6d302a5cdab0052d003c0e1ab1e",
+    "duration_seconds": 168.149,
+    "dimensions": [
+      640,
+      360
+    ],
+    "purpose": "Editing reference only; none of its people, frames, prices, branding or voice was copied into the output."
+  },
+  "changes": [
+    "Two offline original generated illustrations selected by source phrases.",
+    "Short full-frame photo and photo/speaker layouts with gentle image motion.",
+    "Four frame-count-preserving picture dissolves; voice assembled separately.",
+    "Existing API, one-button workflow, source duration and original audio preserved."
+  ],
+  "new_modules": {
+    "backend/visual_library.py": "Validates catalog IDs and adds bounded source-grounded photo beats.",
+    "backend/scene_transitions.py": "Groups camera scenes and creates padded picture dissolves without voice overlap."
+  },
+  "assets": {
+    "schema_version": 1,
+    "images": [
+      {
+        "id": "ai_assistant",
+        "file": "ai-assistant.webp",
+        "keywords": [
+          "trợ lý AI",
+          "trợ lý",
+          "chatbot",
+          "trí tuệ nhân tạo",
+          "AI"
+        ],
+        "description": "Generic fictional AI assistant concept; not a product screenshot.",
+        "sha256": "fa63457a2ace93b8187e41c90b1ef8ba7f7b6b2a0f8a7ebb0e09feb7fb614fc4",
+        "provenance": "Created with built-in imagegen for this project; distributed as local illustration. No runtime API call."
+      },
+      {
+        "id": "brand_strategy",
+        "file": "brand-strategy.webp",
+        "keywords": [
+          "thương hiệu",
+          "chiến lược",
+          "truyền thông",
+          "quảng cáo",
+          "marketing",
+          "kế hoạch nội dung"
+        ],
+        "description": "Fictional professionals planning visual strategy; not an actual client case.",
+        "sha256": "0372ade686b7aae593f650bf18a636e2eb16e45b44eff401d1fa456210aaa92a",
+        "provenance": "Created with built-in imagegen for this project; distributed as local illustration. No runtime API call."
+      }
+    ]
+  },
+  "validation": {
+    "pytest": {
+      "passed": 177,
+      "failed": 0,
+      "seconds": 162.57,
+      "warnings": 1,
+      "warning": "Starlette TestClient deprecation"
+    },
+    "added_tests": 7,
+    "browser": {
+      "actual_project_playback": true,
+      "seek_seconds": 9.5,
+      "download": {
+        "status": 200,
+        "bytes": 11715013,
+        "sha256": "48e97f7ac20ed978cb1ab4f2c49de8dca8ff79ae664f286e9cc9598b4c72bcee"
+      },
+      "duration": 37.3,
+      "mobile_width": 390,
+      "page_errors": []
+    },
+    "syntax": [
+      "node --check passed",
+      "Python compileall passed",
+      "git diff --check passed"
+    ]
+  },
+  "real_render": {
+    "elapsed_seconds": 145.79,
+    "recognition_cache_reused": true,
+    "timings": {
+      "recognition_seconds": 0.0,
+      "planning_seconds": 0.053,
+      "graphics_seconds": 52.08,
+      "scene_render_seconds": 72.401,
+      "scene_transitions": {
+        "count": 4,
+        "method": "padded_picture_dissolve",
+        "maximum_seconds": 0.2,
+        "voice_overlap": false
+      },
+      "assembly_seconds": 71.374,
+      "render_seconds": 143.78,
+      "verification_seconds": 0.899
+    },
+    "planning_mode": "fallback",
+    "fallback_reason": "AI_CONNECTION",
+    "duration": {
+      "source_duration": 37.3,
+      "input_timeline_duration": 37.3,
+      "ai_planned_duration": 37.3,
+      "post_cut_duration": 37.3,
+      "ffprobe_duration": 37.3,
+      "timestamp": "2026-10-14T17:48:40.808009+00:00"
+    },
+    "photo_beats": [
+      {
+        "scene_index": 1,
+        "id": "ai_assistant",
+        "source": "local_generated_illustration",
+        "matched_phrases": [
+          "trợ lý AI",
+          "trợ lý",
+          "AI"
+        ]
+      },
+      {
+        "scene_index": 4,
+        "id": "brand_strategy",
+        "source": "local_generated_illustration",
+        "matched_phrases": [
+          "thương hiệu",
+          "chiến lược"
+        ]
+      }
+    ],
+    "review_warnings": 4,
+    "subtitles": 6,
+    "illustrations": 2,
+    "decode": "passed",
+    "model_weights_trained": false
+  },
+  "qa": {
+    "frame_samples": [
+      1,
+      8.57,
+      9.5,
+      12.4,
+      19.3,
+      20.5,
+      23.5,
+      35
+    ],
+    "audio_checks": [
+      {
+        "seconds": [
+          2,
+          4.5
+        ],
+        "audio_correlation": 0.9996219534663127,
+        "best_lag_ms": 0.0
+      },
+      {
+        "seconds": [
+          9,
+          11.5
+        ],
+        "audio_correlation": 0.997870392743139,
+        "best_lag_ms": 0.0
+      },
+      {
+        "seconds": [
+          20,
+          22.5
+        ],
+        "audio_correlation": 0.9988127658718404,
+        "best_lag_ms": 0.0
+      },
+      {
+        "seconds": [
+          32,
+          34.5
+        ],
+        "audio_correlation": 0.9980345934564088,
+        "best_lag_ms": 0.0
+      }
+    ],
+    "black_intervals": [],
+    "full_decode": "passed",
+    "human_listening_approval": false,
+    "dimensions": [
+      720,
+      1280
+    ],
+    "duration_seconds": 37.3
+  },
+  "initial_asr": {
+    "engine": "faster-whisper",
+    "model": "small",
+    "compute_type": "int8",
+    "cpu_threads": 4,
+    "recognition_seconds": 6.487,
+    "cold_download_and_load_seconds": 40.28,
+    "subsequent_render_used_same_source_config_cache": true
+  },
+  "hardware": {
+    "available_ram_before_gib": 9.0,
+    "ram_gib": 9.7,
+    "swap": false,
+    "gpu_used": false,
+    "render_environment": "temporary Linux CPU environment; not the user Windows computer"
+  },
+  "limits": [
+    "Final end-to-end run used honest AI_CONNECTION fallback because Ollama is absent in this environment. No fake model response was used for the actual video.",
+    "Qwen3 inference was previously verified; these changes add renderer/asset behavior after the planner. No model weight fine-tuning occurred.",
+    "Initial catalog covers only assistant/AI and brand/strategy concepts. Unrelated topics need suitable user assets or a reviewed catalog extension.",
+    "Four caption warnings remain. Technical audio correlation is not human listening approval.",
+    "Style techniques were implemented and sampled visually; full parity with the professionally edited reference is not established.",
+    "Two earlier render attempts failed on unreadable intermediate MP4 containers during concurrent checks. The cause was not conclusively isolated; the final sequential API run completed and its entire downloaded MP4 decoded. Those failed attempts were not reported as success.",
+    "Stage times are nested: graphics is within scene render; assembly is within render. Do not add them again."
+  ]
+}

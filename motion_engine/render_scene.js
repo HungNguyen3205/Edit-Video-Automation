@@ -65,7 +65,7 @@ function buildHtml(data) {
   function getImgSrc(p) {
     if (p && fs.existsSync(p)) {
       const ext = path.extname(p).toLowerCase();
-      const mime = ext === '.svg' ? 'image/svg+xml' : ext === '.png' ? 'image/png' : 'image/jpeg';
+      const mime = ext === '.svg' ? 'image/svg+xml' : ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
       const b64 = fs.readFileSync(p).toString('base64');
       return `data:${mime};base64,${b64}`;
     }
@@ -181,6 +181,11 @@ function buildHtml(data) {
     `;
   }
 
+  if (assetSrc && data.photo_layout === 'full') {
+    sceneContent=`<div class="photo-cover"><img class="photo-image" src="${assetSrc}"/><div class="photo-shade"></div></div>
+      <div class="photo-content">${data.motion?.show_photo_label===false?'':'<div class="photo-label">ẢNH MINH HỌA</div>'}
+      ${headline?`<div class="headline anim-headline">${headline}</div>`:''}</div>`;
+  }
   if(dynamic && data.motion?.stagger && Array.isArray(data.graphic_items)) {
     const list=`<div class="dynamic-list">${data.graphic_items.map(item=>`<div class="motion-list-item anim-stagger">${item}</div>`).join('')}</div>`;
     sceneContent=sceneContent.replace(/<img src="[^"]*" class="card-img" \/>/,list);
@@ -235,6 +240,14 @@ function buildHtml(data) {
         gap: 20px;
       }
 
+      .photo-full .main-content {position:absolute;inset:0;width:100%;height:100%;padding:0;display:block;}
+      .photo-cover {position:absolute;inset:0;overflow:hidden;}
+      .photo-image {width:100%;height:100%;object-fit:cover;transform-origin:center;}
+      .photo-shade {position:absolute;inset:0;background:linear-gradient(180deg,rgba(4,14,25,.72),transparent 42%,transparent 65%,rgba(4,14,25,.65));}
+      .photo-content {position:absolute;top:120px;left:50px;right:50px;z-index:3;}
+      .photo-label {font:600 16px 'VideoCaption',sans-serif;letter-spacing:2px;color:#fff;opacity:.82;margin-bottom:16px;}
+      .photo-pip .pip-card {padding:0;border:0;overflow:hidden;}
+      .photo-pip .card-img {display:block;width:100%;max-height:440px;object-fit:cover;}
       .motion-dynamic { background:#101b28; }
       .motion-dynamic .headline { color:#fff; width:100%; max-width:100%; letter-spacing:0; }
       .keyword-accent { color:#ffe05b; }
@@ -530,7 +543,7 @@ function buildHtml(data) {
       }
     </style>
   </head>
-  <body class="scene-${type}${dynamic ? ' motion-dynamic' : ''}">
+  <body class="scene-${type}${dynamic ? ' motion-dynamic' : ''}${data.photo_layout==='full'?' photo-full':data.photo_layout==='pip'?' photo-pip':''}">
     <div class="main-content">
       ${sceneContent}
     </div>
@@ -630,6 +643,8 @@ async function render() {
       });
 
       if(cfg.dynamic && cfg.animate){
+        const photo=document.querySelector('.photo-image');
+        if(photo)photo.style.transform=`scale(${1+.045*(.5-.5*Math.cos(Math.PI*Math.min(1,currTime/Math.max(1,cfg.duration))))})`;
         const image=document.querySelector('.card-img');
         if(image)image.style.transform=`scale(${1+.025*Math.min(1,currTime/Math.max(1,cfg.duration))})`;
       }

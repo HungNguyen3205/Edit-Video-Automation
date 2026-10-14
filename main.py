@@ -27,6 +27,8 @@ from ai_director import direct, ai_health, build_semantic_storyboard, ai_session
 from storyboard_compiler import compile_storyboard_scenes, run as run_render_command
 from automatic_director import automatic_direction, fallback_direction, PlanningError
 from video_branding import apply_visual_assets
+from visual_library import apply_library_visuals
+from speech_cleanup import clean_speech, requested as cleanup_requested, explicitly_disabled as cleanup_disabled
 from typography import FontStyle, public_profiles, apply_typography
 from motion_style import MotionStyle, apply_motion_style, skill_context
 from text_review import prepare_source, review_issues, subtitle_fingerprint, valid_confirmations, unconfirmed_issues, record_review_evidence
@@ -404,6 +406,8 @@ def save_plan(project_id: str, body: dict):
             plan['user_subtitles'] = copy.deepcopy(plan.get('subtitles', []))
         # Confirmation keys are server-owned and cannot be imported through the editor.
         plan['subtitle_confirmations']=p['edit_plan'].get('subtitle_confirmations',[])
+        if 'speech_cleanup' in p['edit_plan']:plan['speech_cleanup']=copy.deepcopy(p['edit_plan']['speech_cleanup'])
+        else:plan.pop('speech_cleanup',None)
         plan['subtitle_review_evidence']=copy.deepcopy(p['edit_plan'].get('subtitle_review_evidence',{}))
         checked = check_plan(plan, trusted)
         checked['subtitle_review']=review_issues(checked.get('subtitles',[]))
@@ -474,6 +478,7 @@ class Options(BaseModel):
     proper_names: str = Field('',max_length=600)
     font_style: FontStyle = 'auto'
     motion_style: MotionStyle = 'clean'
+    remove_fillers: bool = False
 
 
 def job_update(project_id, **changes):
@@ -562,6 +567,11 @@ def run_job(project_id, job_id, snapshot, options, mode):
                         raise InterruptedError('Đã hủy tác vụ.')
                     if mode == 'auto':
                         if options.automatic:
+                            job_update(project_id,phase='Đang kiểm tra tiếng đệm và điểm nối lời')
+                            cleanup_started=time.monotonic()
+                            plan=clean_speech(plan,options.remove_fillers,event)
+                            timings['speech_cleanup_seconds']=round(time.monotonic()-cleanup_started,3)
+                            warnings.extend(plan.get('speech_cleanup',{}).get('warnings',[]))
                             plan=prepare_source(plan,options.brand_footer,options.proper_names)
                             plan.setdefault('learning_context',{})['motion_skills']=skill_context(plan,options.motion_style,options.user_prompt)
                         if options.planner == 'ai':
@@ -602,6 +612,7 @@ def run_job(project_id, job_id, snapshot, options, mode):
                             'initial_reference_count':1 if memory.get('initial_visual_reference') else 0,
                             'applied_to_ai':plan['director']['engine']=='ollama' and bool(getattr(event,'style_memory_applied',False)),'model_weights_trained':False}
                         plan=apply_visual_assets(plan,options.prompt,options.brand_footer,options.logo_asset_id,options.image_asset_ids,options.illustrations)
+                        plan=apply_library_visuals(plan,options.user_prompt,options.motion_style=='dynamic_explainer')
                         plan=apply_typography(plan,options.font_style,options.user_prompt)
                         plan=apply_motion_style(plan,options.motion_style,options.user_prompt)
                         warnings=list(dict.fromkeys([*warnings,*plan['director']['warnings']]))
@@ -697,6 +708,8 @@ def run_job(project_id, job_id, snapshot, options, mode):
                     'input_timeline_duration': round(length(plan), 2),
                     'ai_planned_duration': round(sum(sc.get('duration', 0) for sc in plan.get('storyboard', [])) if plan.get('storyboard') else length(plan), 2),
                     'post_cut_duration': round(duration, 2),
+                    'filler_removed_seconds': plan.get('speech_cleanup',{}).get('removed_seconds',0),
+                    'filler_removed_count': plan.get('speech_cleanup',{}).get('removed_count',0),
                     'ffprobe_duration': round(meta['duration'], 2),
                     'timestamp': stamp()
                 }
@@ -758,7 +771,7 @@ def enqueue(project_id, background_tasks, options, mode):
         p['job'] = {'id': identifier, 'status': 'queued', 'phase': 'Đang chờ worker', 'progress': None, 'error': None, 'warnings': [], 'mode': mode, 'preview': options.preview}
         if options.automatic:
             p['job']['branding']={'brand_name':options.brand_footer,'logo_asset_id':options.logo_asset_id,
-                'image_asset_ids':options.image_asset_ids,'illustrations':options.illustrations,'proper_names':options.proper_names,'font_style':options.font_style,'motion_style':options.motion_style}
+                'image_asset_ids':options.image_asset_ids,'illustrations':options.illustrations,'proper_names':options.proper_names,'font_style':options.font_style,'motion_style':options.motion_style,'remove_fillers':options.remove_fillers}
         p['export_status'] = 'queued'
         if mode == 'transcribe':
             p['transcribe_status'] = 'running'
@@ -786,6 +799,7 @@ class MakeVideo(BaseModel):
     proper_names: str = Field('',max_length=600)
     font_style: FontStyle = 'auto'
     motion_style: MotionStyle = 'clean'
+    remove_fillers: bool = False
 
 
 @app.get('/api/typography')
@@ -811,10 +825,12 @@ def make_video(project_id: str, body: MakeVideo, background_tasks: BackgroundTas
         brief+='\nThêm minh họa phù hợp với lời nói khi có nội dung rõ.'
     else:
         brief+='\nKhông thêm đồ họa tự động; ảnh người dùng chọn sẽ được engine ghép.'
+    cleanup=body.remove_fillers or cleanup_requested(body.prompt)
+    if cleanup_disabled(body.prompt):cleanup=False
     options=Options(planner='ai',prompt=brief,visual_style='explainer_ref',duration_policy='preserve',
         preview=False,use_current_plan=False,transcribe=bool(p['video']['metadata'].get('has_audio')),
         automatic=True,user_prompt=body.prompt.strip(),brand_footer=body.brand_name.strip(),
-        logo_asset_id=body.logo_asset_id,image_asset_ids=body.image_asset_ids,illustrations=body.illustrations,proper_names=body.proper_names.strip(),font_style=body.font_style,motion_style=body.motion_style)
+        logo_asset_id=body.logo_asset_id,image_asset_ids=body.image_asset_ids,illustrations=body.illustrations,proper_names=body.proper_names.strip(),font_style=body.font_style,motion_style=body.motion_style,remove_fillers=cleanup)
     return enqueue(project_id,background_tasks,options,'auto')
 
 

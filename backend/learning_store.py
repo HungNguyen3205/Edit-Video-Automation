@@ -10,7 +10,7 @@ from motion_style import motion_skills
 from text_review import valid_confirmations, unconfirmed_issues
 
 RULES=[
-    'Preserve source speech and duration; use only facts and names in the current video/request.',
+    'Preserve meaningful speech and source duration unless the user explicitly enables engine-verified filler cleanup. Use only current-source facts/names; never choose cut timestamps.',
     'Prefer camera opening and ending, with a few relevant interior illustrations.',
     'Use short clear headlines; keep explicit multiword names together.',
     'Use gentle purposeful camera zoom and quiet effects; respect the current request.',

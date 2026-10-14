@@ -84,7 +84,7 @@ def test_oversized_style_memory_does_not_displace_source(media,tmp_path,monkeypa
 def test_basic_skill_pack_is_active_bounded_and_corruption_keeps_safety(tmp_path):
     from learning_store import editor_skills,RULES
     pack=editor_skills()
-    assert len(pack)==6 and sum(len(s['rule']) for s in pack)<=1800
+    assert 'speech_cleanup' in {s['id'] for s in pack} and sum(len(s['rule']) for s in pack)<=1800
     context=LearningStore(tmp_path).context()
     assert context['active_skills']==[s['id'] for s in pack]
     assert all(rule in context['rules'] for rule in RULES)

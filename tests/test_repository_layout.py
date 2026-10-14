@@ -15,7 +15,7 @@ assert PROJECT_ROOT==main.BASE_DIR
 assert SKILLS_DIR.is_dir() and (MOTION_DIR/'fonts/Inter-Variable.ttf').is_file()
 r=TestClient(main.app).get('/frontend/index.html')
 assert r.status_code==200 and '/docs/APPROVED_STYLE.md' in r.text
-assert len(editor_skills())==6
+assert {s['id'] for s in editor_skills()} >= {'faithful_captions','speech_cleanup'}
 assert LearningStore(main.DATA_DIR).context()['initial_visual_reference']
 print('ENTRY_OK')'''
     result=subprocess.run([sys.executable,'-c',code],cwd=tmp_path,env=env,capture_output=True,text=True)

@@ -204,6 +204,11 @@ def validate(plan, trusted_assets):
         finite(sc.get('sound_volume',.10),0,1,'Âm lượng cảnh')
         if sc.get('animation_in','pop_in') not in ('pop_in','slide_up','fade') or sc.get('animation_out','none') not in ('fade','none'):
             raise ValueError('Chuyển động cảnh không hợp lệ.')
+        if sc.get('library_visual_id'):
+            from visual_library import library_image
+            library_image(sc['library_visual_id'])
+        if sc.get('photo_layout') and sc['photo_layout'] not in ('full','pip'):
+            raise ValueError('Bố cục ảnh không hợp lệ.')
         visual = assets.get(sc.get('visual_asset_id'))
         if sc.get('visual_asset_id') and (not visual or visual['type'] not in ('image','video')):
             raise ValueError('Minh họa cảnh phải thuộc dự án.')
@@ -428,7 +433,12 @@ def compile_render(plan, asset_dir, work_dir, output, preview=False, visual_styl
     for i, c in enumerate(clips):
         filters.append(f'[{i}:v]setpts=PTS-STARTPTS,{fit(w,h,settings.get("fit","contain"))},fps={fps},format=yuv420p[v{i}]')
         if assets[c['asset_id']]['metadata'].get('has_audio'):
-            filters.append(f'[{i}:a]asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo,apad,atrim=duration={c["duration"]}[a{i}]')
+            edge=''
+            if plan.get('speech_cleanup',{}).get('applied') and len(clips)>1:
+                fade=min(.006,c['duration']/4)
+                if i:edge+=f',afade=t=in:d={fade}'
+                if i<len(clips)-1:edge+=f',afade=t=out:st={c["duration"]-fade}:d={fade}'
+            filters.append(f'[{i}:a]asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo,apad,atrim=duration={c["duration"]}{edge}[a{i}]')
         else:
             filters.append(f'anullsrc=r=48000:cl=stereo,atrim=duration={c["duration"]}[a{i}]')
     filters.append(''.join(f'[v{i}][a{i}]' for i in range(len(clips))) + f'concat=n={len(clips)}:v=1:a=1[base][audio]')

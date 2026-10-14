@@ -61,7 +61,7 @@ def compile_storyboard_scenes(plan, asset_dir, work_dir, output_path, preview=Fa
     resolver_assets=[a for a in plan['assets'] if a['id']!=plan.get('branding',{}).get('logo_asset_id')
         and (not plan.get('branding') or a['type']!='image' or a['id'] in selected_images)]
     resolver = AssetResolver(resolver_assets, asset_dir, work_dir)
-    scene_files, cursor = [], 0.0
+    scene_files, rendered_scenes, cursor = [], [], 0.0
     clip=plan['video_clips'][0] if len(plan['video_clips'])==1 else None
     camera_source=(asset_dir/assets[clip['asset_id']]['filename']
         if clip and not preview and not plan.get('crop_reference_right_half')
@@ -116,7 +116,10 @@ def compile_storyboard_scenes(plan, asset_dir, work_dir, output_path, preview=Fa
                 if phase:
                     phase('Đang dựng minh họa và cảnh '+str(i+1))
                 visual = assets.get(sc.get('visual_asset_id'))
-                if visual and visual['type'] == 'video':
+                if sc.get('library_visual_id'):
+                    from visual_library import library_image
+                    asset_path=library_image(sc['library_visual_id'])
+                elif visual and visual['type'] == 'video':
                     asset_path = work_dir / f'visual_frame_{i}.png'
                     run(['ffmpeg','-v','error','-y','-ss',str(sc.get('visual_source_in',0)),
                          '-i',str(asset_dir/visual['filename']),'-frames:v','1',str(asset_path)], event)
@@ -154,6 +157,7 @@ def compile_storyboard_scenes(plan, asset_dir, work_dir, output_path, preview=Fa
             if abs(meta['duration']-dur) > 1/fps+.01:
                 raise RuntimeError(f'Cảnh {i+1} bị thiếu hình; không xuất video bị cụt.')
             scene_files.append(scene_file)
+            rendered_scenes.append({**sc,'duration':dur})
             cursor = end
             if progress:
                 progress(20+int(55*cursor/total))
@@ -162,12 +166,9 @@ def compile_storyboard_scenes(plan, asset_dir, work_dir, output_path, preview=Fa
         assembly_started=time.monotonic()
         if phase:
             phase('Đang ghép cảnh, giọng nói và phụ đề')
-        concat = work_dir/'concat.txt'
-        concat.write_text(''.join("file '"+str(f.resolve()).replace("'", "'\\''")+"'\n" for f in scene_files),encoding='utf-8')
-        assembled = work_dir/'assembled.mp4'
-        run(['ffmpeg','-v','error','-y','-xerror','-f','concat','-safe','0','-i',str(concat),
-             '-an','-vf',f'setpts=N/({fps}*TB),fps={fps}', '-c:v','libx264','-preset','fast','-crf','20',
-             '-threads','2','-movflags','+faststart',str(assembled)],event)
+        from scene_transitions import assemble_scenes
+        assembled=work_dir/'assembled.mp4'
+        metrics['scene_transitions']=assemble_scenes(scene_files,rendered_scenes,fps,assembled,work_dir,run,event)
         if abs(probe(assembled)['duration']-total) > 1/fps+.02:
             raise RuntimeError('Video nối cảnh sai thời lượng; hãy gộp hoặc sửa các cảnh quá ngắn.')
     # Original cuts remain authoritative for voice, music ducking and SFX.

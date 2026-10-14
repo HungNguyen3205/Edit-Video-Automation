@@ -1,0 +1,125 @@
+{
+  "date": "2026-10-14",
+  "scope": "Explicit filler-only speech cleanup with source-time cuts, unchanged API/schema, optional checkbox",
+  "runtime": {
+    "device": "CPU",
+    "ram_gib_approx": 9.7,
+    "gpu": false,
+    "asr": "faster-whisper small int8 CPU, 4 threads; existing local model weights",
+    "ollama": "not installed/available in this test environment; honest rules fallback used"
+  },
+  "tests": {
+    "full_regression_before_test_expectation_fix": {
+      "passed": 194,
+      "failed": 1,
+      "seconds": 160.93,
+      "failure": "Old repository layout test expected exactly six skills; updated to verify required skills including speech_cleanup."
+    },
+    "final_targeted": {
+      "passed": 23,
+      "failed": 0,
+      "seconds": 12.5,
+      "files": [
+        "tests/test_speech_cleanup.py",
+        "tests/test_repository_layout.py"
+      ]
+    },
+    "coverage": [
+      "source cut and subtitle remap",
+      "actual FFmpeg decode and audio ramps",
+      "API enable/disable retry without repeated ASR",
+      "explicit keep prompt overrides checkbox",
+      "manual text and source fingerprint",
+      "quoted/meaningful/uncertain words retained",
+      "adjacent fillers grouped without erasing meaningful words",
+      "filler-only input retained",
+      "cancellation",
+      "untrusted cut metadata rejected"
+    ],
+    "controlled_positive_fixture": {
+      "source_seconds": 4,
+      "result_seconds": 3.6,
+      "removed_fillers": 1,
+      "removed_seconds": 0.4,
+      "real_ffmpeg_render": true,
+      "full_decode": "passed",
+      "audio_edge_ramp_verified": true,
+      "not_real_recognition": true
+    }
+  },
+  "real_video": {
+    "source": "Existing user raw demo, 37.3 seconds",
+    "source_sha256": "803ffb70ddbfab6d218f7f4d618386ce5fb6ee068628a7d2dab9636a0c295f38",
+    "output_sha256": "48e97f7ac20ed978cb1ab4f2c49de8dca8ff79ae664f286e9cc9598b4c72bcee",
+    "source_and_result_seconds": 37.3,
+    "resolution": "720x1280",
+    "has_audio": true,
+    "decode": "passed",
+    "frames_inspected_seconds": [
+      0.5,
+      9.5,
+      18,
+      26,
+      36
+    ],
+    "no_black_or_missing_assets_at_sampled_frames": true,
+    "visual_check": "Speaker remains visible in camera shots; grounded concept photo and readable source captions sampled.",
+    "speech_cleanup": {
+      "version": 1,
+      "enabled": true,
+      "applied": false,
+      "source_key": "b328a7370da507385dea250b510b76fcd80be24469f197c7e7efbbb34f5a942d",
+      "source_timeline_seconds": 37.3,
+      "removed_seconds": 0,
+      "removed_count": 0,
+      "cuts": [],
+      "review_candidates": [],
+      "reused_verified_cuts": false,
+      "warnings": [],
+      "audio_edge_fade_seconds": 0.006,
+      "method": "word_timestamp_filler_only",
+      "model_weights_trained": false
+    },
+    "timings": {
+      "recognition_seconds": 8.298,
+      "speech_cleanup_seconds": 0.004,
+      "planning_seconds": 0.044,
+      "graphics_seconds": 51.968,
+      "scene_render_seconds": 73.263,
+      "scene_transitions": {
+        "count": 4,
+        "method": "padded_picture_dissolve",
+        "maximum_seconds": 0.2,
+        "voice_overlap": false
+      },
+      "assembly_seconds": 72.698,
+      "render_seconds": 145.965,
+      "verification_seconds": 0.902
+    },
+    "total_seconds": 156.315,
+    "planning_mode": "fallback",
+    "important_limit": "Whisper produced no recognized filler tokens on this natural source. Zero removals is intentional; natural positive filler detection/removal is not yet validated. Positive cut evidence uses controlled timestamp fixtures only."
+  },
+  "browser": {
+    "actual_project_playback": true,
+    "download": {
+      "status": 200,
+      "bytes": 11715013,
+      "sha256": "48e97f7ac20ed978cb1ab4f2c49de8dca8ff79ae664f286e9cc9598b4c72bcee"
+    },
+    "duration": 37.3,
+    "mobile_width": 390,
+    "cleanup_restored": true,
+    "negative_option_payload": false,
+    "original_result_link_retained": true,
+    "page_errors": []
+  },
+  "limitations": [
+    "Not model weight fine-tuning.",
+    "No new real Ollama inference in this request.",
+    "Whisper can omit fillers; no guessed cuts or silence-only edits.",
+    "Existing manually reviewed captions without previously verified cuts are preserved without automatic cutting.",
+    "Jump cuts can remain visually visible; tiny audio ramps do not fabricate continuous camera movement.",
+    "No direct listening assessment was performed; audio presence, decode and controlled waveform checks passed."
+  ]
+}

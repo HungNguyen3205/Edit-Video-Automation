@@ -489,6 +489,9 @@ def apply_choices(plan,prompt,units,choices,captions):
     if captions and 'user_subtitles' in plan:
         # Explicit corrections are authoritative, including their existing timing.
         p['subtitles']=copy.deepcopy(plan['user_subtitles'])
+    if captions and plan.get('speech_cleanup',{}).get('applied'):
+        # Source-time captions must not be replaced by output-time scene text.
+        p['subtitles']=copy.deepcopy(plan['subtitles'])
     # Replace generated decorations, retain manual project assets.
     for key in ('text_overlays','visual_overlays','effect_keyframes','audio_tracks'):
         p[key]=[e for e in p.get(key,[]) if e.get('origin')!='auto']

@@ -33,7 +33,7 @@ def skill_context(plan, requested, prompt=''):
     text=' '.join(s.get('text','') for s in plan.get('subtitles',[]))
     triggers={'always'}
     if re.search(r'[,;:]|thứ nhất|thứ hai|đầu tiên|bước',text,re.I):triggers.add('lists')
-    if any(a.get('type')=='image' for a in plan.get('assets',[])):triggers.add('assets')
+    if any(a.get('type')=='image' for a in plan.get('assets',[])) or any(sc.get('library_visual_id') for sc in plan.get('storyboard',[])):triggers.add('assets')
     if NUMBER.search(text):triggers.add('numbers')
     if CTA.search(text):triggers.add('cta')
     selected=[{'id':s['id'],'rule':s['rule']} for s in motion_skills() if triggers.intersection(s['triggers'])]
@@ -85,7 +85,13 @@ def apply_motion_style(plan, requested='clean', prompt=''):
         p['effect_keyframes']=[e for e in p.get('effect_keyframes',[]) if e.get('origin') not in ('auto','motion_skill')]
     statistics=[];cta=[];camera=0;added_list=False
     allow_lists=('progressive_list' in enabled and not no_text and p.get('branding',{}).get('illustrations',True) and not re.search(r'không (?:thêm |chèn |dùng |cần )?(?:minh họa|đồ họa|hình)',prompt,re.I))
+    photos=0
     for index,sc in enumerate(p.get('storyboard',[])):
+        visual=next((a for a in p.get('assets',[]) if a.get('id')==sc.get('visual_asset_id')),None)
+        if visual and visual.get('type')=='image':
+            sc['photo_layout']='full' if photos%2==0 else 'pip'
+            sc['scene_type']='explainer_card' if sc['photo_layout']=='full' else 'talking_head_pip'
+            photos+=1
         start=sc['timeline_start'];end=start+sc['duration']
         subs=[s for s in p.get('subtitles',[]) if s['end']>start and s['start']<end]
         timed=[w for sub in subs for w in sub.get('words',[]) if w['end']>start and w['start']<end]
@@ -112,13 +118,13 @@ def apply_motion_style(plan, requested='clean', prompt=''):
             camera+=1
         else:
             items=sc.get('graphic_items',[])
-            motion['stagger']=('progressive_list' in enabled and sc.get('graphic_kind') in ('process','network') and not sc.get('visual_asset_id') and 2<=len(items)<=5 and sc['duration']>=1.2+.55*len(items) and (sc['scene_type']!='talking_head_pip' or len(items)<=3) and all(len(item)<=60 and grounded_phrase(item,speech) for item in items))
+            motion['stagger']=('progressive_list' in enabled and sc.get('graphic_kind') in ('process','network') and not sc.get('visual_asset_id') and not sc.get('library_visual_id') and 2<=len(items)<=5 and sc['duration']>=1.2+.55*len(items) and (sc['scene_type']!='talking_head_pip' or len(items)<=3) and all(len(item)<=60 and grounded_phrase(item,speech) for item in items))
             if 'soft_entries' in enabled and not no_effects:sc['animation_in']='slide_up'
             if 'quiet_accents' in enabled:sc['sound_volume']=min(sc.get('sound_volume',.1),.07)
         if no_sound or no_effects:sc['sound_effect']='none'
         if no_text:
             sc['headline']='';sc['badge_text']='';motion['stagger']=False
-            if not sc.get('visual_asset_id'):sc['scene_type']='talking_head';sc['graphic_items']=[];sc['graphic_title']=''
+            if not sc.get('visual_asset_id') and not sc.get('library_visual_id'):sc['scene_type']='talking_head';sc['graphic_items']=[];sc['graphic_title']=''
         if 'grounded_numbers' in enabled and not no_text:
             match=NUMBER.search(headline)
             if match and grounded_phrase(match.group(),speech):statistics.append(index)
@@ -128,6 +134,8 @@ def apply_motion_style(plan, requested='clean', prompt=''):
                 # Excerpt from the closing speech; no invented link or countdown.
                 excerpt=' '.join(speech[match.start():].split()[:8]).strip(' ,.;:!?')
                 motion['closing_text']=excerpt;cta.append(index)
+        motion['transition_seconds']=.2 if 'soft_entries' in enabled and not no_effects else 0
+        motion['show_photo_label']=not no_text
         sc['motion']=motion
     if p.get('director') is not None:p['director']['illustration_count']=sum(s['scene_type']!='talking_head' for s in p.get('storyboard',[]))
     p['motion_style']={'version':1,'preset':requested,'requested':requested,'active_skills':sorted(enabled),
