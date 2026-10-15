@@ -4,6 +4,7 @@ Style preferences are separate from the factual brief. Presets never authorize
 cuts, invent property facts, download media, or replace a user's source words.
 """
 import copy
+import math
 import re
 from typing import Literal
 
@@ -22,13 +23,13 @@ PRESETS = {
     },
     'inspirational': {
         'id': 'inspirational', 'topic': 'inspiration', 'label': 'Truyền cảm hứng · Cảm xúc',
-        'description': 'Chữ động vàng–cam, nhấn từ theo lời nói và zoom in/out theo nhịp kể chuyện.',
+        'description': 'Bùng nổ: chữ lớn neon, ảnh minh họa, cắt cảnh nhanh, zoom in/out và âm thanh nhấn.',
         'font_style': 'energetic', 'max_scene_seconds': 7, 'sentence_seconds': 4.8,
-        'caption_words': 4, 'music_volume': .10, 'zoom_scale': 1.12,
+        'caption_words': 3, 'music_volume': .10, 'zoom_scale': 1.20,
         'zoom_seconds': 6, 'zoom_every': 2, 'transition_seconds': .23,
-        'headline_seconds': 3.5, 'photo_zoom': .035,
-        'background': '#201B29', 'accent': '#FFCA5C', 'secondary':'#FA8975',
-        'guidance': 'Emotional storytelling: preserve pauses and complete thoughts. Prefer the speaker and supplied relevant photos over diagrams. Use sparse literal emphasis, slow gentle zoom and fades; no bounce or impact sounds. Never invent motivational quotes or a closing call to action.',
+        'headline_seconds': 1.8, 'photo_zoom': .09,
+        'background': '#21103D', 'accent': '#FFE600', 'secondary':'#44FFE1',
+        'guidance': 'Emotional storytelling: preserve pauses and complete thoughts. Prefer the speaker and supplied relevant photos over diagrams. Use frequent relevant illustrations, oversized colorful literal emphasis, punchy zooms, fast transitions and pop/whoosh accents. Never invent motivational quotes or a closing call to action.',
         'asset_note': 'Ảnh và nhạc cảm xúc là tùy chọn; không có ảnh vẫn dựng từ video gốc.',
     },
     'real_estate': {
@@ -65,7 +66,7 @@ def apply_style_preset(plan, identifier='explainer', prompt='', music_asset_id='
     """Apply timing-safe presentation after shared visual/typography adapters."""
     preset = preset_for(identifier)
     p = copy.deepcopy(plan)
-    p['style_preset'] = {'id': identifier, 'version': 2, 'label': preset['label'],
+    p['style_preset'] = {'id': identifier, 'version': 3, 'label': preset['label'],
         'caption_design': identifier!='explainer' or p.get('motion_style',{}).get('preset')=='dynamic_explainer'}
     if 'branding' in p:
         p['branding'].update(style_preset=identifier, music_asset_id=music_asset_id)
@@ -108,7 +109,7 @@ def apply_style_preset(plan, identifier='explainer', prompt='', music_asset_id='
     scenes=p.get('storyboard',[])
     allow_cutaway=(p.get('branding',{}).get('illustrations',True) and not no_effects
         and not re.search(r'không (?:thêm |chèn |dùng |cần )?(?:minh họa|đồ họa|hình|ảnh)',prompt,re.I))
-    if allow_cutaway and len(scenes)>=2 and not any(s.get('source_cutaway') for s in scenes):
+    if allow_cutaway and 2<=len(scenes)<200 and not any(s.get('source_cutaway') for s in scenes):
         expanded=[]
         for index,sc in enumerate(scenes):
             if index==(1 if len(scenes)>=3 else 0) and sc['duration']>=3.2 and not sc.get('visual_asset_id'):
@@ -119,15 +120,39 @@ def apply_style_preset(plan, identifier='explainer', prompt='', music_asset_id='
                 expanded.extend([first,last])
             else:expanded.append(sc)
         p['storyboard']=expanded
+    # Strong preset is deterministic even when the language model is unavailable.
+    # Split presentation only: source clips, subtitles and original voice stay intact.
+    if identifier == 'inspirational' and not no_effects:
+        expanded=[]
+        source_scenes=p.get('storyboard', [])
+        for index,sc in enumerate(source_scenes):
+            budget=200-len(expanded)-(len(source_scenes)-index-1)
+            count=max(1,min(budget,math.ceil(sc['duration']/2.4)))
+            for n in range(count):
+                part=copy.deepcopy(sc)
+                part.update(scene_id=sc['scene_id']+f'_beat{n}' if count>1 else sc['scene_id'],
+                    timeline_start=sc['timeline_start']+sc['duration']*n/count,
+                    duration=sc['duration']/count)
+                expanded.append(part)
+        p['storyboard']=expanded
     photos=0;source_frames=0;camera_count=0
     for i, sc in enumerate(p.get('storyboard', [])):
         start, duration = sc['timeline_start'], sc['duration']
         speech = sc.get('transcript_meaning') or ' '.join(s['text'] for s in subtitles
             if s['end'] > start and s['start'] < start + duration)
+        if identifier == 'inspirational' and allow_cutaway and i % 3 == 1 and not sc.get('visual_asset_id'):
+            from visual_library import catalog, phrase_in
+            matches=[entry for entry in catalog() if any(phrase_in(k,speech) for k in entry['keywords'])]
+            if matches:
+                sc.pop('source_cutaway',None)
+                sc.update(library_visual_id=matches[0]['id'],photo_layout='full',scene_type='explainer_card')
         visual = next((a for a in p['assets'] if a['id'] == sc.get('visual_asset_id')), None)
         if sc.get('source_cutaway'):
             sc.update(scene_type='explainer_card',photo_layout='full',source_photo_label='KHUNG HÌNH TỪ VIDEO GỐC')
             source_frames+=1
+        elif identifier == 'inspirational' and sc.get('library_visual_id') and allow_cutaway:
+            sc.update(scene_type='explainer_card',photo_layout='full',source_photo_label='ẢNH MINH HỌA')
+            photos += 1
         elif visual and visual['type'] == 'image':
             # Property photos fill the frame. Storytelling alternates picture/speaker.
             sc['photo_layout'] = 'full' if identifier == 'real_estate' or photos % 2 == 0 else 'pip'
@@ -144,10 +169,10 @@ def apply_style_preset(plan, identifier='explainer', prompt='', music_asset_id='
             sc['headline'] = ''; sc['badge_text'] = ''
         elif not grounded_phrase(sc.get('headline', ''), speech):
             sc['headline'] = ' '.join(speech.split()[:5]).strip(' ,.;:!?')[:80]
-        sc['sound_effect'] = 'none'
-        sc['sound_volume'] = 0
+        sc['sound_effect'] = ('whoosh' if i%2 else 'pop') if identifier=='inspirational' and not no_sound and not no_effects and i < 100-len(p['audio_tracks']) else 'none'
+        sc['sound_volume'] = .16 if sc['sound_effect']!='none' else 0
         sc['animation_in'] = 'fade'
-        sc['motion'] = {'animate': not no_effects, 'stagger': False,
+        sc['motion'] = {'animate': not no_effects, 'stagger': identifier=='inspirational',
             'accent_words': 0, 'headline_seconds': min(duration, preset['headline_seconds']),
             'transition_seconds': 0 if no_effects else preset['transition_seconds'],
             'show_photo_label': not no_text, 'photo_zoom': preset['photo_zoom']}

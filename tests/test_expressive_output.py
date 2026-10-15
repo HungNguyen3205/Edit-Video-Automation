@@ -47,8 +47,8 @@ def test_colored_word_captions_use_only_actual_alignment_and_escape_copy(media,t
     assert len(rows)==4
     assert ',0:00:00.10,0:00:01.10,Caption,' in rows[0]
     assert ',0:00:03.10,0:00:03.80,Caption,' in rows[-1]
-    assert '\\c&H005CCAFF&' in rows[0] and '\\fscx108' in rows[0]
-    assert rows[0].index('\\c&H005CCAFF&')<rows[0].index('Mỗi')
+    assert '\\c&H0000E6FF&' in rows[0] and '\\fscx125' in rows[0]
+    assert rows[0].index('\\c&H0000E6FF&')<rows[0].index('Mỗi')
     p['subtitles'][0]['text']='{\\pos(1,1)} ký tự';p['subtitles'][0]['words']=[]
     write_storyboard_ass(path,p,720,1280)
     assert '{\\pos(1,1)}' not in path.read_text()
@@ -57,9 +57,10 @@ def test_colored_word_captions_use_only_actual_alignment_and_escape_copy(media,t
 def test_unaligned_srt_gets_phrase_design_without_fake_word_highlights(media,tmp_path):
     p=styled(media,False);path=tmp_path/'phrase.ass';write_storyboard_ass(path,p,720,1280)
     rows=[r for r in path.read_text().splitlines() if r.startswith('Dialogue: 1,')]
-    assert len(rows)==1
-    assert ',0:00:00.00,0:00:04.00,Caption,' in rows[0]
-    assert '\\c&H005CCAFF&' in rows[0]
+    assert len(rows)==2
+    assert ',0:00:00.00,0:00:03.00,Caption,' in rows[0]
+    assert ',0:00:03.00,0:00:04.00,Caption,' in rows[1]
+    assert '\\c&H0000E6FF&' in rows[0]
 
 
 def test_source_cutaway_is_brief_and_maps_back_to_original_source(media):

@@ -59,7 +59,7 @@ def expressive_captions(lines,plan,preset,profile,ass_color):
         if ' '.join(w['word'].strip() for w in s.get('words',[]))==' '.join(s['text'].split())]
     animate=not plan.get('motion_style',{}).get('effects_disabled',False)
     accent=ass_color(preset['accent']);secondary=ass_color(preset['secondary'])
-    base_size=42 if preset['id']=='inspirational' else 38
+    base_size=64 if preset['id']=='inspirational' else 38
     weight=800 if preset['id']=='inspirational' else 700
     for chunk in caption_chunks(subs,preset['caption_words'],plan.get('proper_names','')):
         tokens=chunk['text'].split();size=base_size
@@ -88,7 +88,8 @@ def expressive_captions(lines,plan,preset,profile,ass_color):
             for index,token in enumerate(tokens):
                 highlighted=index==active if active is not None else index>=max(0,len(tokens)-2)
                 color=accent if highlighted else secondary if index==len(tokens)-1 and active is None else '&H00FFFFFF&'
-                grow='\\fscx108\\fscy108\\t(0,130,\\fscx100\\fscy100)' if highlighted and animate else ''
+                scale=125 if preset['id']=='inspirational' else 108
+                grow=f'\\fscx{scale}\\fscy{scale}\\t(0,160,\\fscx100\\fscy100)' if highlighted and animate else ''
                 rendered.append(('\\N' if index in breaks else ' ' if index else '')+
                     '{\\c'+color+'\\fscx100\\fscy100'+grow+'}'+escape_ass(token))
             entry='\\fad(90,70)' if animate and not credible else ''
@@ -148,6 +149,10 @@ def write_storyboard_ass(path, plan, width, height):
         if style=='Head':
             formatted,font_size=headline_layout(safe,size=profile['heading_size'] if profile else 64,proper_names=plan.get('proper_names',''),font_path=font_path(profile,'heading') if profile else None)
             wrapped=formatted.split('\n')
+            if themed and preset['id']=='inspirational':
+                formatted,font_size=headline_layout(safe.upper(),size=88,proper_names=plan.get('proper_names',''),font_path=font_path(profile,'heading') if profile else None)
+                wrapped=formatted.split('\n')
+                tags+='\\bord10\\3c&H003D1021&\\shad7\\4c&H00D62BFF&'
             tags+='\\fs'+str(font_size)
         elif style=='Caption' and profile:
             from PIL import ImageFont
@@ -201,7 +206,9 @@ def write_storyboard_ass(path, plan, width, height):
         color = {'teal':'&H0088940D&','navy':'&H003B2D17&','red':'&H002626DC&'}.get(scene.get('badge_color'), '&H0088940D&')
         event(start,end,'Label',scene.get('badge_text',''),f'\\3c{color}\\4c{color}')
         if not any(t['timeline_start'] < end and t['timeline_start']+t['duration'] > start for t in plan.get('text_overlays', [])):
-            event(start+.15,headline_end,'Head',scene.get('headline',''), '\\move(360,194,360,176,0,260)' if motion.get('animate',True) else '',accent=bool(motion.get('accent_words')),animate=bool(motion.get('animate',False)))
+            strong=themed and preset['id']=='inspirational'
+            movement=('\\move(360,940,360,900,0,180)\\frz-3' if strong else '\\move(360,194,360,176,0,260)') if motion.get('animate',True) else ('\\pos(360,900)' if strong else '')
+            event(start+.15,headline_end,'Head',scene.get('headline',''),movement,accent=bool(motion.get('accent_words')),animate=bool(motion.get('animate',False)))
         if closing:
             event(closing_start,end,'Head',closing,accent=True,animate=motion.get('animate',False))
     # Explicit titles remain editable. Hide camera headings during their span.

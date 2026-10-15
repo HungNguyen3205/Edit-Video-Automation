@@ -171,3 +171,16 @@ def test_make_video_real_mp4_and_persistent_style(media,monkeypatch,style,font):
     band=np.frombuffer(raw,dtype=np.uint8).reshape((1280,720,3))[1000:1200].astype(float)
     gold=(band[:,:,0]>180)&(band[:,:,1]>110)&(band[:,:,2]<band[:,:,1]*.83)&(band[:,:,0]>band[:,:,1]*1.04)
     assert int(gold.sum())>50
+
+
+def test_strong_style_keeps_relevant_images_and_voice_timeline(media):
+    base=directed(new_project(media)['edit_plan'])
+    for scene in base['storyboard']:
+        scene['transcript_meaning']='Trợ lý AI và chiến lược thương hiệu'
+    result=apply_style_preset(base,'inspirational')
+    assert all(s['duration']<=2.4+1e-6 for s in result['storyboard'])
+    assert any(s.get('library_visual_id') for s in result['storyboard'])
+    assert any(s['sound_effect']=='whoosh' for s in result['storyboard'])
+    assert result['video_clips']==base['video_clips']
+    assert result['subtitles']==base['subtitles']
+    assert apply_style_preset(result,'inspirational')==result

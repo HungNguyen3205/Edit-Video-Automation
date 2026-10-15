@@ -1,0 +1,25 @@
+{
+  "style_version": 3,
+  "regression_tests_passed": 214,
+  "final_focused_tests_passed": 16,
+  "real_video_demo": {
+    "duration_seconds": 37.3,
+    "width": 720,
+    "height": 1280,
+    "has_audio": true,
+    "full_decode_passed": true,
+    "presentation_beats": 18,
+    "library_image_beats": 2,
+    "source_frame_beats": 1,
+    "visual_review_passed": true,
+    "input_has_burned_captions": true,
+    "topic_excerpts_manually_selected_for_demo": true
+  },
+  "real_asr_tested": false,
+  "real_model_inference_tested": false,
+  "limitations": [
+    "Offline image catalog currently covers AI assistants and brand strategy.",
+    "The supplied demo input already contained burned captions; original captions remain.",
+    "Real input demo validates presentation rendering, not automatic speech recognition."
+  ]
+}
