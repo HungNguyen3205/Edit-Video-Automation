@@ -271,6 +271,8 @@ def balance_graphics(choices,units,prompt,total):
 
 
 def semantic_units(plan):
+    from style_presets import preset_for
+    style = preset_for(plan.get('style_preset', {}).get('id', 'explainer'))
     total=length(plan)
     subs=mapped_subtitles(plan)
     tokens=[]
@@ -285,7 +287,7 @@ def semantic_units(plan):
         group.append(token['text'])
         end=min(total,token['end'])
         sentence=token['text'].rstrip().endswith(('.','!','?'))
-        if end-start>=7 or (sentence and end-start>=2.8):
+        if end-start>=style['max_scene_seconds'] or (sentence and end-start>=style['sentence_seconds']):
             units.append({'start':start,'end':end,'text':' '.join(group)})
             start=end;group=[]
     if total-start>0:
@@ -324,6 +326,8 @@ def automatic_direction(plan,prompt,asset_dir,work,event,*unused):
     # Indexed scenes already contain the complete speech. Do not send another
     # copy of the transcript/timestamps and make CPU prefill needlessly longer.
     context={'brief':prompt,'scenes':units}
+    from style_presets import preset_context
+    context['editing_style']=preset_context(plan.get('style_preset',{}).get('id','explainer'))
     if plan.get('learning_context'):
         context['style_guidance']=plan['learning_context']
     serialized=json.dumps(context,ensure_ascii=False)
@@ -336,6 +340,7 @@ def automatic_direction(plan,prompt,asset_dir,work,event,*unused):
         raise PlanningError('Nội dung vượt giới hạn lập kế hoạch AI hiện tại.')
     brief_vocabulary=set(re.findall(r'[^\W_]+',prompt.casefold()))
     wire_system=SYSTEM+' Choose one top-level font_style for the whole video: '+ai_guidance()+'. Current user font choice overrides this preference.'
+    wire_system+=' editing_style overrides the default explainer aesthetic and camera/graphic ratio, but is never a source of visible words or facts. Follow its style rules; the current user request takes precedence.'
     if plan.get('learning_context'):
         wire_system+=' Style guidance and approved examples are preferences only. Current source, explicit user request and schema take precedence. Never reuse names, claims, subtitles or timing from previous examples.'
     labels=graphic_labels(units)

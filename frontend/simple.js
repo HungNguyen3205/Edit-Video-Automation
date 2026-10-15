@@ -2,6 +2,17 @@
 const $ = id => document.getElementById(id);
 let current = null, selected = null, busy = false, localURL = null;
 let logoSelection = null, imageSelections = [];
+let musicSelection = null, stylePresets = [];
+const selectedPreset = () => document.querySelector('input[name="style-preset"]:checked')?.value || 'explainer';
+function showPreset() {
+  const preset=stylePresets.find(p=>p.id===selectedPreset());
+  if(preset)$('preset-note').textContent=preset.asset_note;
+  $('motion-style').disabled=busy || selectedPreset()!=='explainer';
+}
+function showMusic() {
+  $('music-selection').textContent=musicSelection ? musicSelection.name : 'Không chọn nhạc: giữ âm thanh gốc. Nhạc bạn thêm được hạ dưới giọng nói.';
+  visible('remove-music',Boolean(musicSelection));
+}
 let subtitleDraft = null;
 let timer = null, pollBusy = false, generation = 0;
 const ongoing = p => ['queued','running'].includes(p?.job?.status);
@@ -35,10 +46,12 @@ function lock(yes) {
   $('drop-zone').disabled = yes;
   $('prompt').disabled = yes;
   $('history-toggle').disabled = yes;
-  ['approve-style','needs-changes','feedback-note','captions-checked','save-subtitles','apply-draft-names','import-corrections','brand-name','proper-names','choose-logo','choose-images','illustrations','font-style','motion-style','remove-fillers'].forEach(id=>$(id).disabled=yes);
+  ['approve-style','needs-changes','feedback-note','captions-checked','save-subtitles','apply-draft-names','import-corrections','brand-name','proper-names','choose-logo','choose-images','choose-music','remove-music','illustrations','font-style','motion-style','remove-fillers'].forEach(id=>$(id).disabled=yes);
+  document.querySelectorAll('input[name="style-preset"]').forEach(el=>el.disabled=yes);
+  showPreset();
   document.querySelectorAll('.asset-row input,.remove-asset,.subtitle-row textarea,.confirm-subtitle').forEach(el=>el.disabled=yes);
   $('create-video').disabled = yes || (!selected && !current?.video);
-  $('create-video').querySelector('span').textContent = yes ? 'AI đang dựng video…' : current?.output_path ? 'Dựng lại theo yêu cầu này' : 'Tạo video của tôi';
+  $('create-video').querySelector('span').textContent = yes ? 'AI đang dựng video…' : current?.output_path ? 'Dựng lại theo phong cách này' : 'Dựng video';
 }
 function progress(title, value = null, cancelable = true) {
   visible('render-progress',true);visible('learning-panel',false); visible('download-video',false); visible('result-note',false);
@@ -158,7 +171,8 @@ function finish(p) {
   visible('download-video',true);visible('result-note',true);
   showResultBadge(p);
   const typography=p.edit_plan?.typography;
-  $('result-note').querySelector('p').textContent=typography ? `Đã giữ giọng nói và nội dung nguồn. Bộ chữ: ${typography.family} (${({user:'bạn chọn',ai:'AI chọn',rules:'chọn theo quy tắc'})[typography.selected_by] || 'đã lưu'}). Xem lại trước khi đăng.` : 'Đã giữ giọng nói và nội dung nguồn. Xem lại trước khi đăng.';
+  $('result-note').querySelector('p').textContent=typography ? `Đã giữ giọng nói và nội dung nguồn. Bộ chữ: ${typography.family} (${({user:'bạn chọn',ai:'AI chọn',rules:'chọn theo quy tắc',preset:'theo phong cách'})[typography.selected_by] || 'đã lưu'}). Xem lại trước khi đăng.` : 'Đã giữ giọng nói và nội dung nguồn. Xem lại trước khi đăng.';
+  if(p.edit_plan?.style_preset?.label)$('result-note').querySelector('p').textContent+=' Phong cách: '+p.edit_plan.style_preset.label+'.';
   const cleanup=p.edit_plan?.speech_cleanup;
   if(cleanup?.enabled)$('result-note').querySelector('p').textContent += cleanup.applied ? ` Đã cắt ${cleanup.removed_count} tiếng đệm (${Number(cleanup.removed_seconds).toFixed(2)} giây), đồng bộ hình, tiếng và phụ đề.` : ' Chưa có tiếng đệm đủ chắc để cắt; đã giữ nguồn.';
   $('meta-name').textContent = 'Video đã dựng';
@@ -171,6 +185,7 @@ function choose(file) {
   visible('learning-panel',false);generation++;stopPolling();current = null;selected = file;$('remove-fillers').checked=false;subtitleDraft=null;visible('subtitle-editor',false);
   if(logoSelection?.file)logoSelection.asset_id=null;else logoSelection=null;
   imageSelections=imageSelections.filter(a=>a.file);imageSelections.forEach(a=>a.asset_id=null);renderAssets();
+  if(musicSelection?.file)musicSelection.asset_id=null;else musicSelection=null;showMusic();
   if (localURL) URL.revokeObjectURL(localURL);
   localURL = URL.createObjectURL(file);player(localURL);
   $('drop-zone').classList.add('selected');$('file-title').textContent = file.name;
@@ -212,6 +227,7 @@ async function create() {
     await prepareAssets();
     await saveSubtitleDraft();
     current = await api(`/api/projects/${current.id}/make-video`,json({prompt:$('prompt').value.trim(),
+      style_preset:selectedPreset(),music_asset_id:musicSelection?.asset_id || '',
       brand_name:$('brand-name').value.trim(),proper_names:$('proper-names').value.trim(),logo_asset_id:logoSelection?.asset_id || '',
       image_asset_ids:imageSelections.map(a=>a.asset_id),illustrations:$('illustrations').checked,font_style:$('font-style').value,motion_style:$('motion-style').value,remove_fillers:$('remove-fillers').checked}));
     localStorage.setItem('danava-last-video',current.id);
@@ -259,6 +275,10 @@ function renderAssets() {
 }
 function restoreAssets(p) {
   const settings=p.job?.branding || p.edit_plan?.branding || {};
+  const presetId=settings.style_preset || p.edit_plan?.style_preset?.id || 'explainer';
+  const radio=[...document.querySelectorAll('input[name="style-preset"]')].find(el=>el.value===presetId);
+  if(radio)radio.checked=true;
+  showPreset();
   $('remove-fillers').checked=settings.remove_fillers ?? p.edit_plan?.speech_cleanup?.enabled ?? false;
   $('brand-name').value=settings.brand_name ?? p.edit_plan?.brand_footer ?? '';
   $('proper-names').value=settings.proper_names ?? p.edit_plan?.proper_names ?? '';
@@ -268,11 +288,12 @@ function restoreAssets(p) {
   showFontPreview();
   const entry=id=>{const a=p.edit_plan.assets.find(x=>x.id===id);return a?{asset_id:id,file:null,name:a.original_name,url:`/assets/${a.filename}`,keywords:a.keywords || ''}:null;};
   logoSelection=entry(settings.logo_asset_id);imageSelections=(settings.image_asset_ids || []).map(entry).filter(Boolean);renderAssets();
+  musicSelection=entry(settings.music_asset_id);showMusic();
 }
 async function prepareAssets() {
-  for(const a of [logoSelection,...imageSelections].filter(Boolean)){
+  for(const a of [logoSelection,...imageSelections,musicSelection].filter(Boolean)){
     if(a.asset_id)continue;
-    progress('Đang gửi logo và ảnh minh họa',null,false);
+    progress('Đang gửi tài nguyên minh họa và nhạc',null,false);
     const old=new Set(current.edit_plan.assets.map(x=>x.id));
     const form=new FormData();form.append('file',a.file);form.append('role',a===logoSelection?'logo':'asset');form.append('keywords',a.keywords || '');
     current=await api(`/api/projects/${current.id}/upload`,{method:'POST',body:form});
@@ -411,7 +432,21 @@ async function showFontPreview() {
   } catch { if(token===fontPreviewGeneration)$('font-roles').textContent='Chưa tải được xem trước font. Hãy tải lại trang.'; }
 }
 $('font-style').onchange=showFontPreview;
+document.querySelectorAll('input[name="style-preset"]').forEach(el=>el.onchange=showPreset);
+$('choose-music').onclick=()=>{if(!busy)$('music-input').click();};
+$('remove-music').onclick=()=>{if(!busy){musicSelection=null;showMusic();}};
+$('music-input').onchange=()=>{
+  const file=$('music-input').files[0];
+  if(file&&!busy){
+    if(!/\.(mp3|wav|m4a|aac|ogg)$/i.test(file.name))error('Chọn nhạc MP3, WAV, M4A, AAC hoặc OGG.');
+    else if(file.size>50*1024*1024)error('Nhạc nền tối đa 50 MB.');
+    else {musicSelection={file,asset_id:null,name:file.name,keywords:''};showMusic();}
+  }
+  $('music-input').value='';
+};
 async function initialize() {
+  try {stylePresets=(await api('/api/style-presets')).presets;showPreset();}
+  catch {$('preset-note').textContent='Chưa tải được mô tả phong cách. Tải lại trang nếu không kết nối được tool.';}
   try {
     const catalog=await api('/api/typography');fontProfiles=catalog.profiles;
     for(const p of fontProfiles){const option=document.createElement('option');option.value=p.id;option.textContent=`${p.label} — ${p.family}`;$('font-style').append(option);}

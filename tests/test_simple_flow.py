@@ -93,6 +93,7 @@ def test_simple_endpoint_requires_source_and_labels_missing_ai_fallback(media,mo
     monkeypatch.setattr(main,'ai_health',lambda:{'available':False,'model':'qwen3:4b'})
     monkeypatch.setattr(automatic_director,'chat',lambda *args: (_ for _ in ()).throw(ai_director.AIError('AI_CONNECTION','Ollama unavailable')))
     monkeypatch.setattr(main,'transcribe',lambda *args:[])
+    monkeypatch.setattr(main,'recognition_engine',lambda:'faster_whisper')
     response=client.post(f'/api/projects/{p["id"]}/make-video',json={'prompt':'Đẹp hơn'})
     assert response.status_code==200
     result=client.get(f'/api/projects/{p["id"]}').json()

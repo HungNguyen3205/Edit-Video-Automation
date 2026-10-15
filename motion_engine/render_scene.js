@@ -49,6 +49,9 @@ function buildHtml(data) {
   const captionWeight = [500,600,700].includes(data.caption_weight) ? data.caption_weight : 600;
   const type = data.scene_type || 'explainer_card';
   const dynamic = data.motion_style === 'dynamic_explainer';
+  const themeColor = (value, fallback) => /^#[0-9A-Fa-f]{6}$/.test(value || '') ? value : fallback;
+  const themeBackground = themeColor(data.style_theme?.background, '#101b28');
+  const themeAccent = themeColor(data.style_theme?.accent, '#ffe05b');
   let headline = data.headline || '';
   if(dynamic && data.motion?.accent_words) headline=headline.replace(/(\S+\s+\S+)\s*$/, '<span class="keyword-accent">$1</span>');
   const subheadline = data.subheadline || '';
@@ -248,9 +251,10 @@ function buildHtml(data) {
       .photo-label {font:600 16px 'VideoCaption',sans-serif;letter-spacing:2px;color:#fff;opacity:.82;margin-bottom:16px;}
       .photo-pip .pip-card {padding:0;border:0;overflow:hidden;}
       .photo-pip .card-img {display:block;width:100%;max-height:440px;object-fit:cover;}
-      .motion-dynamic { background:#101b28; }
+      .motion-dynamic { background:${themeBackground}; }
       .motion-dynamic .headline { color:#fff; width:100%; max-width:100%; letter-spacing:0; }
-      .keyword-accent { color:#ffe05b; }
+      .keyword-accent { color:${themeAccent}; }
+      .has-style-theme .headline { color:${themeAccent}; }
       .dynamic-list { width:100%; display:flex; flex-direction:column; gap:18px; }
       .motion-dynamic .card:has(.dynamic-list) { background:transparent; border:0; padding:0; width:100%; max-width:94%; max-height:650px; }
       .motion-list-item { padding:20px 24px; border:1px solid #486471; border-left:5px solid #ffe05b; border-radius:16px; background:#1c3342; color:#fff; font:600 30px/1.25 'VideoCaption',sans-serif; text-align:left; overflow-wrap:anywhere; }
@@ -543,7 +547,7 @@ function buildHtml(data) {
       }
     </style>
   </head>
-  <body class="scene-${type}${dynamic ? ' motion-dynamic' : ''}${data.photo_layout==='full'?' photo-full':data.photo_layout==='pip'?' photo-pip':''}">
+  <body class="scene-${type}${dynamic ? ' motion-dynamic' : ''}${data.style_theme?' has-style-theme':''}${data.photo_layout==='full'?' photo-full':data.photo_layout==='pip'?' photo-pip':''}">
     <div class="main-content">
       ${sceneContent}
     </div>
@@ -608,6 +612,9 @@ async function render() {
     // Calculate smooth spring/ease animations
     await page.evaluate((cfg) => {
       const currTime = cfg.time;
+      if(cfg.headlineSeconds<cfg.duration) {
+        document.querySelectorAll('.headline').forEach(el=>el.style.visibility=currTime>=cfg.headlineSeconds?'hidden':'visible');
+      }
       if(cfg.dynamic && !cfg.animate){
         for(const el of document.querySelectorAll('.anim-badge,.anim-card,.anim-headline,.anim-stat,.anim-sub,.anim-stagger')){el.style.opacity='1';el.style.transform='none';}
         document.querySelector('.main-content').style.opacity='1';
@@ -644,7 +651,7 @@ async function render() {
 
       if(cfg.dynamic && cfg.animate){
         const photo=document.querySelector('.photo-image');
-        if(photo)photo.style.transform=`scale(${1+.045*(.5-.5*Math.cos(Math.PI*Math.min(1,currTime/Math.max(1,cfg.duration))))})`;
+        if(photo)photo.style.transform=`scale(${1+cfg.photoZoom*(.5-.5*Math.cos(Math.PI*Math.min(1,currTime/Math.max(1,cfg.duration))))})`;
         const image=document.querySelector('.card-img');
         if(image)image.style.transform=`scale(${1+.025*Math.min(1,currTime/Math.max(1,cfg.duration))})`;
       }
@@ -664,7 +671,10 @@ async function render() {
         }
       }
       document.querySelector('.main-content').style.opacity = cfg.exit === 'fade' ? Math.min(1, Math.max(0, (cfg.duration-currTime)/.18)) : 1;
-    }, {time: t, dynamic: sceneData.motion_style==='dynamic_explainer', animate:sceneData.motion?.animate!==false, animation: sceneData.animation_in || 'pop_in', exit: sceneData.animation_out || 'none', duration});
+    }, {time: t, dynamic: sceneData.motion_style==='dynamic_explainer', animate:sceneData.motion?.animate!==false,
+      photoZoom:Number.isFinite(sceneData.motion?.photo_zoom)?Math.max(0,Math.min(.08,sceneData.motion.photo_zoom)):.045,
+      headlineSeconds:sceneData.style_theme && Number.isFinite(sceneData.motion?.headline_seconds)?sceneData.motion.headline_seconds:duration,
+      animation: sceneData.animation_in || 'pop_in', exit: sceneData.animation_out || 'none', duration});
 
     const buffer = await page.screenshot({ type: 'png' });
     if (!ffmpeg.stdin.write(buffer)) await new Promise(resolve => ffmpeg.stdin.once('drain', resolve));

@@ -48,6 +48,11 @@ def caption_chunks(subs, max_words=7, proper_names=""):
 
 
 def write_storyboard_ass(path, plan, width, height):
+    from style_presets import preset_for
+    preset=preset_for(plan.get('style_preset',{}).get('id','explainer'))
+    themed=preset['id']!='explainer'
+    def ass_color(color):
+        return '&H00'+color[5:7]+color[3:5]+color[1:3]+'&'
     profile = profile_for(plan)
     dynamic = plan.get('motion_style',{}).get('preset')=='dynamic_explainer'
     # Render at a fixed design coordinate system; libass scales for preview.
@@ -71,6 +76,14 @@ def write_storyboard_ass(path, plan, width, height):
                 columns[2] = str(replacements[role][0])
                 columns[7] = '-1' if replacements[role][1]>=700 else '0'
                 lines[index] = ','.join(columns)
+    if themed:
+        for index,line in enumerate(lines):
+            if line.startswith('Style: '):
+                columns=line.split(',')
+                columns[5]=ass_color(preset['background'])
+                columns[6]=ass_color(preset['background'])
+                if columns[0]=='Style: Head':columns[3]=ass_color(preset['accent'])
+                lines[index]=','.join(columns)
     def event(start, end, style, text, tags='', accent=False, animate=False):
         if end <= start or not text:
             return
@@ -117,7 +130,7 @@ def write_storyboard_ass(path, plan, width, height):
         safe = '\\N'.join(wrapped)
         fade='' if dynamic and plan['motion_style'].get('effects_disabled') else '\\fad(150,150)'
         lines.append(f'Dialogue: 0,{ass_time(start)},{ass_time(end)},{style},,0,0,0,,{{{fade}{tags}}}{safe}')
-    for sub in caption_chunks(mapped_subtitles(plan),max_words=profile['max_words'] if profile else 7,proper_names=plan.get("proper_names","")) if plan.get('show_captions',True) else []:
+    for sub in caption_chunks(mapped_subtitles(plan),max_words=preset['caption_words'] if themed else profile['max_words'] if profile else 7,proper_names=plan.get("proper_names","")) if plan.get('show_captions',True) else []:
         event(sub['start'],sub['end'],'Caption',sub['text'])
     for scene in plan.get('storyboard', []):
         if scene['scene_type'] not in ('talking_head', 'broll'):

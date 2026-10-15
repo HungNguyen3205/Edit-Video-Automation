@@ -34,6 +34,7 @@ from motion_style import MotionStyle, apply_motion_style, skill_context
 from text_review import prepare_source, review_issues, subtitle_fingerprint, valid_confirmations, unconfirmed_issues, record_review_evidence
 from learning_store import LearningStore
 from recognition_config import name_hint, recognition_config, cache_changed
+from style_presets import StylePreset, preset_for, public_presets, apply_style_preset
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.getenv('VIDEO_DATA_DIR', BASE_DIR / 'data')).resolve()
@@ -458,6 +459,7 @@ def download_srt(project_id: str):
 
 
 class Options(BaseModel):
+    style_preset: StylePreset = 'explainer'
     prompt: str = Field('', max_length=4500)  # Includes one-click brand/layout instructions.
     planner: str = Field('rules', pattern='^(rules|ai)$')
     music_asset_id: str = Field('', max_length=100)
@@ -547,6 +549,7 @@ def run_job(project_id, job_id, snapshot, options, mode):
                             # model rewrites of the last generated captions.
                             plan['subtitles'] = copy.deepcopy(plan.get('user_subtitles', plan['recognition_subtitles']))
                 if mode == 'auto':
+                    plan['style_preset'] = {'id': options.style_preset, 'version': 1}
                     plan['brand_footer'] = options.brand_footer
                     if options.automatic or 'proper_names' in options.model_fields_set:
                         plan['proper_names'] = options.proper_names
@@ -613,8 +616,13 @@ def run_job(project_id, job_id, snapshot, options, mode):
                             'applied_to_ai':plan['director']['engine']=='ollama' and bool(getattr(event,'style_memory_applied',False)),'model_weights_trained':False}
                         plan=apply_visual_assets(plan,options.prompt,options.brand_footer,options.logo_asset_id,options.image_asset_ids,options.illustrations)
                         plan=apply_library_visuals(plan,options.user_prompt,options.motion_style=='dynamic_explainer')
-                        plan=apply_typography(plan,options.font_style,options.user_prompt)
+                        font_choice=options.font_style
+                        preset_font=options.style_preset!='explainer' and font_choice=='auto'
+                        if preset_font:font_choice=preset_for(options.style_preset)['font_style']
+                        plan=apply_typography(plan,font_choice,options.user_prompt)
+                        if preset_font:plan['typography'].update(requested='auto',selected_by='preset')
                         plan=apply_motion_style(plan,options.motion_style,options.user_prompt)
+                        plan=apply_style_preset(plan,options.style_preset,options.user_prompt,options.music_asset_id)
                         warnings=list(dict.fromkeys([*warnings,*plan['director']['warnings']]))
                         issues=unconfirmed_issues(plan,review_issues(plan.get('subtitles',[])))
                         plan['subtitle_review']=issues
@@ -693,6 +701,9 @@ def run_job(project_id, job_id, snapshot, options, mode):
                 timings['verification_seconds']=round(time.monotonic()-verify_started,3)
                 job_update(project_id,timings=timings)
                 meta = probe(output)
+                if options.automatic and (meta['width'],meta['height'])!=(720,1280):
+                    output.unlink(missing_ok=True)
+                    raise RuntimeError('Video chưa đúng khung hình dọc 720 × 1280; chưa lưu kết quả.')
                 if snapshot.get('video',{}).get('metadata',{}).get('has_audio') and not meta.get('has_audio'):
                     output.unlink(missing_ok=True)
                     raise RuntimeError('MP4 bị thiếu âm thanh; chưa lưu kết quả.')
@@ -771,7 +782,8 @@ def enqueue(project_id, background_tasks, options, mode):
         p['job'] = {'id': identifier, 'status': 'queued', 'phase': 'Đang chờ worker', 'progress': None, 'error': None, 'warnings': [], 'mode': mode, 'preview': options.preview}
         if options.automatic:
             p['job']['branding']={'brand_name':options.brand_footer,'logo_asset_id':options.logo_asset_id,
-                'image_asset_ids':options.image_asset_ids,'illustrations':options.illustrations,'proper_names':options.proper_names,'font_style':options.font_style,'motion_style':options.motion_style,'remove_fillers':options.remove_fillers}
+                'image_asset_ids':options.image_asset_ids,'illustrations':options.illustrations,'proper_names':options.proper_names,'font_style':options.font_style,'motion_style':options.motion_style,'remove_fillers':options.remove_fillers,
+                'style_preset':options.style_preset,'music_asset_id':options.music_asset_id}
         p['export_status'] = 'queued'
         if mode == 'transcribe':
             p['transcribe_status'] = 'running'
@@ -791,6 +803,8 @@ def automate(project_id: str, options: Options, background_tasks: BackgroundTask
 
 
 class MakeVideo(BaseModel):
+    style_preset: StylePreset = 'explainer'
+    music_asset_id: str = Field('',max_length=100)
     prompt: str = Field('',max_length=4000)
     brand_name: str = Field('',max_length=100)
     logo_asset_id: str = Field('',max_length=100)
@@ -807,14 +821,22 @@ def typography_catalog():
     return {'default':'auto','profiles':public_profiles()}
 
 
+@app.get('/api/style-presets')
+def style_preset_catalog():
+    return {'default':'explainer','version':1,'presets':public_presets()}
+
+
 @app.post('/api/projects/{project_id}/make-video')
 def make_video(project_id: str, body: MakeVideo, background_tasks: BackgroundTasks):
     p=load_project(project_id)
     if not p.get('video'):
         raise HTTPException(422,'Tải một video trước khi bắt đầu dựng.')
-    brief=body.prompt.strip() or 'Dựng video đẹp mắt và sinh động theo mẫu đã duyệt. Giữ lời nói, chữ rõ, minh họa đúng nội dung và âm thanh nhẹ.'
+    brief=body.prompt.strip() or ('Dựng video đẹp mắt và sinh động theo mẫu đã duyệt. Giữ lời nói, chữ rõ, minh họa đúng nội dung và âm thanh nhẹ.'
+        if body.style_preset=='explainer' else 'Giữ toàn bộ lời nói có nghĩa và nội dung nguồn. Chữ rõ, hình ảnh đúng nội dung.')
     ids=([body.logo_asset_id] if body.logo_asset_id else [])+body.image_asset_ids
     assets={a['id']:a for a in p['edit_plan']['assets']}
+    if body.music_asset_id and (body.music_asset_id not in assets or assets[body.music_asset_id]['type']!='audio'):
+        raise HTTPException(422,'Nhạc nền phải là âm thanh thuộc dự án này.')
     if any(aid not in assets or assets[aid]['type']!='image' for aid in ids):
         raise HTTPException(422,'Logo và ảnh minh họa phải là ảnh thuộc dự án này.')
     if body.logo_asset_id and body.logo_asset_id in body.image_asset_ids:
@@ -828,9 +850,12 @@ def make_video(project_id: str, body: MakeVideo, background_tasks: BackgroundTas
     cleanup=body.remove_fillers or cleanup_requested(body.prompt)
     if cleanup_disabled(body.prompt):cleanup=False
     options=Options(planner='ai',prompt=brief,visual_style='explainer_ref',duration_policy='preserve',
+        style_preset=body.style_preset,music_asset_id=body.music_asset_id,
         preview=False,use_current_plan=False,transcribe=bool(p['video']['metadata'].get('has_audio')),
         automatic=True,user_prompt=body.prompt.strip(),brand_footer=body.brand_name.strip(),
-        logo_asset_id=body.logo_asset_id,image_asset_ids=body.image_asset_ids,illustrations=body.illustrations,proper_names=body.proper_names.strip(),font_style=body.font_style,motion_style=body.motion_style,remove_fillers=cleanup)
+        logo_asset_id=body.logo_asset_id,image_asset_ids=body.image_asset_ids,illustrations=body.illustrations,proper_names=body.proper_names.strip(),
+        font_style=body.font_style,
+        motion_style=body.motion_style,remove_fillers=cleanup)
     return enqueue(project_id,background_tasks,options,'auto')
 
 

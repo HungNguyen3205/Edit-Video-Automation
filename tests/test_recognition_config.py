@@ -78,6 +78,8 @@ def test_real_retry_invalidates_changed_hint_but_reuses_identical_config(media,m
         return [{'id':'asr','asset_id':aid,'start':0,'end':4,'text':'Nguồn nhận dạng hiện tại.'}]
     def unavailable(*a):raise ai_director.AIError('AI_CONNECTION','Controlled unavailable AI')
     monkeypatch.setattr(main,'transcribe',recognize)
+    # This is a controlled recognizer test, not an installed-model integration.
+    monkeypatch.setattr(main,'recognition_engine',lambda:'faster_whisper')
     monkeypatch.setattr(automatic_director,'automatic_direction',unavailable)
     monkeypatch.setattr(main,'automatic_direction',unavailable)
     body={'brand_name':'Brand','proper_names':'Name | Wrong','illustrations':False}

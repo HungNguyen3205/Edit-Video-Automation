@@ -25,3 +25,22 @@ main{max-width:1200px;margin:auto;padding:42px 40px 24px}.intro{display:flex;ali
 .font-preview { margin-top:12px; padding:22px 16px; border-radius:14px; background:#f3f7f5; text-align:center; }
 #font-heading { display:block; font-size:28px; line-height:1.25; }
 #font-caption { display:inline-block; margin:14px 0 0; padding:8px 12px; border-radius:7px; background:#172d3b; color:#fff; font-size:20px; line-height:1.4; }
+.preset-picker {border:0;padding:0;margin:24px 0 16px;min-width:0;}
+.preset-picker legend {font-size:15px;font-weight:700;margin-bottom:12px;}
+.preset-grid {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;}
+.preset-card {position:relative;display:flex;flex-direction:column;gap:7px;min-width:0;padding:9px;border:2px solid #e1e7e5;border-radius:14px;cursor:pointer;transition:border-color .15s,box-shadow .15s;}
+.preset-card:has(input:checked) {border-color:#176b60;box-shadow:0 0 0 2px #176b6014;}
+.preset-card:has(input:focus-visible) {outline:3px solid #176b60;outline-offset:3px;}
+.preset-card:has(input:disabled) {cursor:wait;opacity:.65;}
+.preset-card input {position:absolute;right:14px;top:14px;accent-color:#176b60;width:16px;height:16px;}
+.preset-swatch {display:flex;flex-direction:column;justify-content:center;min-height:105px;padding:18px 10px;border-radius:8px;color:#fff;font-size:10px;line-height:1.6;letter-spacing:.5px;}
+.preset-swatch b {font-size:12px;letter-spacing:0;}
+.swatch-explainer {background:linear-gradient(140deg,#123b3c,#1d6c67);}
+.swatch-explainer b {color:#ffe05b;}
+.swatch-inspirational {background:radial-gradient(ellipse at top right,#655061,#201b29 80%);}
+.swatch-inspirational b {color:#f2c98a;}
+.swatch-real-estate {background:linear-gradient(135deg,#112927,#33534b);}
+.swatch-real-estate b {color:#dfc189;}
+.preset-card strong {font-size:12px;line-height:1.5;}
+.preset-card small {font-size:11px;line-height:1.6;color:#63716c;}
+@media(max-width:420px) {.preset-grid {grid-template-columns:1fr;}.preset-card {display:grid;grid-template-columns:100px 1fr;column-gap:12px;}.preset-swatch {grid-row:span 2;min-height:80px;}.preset-card strong {align-self:end;padding-right:20px;}.preset-card small {align-self:start;}.preset-card input {top:12px;right:9px;}}

@@ -1,6 +1,6 @@
 # DANAVA Video Studio — AI dựng video theo prompt
 
-Giao diện chính chỉ có **video + prompt + Tạo video của tôi**. Xem [hướng dẫn chuẩn bị máy](docs/APPROVED_STYLE.md).
+Giao diện chính: **thêm video → chọn phong cách → Dựng video**. Prompt, ảnh, logo, nhạc và cắt tiếng đệm là tùy chọn. Xem [phong cách theo chủ đề](docs/STYLE_PRESETS.md) và [hướng dẫn chuẩn bị máy](docs/APPROVED_STYLE.md).
 
 FastAPI + FFmpeg + JavaScript. Có hai chế độ riêng biệt: **AI theo yêu cầu** dùng model Ollama tại máy, và **hiệu ứng theo quy tắc** để dựng khi chưa có model. Không dùng khóa API trả phí hay dịch vụ render bên ngoài.
 
@@ -35,12 +35,12 @@ Trên Linux: cài `ffmpeg fonts-dejavu-core`, dùng `source .venv/bin/activate`,
 ## Cách dùng giao diện mới
 
 1. Thả **một video** vào trang chính.
-2. Nhập yêu cầu nếu muốn; để trống thì dùng phong cách mẫu đã duyệt.
-3. Bấm **Tạo video của tôi**. Tool tự nhận dạng lời nói, chọn cảnh/chữ/minh họa/SFX và xuất toàn bộ MP4; xem và tải ngay ở bên phải.
+2. Chọn **Giải thích**, **Truyền cảm hứng** hoặc **Bất động sản**; nhập yêu cầu thêm nếu muốn.
+3. Bấm **Dựng video**. Tool tự nhận dạng lời nói, chọn cảnh/chữ/minh họa phù hợp và xuất toàn bộ MP4; xem và tải ngay ở bên phải.
 
-Không cần tạo tên dự án, chọn model, chọn style, nhập thời lượng, chỉnh timeline hoặc thêm từng hiệu ứng. Video được giữ trong **Video của tôi**; tải lại trang có thể tiếp tục theo dõi tác vụ hoặc mở kết quả. Khi muốn thay video, bấm vùng chọn video và đưa file mới vào.
+Không cần tạo tên dự án, chọn model, nhập thời lượng, chỉnh timeline hoặc thêm từng hiệu ứng. Video được giữ trong **Video của tôi**; tải lại trang có thể tiếp tục theo dõi tác vụ hoặc mở kết quả. Khi muốn thay video, bấm vùng chọn video và đưa file mới vào.
 
-`POST /api/projects/{id}/make-video` chỉ nhận `{ "prompt": "..." }`. Máy chủ tự chọn AI, profile mẫu, nhận dạng khi nguồn có tiếng, giữ toàn bộ thời lượng và render đầy đủ. Model chọn nội dung hình ảnh theo các đoạn lời nói; engine quản lý thời gian và kiểm tra MP4. Các thiết lập này không được đẩy sang form của người dùng.
+`POST /api/projects/{id}/make-video` nhận `{ "style_preset": "inspirational", "prompt": "..." }` và các tùy chọn tài nguyên. Client cũ chỉ gửi prompt vẫn dùng `explainer`. `GET /api/style-presets` trả danh mục. Máy chủ nhận dạng khi nguồn có tiếng, giữ toàn bộ thời lượng trừ khi bật cắt tiếng đệm và render đầy đủ. Model chọn nội dung hình ảnh theo các đoạn lời nói; engine quản lý thời gian và kiểm tra MP4.
 
 Ví dụ: “Dựng đẹp và sinh động, chữ lớn rõ, minh họa đúng lời nói, SFX nhẹ; giữ người nói ở đầu và cuối.” Có thể yêu cầu phong cách nhẹ, không zoom/không SFX/không phụ đề.
 

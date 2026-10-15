@@ -1,0 +1,133 @@
+{
+  "results": [
+    {
+      "style": "inspirational",
+      "planning_mode": "fallback",
+      "font": "story",
+      "scenes": 2,
+      "photo_scenes": 1,
+      "duration_audit": {
+        "source_duration": 12,
+        "input_timeline_duration": 12,
+        "ai_planned_duration": 12,
+        "post_cut_duration": 12,
+        "filler_removed_seconds": 0,
+        "filler_removed_count": 0,
+        "ffprobe_duration": 12,
+        "timestamp": "2026-10-15T13:31:51.617158+00:00"
+      },
+      "timings": {
+        "recognition_seconds": 0,
+        "speech_cleanup_seconds": 0,
+        "planning_seconds": 0.019,
+        "graphics_seconds": 18.338,
+        "scene_render_seconds": 19.903,
+        "scene_transitions": {
+          "count": 1,
+          "method": "padded_picture_dissolve",
+          "maximum_seconds": 0.23333333333333334,
+          "voice_overlap": false
+        },
+        "assembly_seconds": 7.165,
+        "render_seconds": 27.07,
+        "verification_seconds": 0.272
+      },
+      "metadata": {
+        "width": 720,
+        "height": 1280,
+        "duration": 12.0,
+        "has_audio": true,
+        "rotation": 0
+      },
+      "full_decode": true,
+      "audio_tones": {
+        "source_440hz": 0.1249090486612843,
+        "output_440hz": 0.1313312924060065,
+        "source_220hz": 1.494014504564682e-05,
+        "output_220hz": 0.004446633718687093,
+        "original_audio_retained": true,
+        "uploaded_music_audible": true
+      }
+    },
+    {
+      "style": "real_estate",
+      "planning_mode": "fallback",
+      "font": "editorial",
+      "scenes": 3,
+      "photo_scenes": 1,
+      "duration_audit": {
+        "source_duration": 12,
+        "input_timeline_duration": 12,
+        "ai_planned_duration": 12,
+        "post_cut_duration": 12,
+        "filler_removed_seconds": 0,
+        "filler_removed_count": 0,
+        "ffprobe_duration": 12,
+        "timestamp": "2026-10-15T13:32:19.273419+00:00"
+      },
+      "timings": {
+        "recognition_seconds": 0,
+        "speech_cleanup_seconds": 0,
+        "planning_seconds": 0.031,
+        "graphics_seconds": 9.328,
+        "scene_render_seconds": 12.373,
+        "scene_transitions": {
+          "count": 2,
+          "method": "padded_picture_dissolve",
+          "maximum_seconds": 0.16666666666666666,
+          "voice_overlap": false
+        },
+        "assembly_seconds": 13.489,
+        "render_seconds": 25.866,
+        "verification_seconds": 0.347
+      },
+      "metadata": {
+        "width": 720,
+        "height": 1280,
+        "duration": 12.0,
+        "has_audio": true,
+        "rotation": 0
+      },
+      "full_decode": true,
+      "audio_tones": {
+        "source_440hz": 0.1249090486612843,
+        "output_440hz": 0.13124249834273655,
+        "source_220hz": 1.494014504564682e-05,
+        "output_220hz": 0.003556902922211061,
+        "original_audio_retained": true,
+        "uploaded_music_audible": true
+      }
+    }
+  ],
+  "page_errors": [],
+  "mobile_overflow": false,
+  "fixture": "Synthetic test pattern + tones + generated test property image + manually supplied SRT",
+  "real_asr_tested": false,
+  "real_model_inference_tested": false,
+  "frame_difference_mean_rgb": [
+    6.809200303819445,
+    5.688074001736111,
+    4.916005859375
+  ],
+  "test_suite": {
+    "command": "CHROME_PATH=<chrome> python -m pytest -q --tb=short",
+    "passed": 207,
+    "failed": 0,
+    "warnings": 1,
+    "seconds": 183.29
+  },
+  "checks": {
+    "javascript_syntax": true,
+    "git_diff_check": true,
+    "manual_frame_inspection": true,
+    "browser_desktop_and_mobile": true,
+    "selection_restored_on_reload": true,
+    "preset_switch_on_same_project": true,
+    "no_external_skill_repos_bundled": true
+  },
+  "limits": [
+    "Synthetic fixtures and manually supplied SRT; no customer video was provided in this turn.",
+    "No real Vietnamese ASR or Ollama inference was exercised. Model and transcription tests use controlled responses and are not creative-quality acceptance.",
+    "Server deployment and performance on the user machine have not been verified."
+  ]
+}
