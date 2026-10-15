@@ -16,29 +16,29 @@ PRESETS = {
         'id': 'explainer', 'topic': 'general', 'label': 'Giải thích · Năng động',
         'description': 'Chữ rõ, đồ họa theo lời nói và nhịp dựng hiện tại.',
         'font_style': 'technology', 'max_scene_seconds': 7, 'sentence_seconds': 2.8,
-        'caption_words': 7, 'music_volume': .12,
+        'caption_words': 5, 'music_volume': .12, 'background':'#102C3A', 'accent':'#FFD352', 'secondary':'#71E0CF',
         'guidance': 'Use relevant explanatory graphics and quiet accents. Preserve meaningful speech.',
         'asset_note': 'Có thể thêm ảnh, logo và nhạc của bạn.',
     },
     'inspirational': {
         'id': 'inspirational', 'topic': 'inspiration', 'label': 'Truyền cảm hứng · Cảm xúc',
-        'description': 'Giữ khoảng nghỉ, nhấn câu có ý nghĩa, chuyển động chậm và ít hiệu ứng.',
-        'font_style': 'story', 'max_scene_seconds': 9, 'sentence_seconds': 4.8,
-        'caption_words': 6, 'music_volume': .10, 'zoom_scale': 1.045,
+        'description': 'Chữ động vàng–cam, nhấn từ theo lời nói và zoom in/out theo nhịp kể chuyện.',
+        'font_style': 'energetic', 'max_scene_seconds': 7, 'sentence_seconds': 4.8,
+        'caption_words': 4, 'music_volume': .10, 'zoom_scale': 1.12,
         'zoom_seconds': 6, 'zoom_every': 2, 'transition_seconds': .23,
         'headline_seconds': 3.5, 'photo_zoom': .035,
-        'background': '#201B29', 'accent': '#F2C98A',
+        'background': '#201B29', 'accent': '#FFCA5C', 'secondary':'#FA8975',
         'guidance': 'Emotional storytelling: preserve pauses and complete thoughts. Prefer the speaker and supplied relevant photos over diagrams. Use sparse literal emphasis, slow gentle zoom and fades; no bounce or impact sounds. Never invent motivational quotes or a closing call to action.',
         'asset_note': 'Ảnh và nhạc cảm xúc là tùy chọn; không có ảnh vẫn dựng từ video gốc.',
     },
     'real_estate': {
         'id': 'real_estate', 'topic': 'real_estate', 'label': 'Bất động sản · Sang trọng',
-        'description': 'Ưu tiên ảnh thật toàn khung, chữ gọn, chuyển cảnh mềm và nhịp review rõ ràng.',
-        'font_style': 'editorial', 'max_scene_seconds': 5.5, 'sentence_seconds': 2.6,
-        'caption_words': 7, 'music_volume': .08, 'zoom_scale': 1.025,
+        'description': 'Chữ trắng–gold, thẻ thông tin, khung hình thật và zoom in/out mượt.',
+        'font_style': 'business', 'max_scene_seconds': 5.5, 'sentence_seconds': 2.6,
+        'caption_words': 6, 'music_volume': .08, 'zoom_scale': 1.07,
         'zoom_seconds': 4.5, 'zoom_every': 3, 'transition_seconds': .17,
         'headline_seconds': 2.8, 'photo_zoom': .018,
-        'background': '#112927', 'accent': '#DFC189',
+        'background': '#112927', 'accent': '#E9C987', 'secondary':'#9EE1C1',
         'guidance': 'Premium property review: prioritize supplied photos of the actual property, show architecture clearly, use restrained fades and small camera movements. No fabricated property photos, diagrams pretending to be floor plans, prices, areas, addresses, legal status, investment promises or contacts. Without supplied property photos keep the original footage. Only show facts present in current speech.',
         'asset_note': 'Thêm ảnh đúng bất động sản để chèn minh họa. Không có ảnh sẽ dùng video gốc; không tự tạo giá, diện tích hay địa chỉ.',
     },
@@ -65,7 +65,8 @@ def apply_style_preset(plan, identifier='explainer', prompt='', music_asset_id='
     """Apply timing-safe presentation after shared visual/typography adapters."""
     preset = preset_for(identifier)
     p = copy.deepcopy(plan)
-    p['style_preset'] = {'id': identifier, 'version': 1, 'label': preset['label']}
+    p['style_preset'] = {'id': identifier, 'version': 2, 'label': preset['label'],
+        'caption_design': identifier!='explainer' or p.get('motion_style',{}).get('preset')=='dynamic_explainer'}
     if 'branding' in p:
         p['branding'].update(style_preset=identifier, music_asset_id=music_asset_id)
     p['audio_tracks'] = [t for t in p.get('audio_tracks', []) if t.get('origin') != 'style_preset']
@@ -96,19 +97,38 @@ def apply_style_preset(plan, identifier='explainer', prompt='', music_asset_id='
         if e.get('origin') not in ('auto', 'motion_skill', 'style_preset')]
     if no_effects:
         p['effect_keyframes'] = []
-    p['style_preset']['theme'] = {k: preset[k] for k in ('background', 'accent')}
+    p['style_preset']['theme'] = {k: preset[k] for k in ('background', 'accent', 'secondary')}
     p['style_preset']['caption_words'] = preset['caption_words']
     p['motion_style'] = {**p.get('motion_style', {}), 'preset': 'dynamic_explainer',
         'effects_disabled': no_effects, 'style_preset': identifier,
         'active_skills': ['source_photos', 'literal_emphasis'] + ([] if no_effects else ['gentle_camera', 'quiet_transitions'])}
     subtitles = mapped_subtitles(p)
-    photos = 0
+    # A single-video workflow can illustrate with its own authentic frames.
+    # Split a brief interior cutaway; never freeze the entire take or invent a photo.
+    scenes=p.get('storyboard',[])
+    allow_cutaway=(p.get('branding',{}).get('illustrations',True) and not no_effects
+        and not re.search(r'không (?:thêm |chèn |dùng |cần )?(?:minh họa|đồ họa|hình|ảnh)',prompt,re.I))
+    if allow_cutaway and len(scenes)>=2 and not any(s.get('source_cutaway') for s in scenes):
+        expanded=[]
+        for index,sc in enumerate(scenes):
+            if index==(1 if len(scenes)>=3 else 0) and sc['duration']>=3.2 and not sc.get('visual_asset_id'):
+                tail=1.4 if identifier=='real_estate' else 1.2
+                first=copy.deepcopy(sc);first['duration']-=tail
+                last=copy.deepcopy(sc);last.update(scene_id=sc.get('scene_id','scene')+'_source_frame',
+                    timeline_start=sc['timeline_start']+first['duration'],duration=tail,source_cutaway=True,suppress_headline=True)
+                expanded.extend([first,last])
+            else:expanded.append(sc)
+        p['storyboard']=expanded
+    photos=0;source_frames=0;camera_count=0
     for i, sc in enumerate(p.get('storyboard', [])):
         start, duration = sc['timeline_start'], sc['duration']
         speech = sc.get('transcript_meaning') or ' '.join(s['text'] for s in subtitles
             if s['end'] > start and s['start'] < start + duration)
         visual = next((a for a in p['assets'] if a['id'] == sc.get('visual_asset_id')), None)
-        if visual and visual['type'] == 'image':
+        if sc.get('source_cutaway'):
+            sc.update(scene_type='explainer_card',photo_layout='full',source_photo_label='KHUNG HÌNH TỪ VIDEO GỐC')
+            source_frames+=1
+        elif visual and visual['type'] == 'image':
             # Property photos fill the frame. Storytelling alternates picture/speaker.
             sc['photo_layout'] = 'full' if identifier == 'real_estate' or photos % 2 == 0 else 'pip'
             sc['scene_type'] = 'explainer_card' if sc['photo_layout'] == 'full' else 'talking_head_pip'
@@ -120,7 +140,7 @@ def apply_style_preset(plan, identifier='explainer', prompt='', music_asset_id='
                 sc.pop(key, None)
             sc['graphic_title'] = ''; sc['graphic_items'] = []
         # Promote only literal source phrases into emphasis; no preset prose.
-        if no_text:
+        if no_text or sc.get('suppress_headline'):
             sc['headline'] = ''; sc['badge_text'] = ''
         elif not grounded_phrase(sc.get('headline', ''), speech):
             sc['headline'] = ' '.join(speech.split()[:5]).strip(' ,.;:!?')[:80]
@@ -132,15 +152,17 @@ def apply_style_preset(plan, identifier='explainer', prompt='', music_asset_id='
             'transition_seconds': 0 if no_effects else preset['transition_seconds'],
             'show_photo_label': not no_text, 'photo_zoom': preset['photo_zoom']}
         sc['style_theme'] = p['style_preset']['theme']
-        if not no_effects and sc['scene_type'] == 'talking_head' and i % preset['zoom_every'] == 0 and duration >= 1.2:
+        if not no_effects and sc['scene_type'] == 'talking_head' and duration >= 1.2:
             p['effect_keyframes'].append({'id': f'preset_zoom_{i}', 'origin': 'style_preset',
-                'timeline_start': start, 'duration': min(duration, preset['zoom_seconds']),
+                'timeline_start': start, 'duration': duration, 'direction':'in' if camera_count%2==0 else 'out',
                 'scale': preset['zoom_scale']})
+            camera_count+=1
     if no_text:
         p['text_overlays'] = []; p['show_captions'] = False
     if identifier == 'real_estate' and not photos:
         warnings.append('Chưa ghép được ảnh bất động sản phù hợp; bản dựng dùng video gốc, không tạo ảnh tài sản thay thế.')
-    p['director']['illustration_count'] = photos
+    p['style_preset']['source_frame_count']=source_frames
+    p['director']['illustration_count'] = photos+source_frames
     p['director']['visual_sources'] = [s for s in p['director'].get('visual_sources', []) if s.get('source')=='user_uploaded']
     p['director']['warnings'] = list(dict.fromkeys(warnings))
     return p

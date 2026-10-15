@@ -1,6 +1,6 @@
-# DANAVA Video Studio — AI dựng video theo prompt
+# DANAVA Video Studio — thêm video, chọn phong cách, xuất kết quả
 
-Giao diện chính: **thêm video → chọn phong cách → Dựng video**. Prompt, ảnh, logo, nhạc và cắt tiếng đệm là tùy chọn. Xem [phong cách theo chủ đề](docs/STYLE_PRESETS.md) và [hướng dẫn chuẩn bị máy](docs/APPROVED_STYLE.md).
+Giao diện chính chỉ có **3 ô: Thêm video → Chọn phong cách → Xuất video kết quả**. Không cần nhập prompt, chọn font hoặc thêm từng hiệu ứng. Xem [phong cách theo chủ đề](docs/STYLE_PRESETS.md) và [hướng dẫn chuẩn bị máy](docs/APPROVED_STYLE.md).
 
 FastAPI + FFmpeg + JavaScript. Có hai chế độ riêng biệt: **AI theo yêu cầu** dùng model Ollama tại máy, và **hiệu ứng theo quy tắc** để dựng khi chưa có model. Không dùng khóa API trả phí hay dịch vụ render bên ngoài.
 
@@ -35,14 +35,14 @@ Trên Linux: cài `ffmpeg fonts-dejavu-core`, dùng `source .venv/bin/activate`,
 ## Cách dùng giao diện mới
 
 1. Thả **một video** vào trang chính.
-2. Chọn **Giải thích**, **Truyền cảm hứng** hoặc **Bất động sản**; nhập yêu cầu thêm nếu muốn.
-3. Bấm **Dựng video**. Tool tự nhận dạng lời nói, chọn cảnh/chữ/minh họa phù hợp và xuất toàn bộ MP4; xem và tải ngay ở bên phải.
+2. Chọn **Giải thích**, **Truyền cảm hứng** hoặc **Bất động sản**.
+3. Bấm **Dựng & xuất video**. Tool tự nhận dạng lời nói, chọn cảnh/chữ/minh họa phù hợp và xuất toàn bộ MP4; xem và tải ngay ở bên phải.
 
-Không cần tạo tên dự án, chọn model, nhập thời lượng, chỉnh timeline hoặc thêm từng hiệu ứng. Video được giữ trong **Video của tôi**; tải lại trang có thể tiếp tục theo dõi tác vụ hoặc mở kết quả. Khi muốn thay video, bấm vùng chọn video và đưa file mới vào.
+Không cần tạo tên dự án, chọn model, nhập thời lượng, chỉnh timeline hoặc thêm từng hiệu ứng. Tải lại trang sẽ khôi phục video và phong cách gần nhất, tiếp tục theo dõi tác vụ hoặc mở kết quả. Bản dựng theo giao diện cũ được yêu cầu dựng lại để dùng thiết kế mới. Khi muốn thay video, bấm vùng chọn video và đưa file mới vào.
 
 `POST /api/projects/{id}/make-video` nhận `{ "style_preset": "inspirational", "prompt": "..." }` và các tùy chọn tài nguyên. Client cũ chỉ gửi prompt vẫn dùng `explainer`. `GET /api/style-presets` trả danh mục. Máy chủ nhận dạng khi nguồn có tiếng, giữ toàn bộ thời lượng trừ khi bật cắt tiếng đệm và render đầy đủ. Model chọn nội dung hình ảnh theo các đoạn lời nói; engine quản lý thời gian và kiểm tra MP4.
 
-Ví dụ: “Dựng đẹp và sinh động, chữ lớn rõ, minh họa đúng lời nói, SFX nhẹ; giữ người nói ở đầu và cuối.” Có thể yêu cầu phong cách nhẹ, không zoom/không SFX/không phụ đề.
+Giao diện chính tự quyết định kiểu chữ, màu nhấn, zoom và bố cục theo phong cách. Hai phong cách Truyền cảm hứng/Bất động sản dùng font Montserrat/Be Vietnam Pro, zoom vào/ra và cảnh ngắn lấy từ video gốc khi phù hợp. Phụ đề có timestamp từ sẽ nhấn từ đang nói; SRT không có timestamp từng từ dùng thiết kế theo cụm, không giả định căn chỉnh chính xác. API và trang nâng cao vẫn giữ tùy chọn chi tiết.
 
 Giao diện chỉnh thủ công cũ còn ở `/frontend/advanced.html` cho người cần sửa SRT/timeline/tài nguyên. Nó không phải bước bắt buộc của luồng mới.
 
@@ -80,7 +80,7 @@ API `POST /api/projects/{id}/auto-edit` nhận `planner: "ai"`, `prompt`, `music
 ```bash
 pip install -r requirements/requirements-dev.txt
 python -m pytest -q
-node --check frontend/app.js
+node --check frontend/studio.js
 ```
 
 Kiểm thử xuất FFmpeg thật cho cắt nối, phụ đề, minh họa, nhạc và âm thanh; xác thực/repair kế hoạch, hợp đồng HTTP streaming Ollama, thiếu model, revision và tương thích dự án cũ. Các test AI dùng phản hồi kiểm soát; không thay thế đánh giá sáng tạo/inference bằng model thật. Xem `docs/PROJECT_STATUS.md`.

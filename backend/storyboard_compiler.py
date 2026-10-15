@@ -116,7 +116,11 @@ def compile_storyboard_scenes(plan, asset_dir, work_dir, output_path, preview=Fa
                 if phase:
                     phase('Đang dựng minh họa và cảnh '+str(i+1))
                 visual = assets.get(sc.get('visual_asset_id'))
-                if sc.get('library_visual_id'):
+                if sc.get('source_cutaway'):
+                    asset_path=work_dir/f'source_cutaway_{i}.png'
+                    run(['ffmpeg','-v','error','-y','-ss',str(src_in+dur/2),'-i',str(source),
+                         '-frames:v','1',str(asset_path)],event)
+                elif sc.get('library_visual_id'):
                     from visual_library import library_image
                     asset_path=library_image(sc['library_visual_id'])
                 elif visual and visual['type'] == 'video':

@@ -186,7 +186,7 @@ function buildHtml(data) {
 
   if (assetSrc && data.photo_layout === 'full') {
     sceneContent=`<div class="photo-cover"><img class="photo-image" src="${assetSrc}"/><div class="photo-shade"></div></div>
-      <div class="photo-content">${data.motion?.show_photo_label===false?'':'<div class="photo-label">ẢNH MINH HỌA</div>'}
+      <div class="photo-content">${data.motion?.show_photo_label===false?'':`<div class="photo-label">${data.source_photo_label || 'ẢNH MINH HỌA'}</div>`}
       ${headline?`<div class="headline anim-headline">${headline}</div>`:''}</div>`;
   }
   if(dynamic && data.motion?.stagger && Array.isArray(data.graphic_items)) {

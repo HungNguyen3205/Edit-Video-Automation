@@ -1,0 +1,170 @@
+{
+  "results": [
+    {
+      "style": "explainer",
+      "planning_mode": "fallback",
+      "font": "clean",
+      "scenes": 3,
+      "source_frame_count": 0,
+      "zoom_directions": [
+        "breath",
+        "breath"
+      ],
+      "duration_audit": {
+        "source_duration": 12,
+        "input_timeline_duration": 12,
+        "ai_planned_duration": 12,
+        "post_cut_duration": 12,
+        "filler_removed_seconds": 0,
+        "filler_removed_count": 0,
+        "ffprobe_duration": 12,
+        "timestamp": "2026-10-15T15:34:21.820051+00:00"
+      },
+      "timings": {
+        "recognition_seconds": 0,
+        "speech_cleanup_seconds": 0,
+        "planning_seconds": 0.017,
+        "graphics_seconds": 0,
+        "scene_render_seconds": 0,
+        "camera_source_reused": true,
+        "assembly_seconds": 10.62,
+        "render_seconds": 10.622,
+        "verification_seconds": 0.399
+      },
+      "metadata": {
+        "width": 720,
+        "height": 1280,
+        "duration": 12.0,
+        "has_audio": true,
+        "rotation": 0
+      },
+      "full_decode": true,
+      "colored_caption_pixels": 935,
+      "original_audio_tone_amplitude": 0.12471988017420753
+    },
+    {
+      "style": "inspirational",
+      "planning_mode": "fallback",
+      "font": "energetic",
+      "scenes": 3,
+      "source_frame_count": 1,
+      "zoom_directions": [
+        "in",
+        "out"
+      ],
+      "duration_audit": {
+        "source_duration": 12,
+        "input_timeline_duration": 12,
+        "ai_planned_duration": 12,
+        "post_cut_duration": 12,
+        "filler_removed_seconds": 0,
+        "filler_removed_count": 0,
+        "ffprobe_duration": 12,
+        "timestamp": "2026-10-15T15:34:47.767424+00:00"
+      },
+      "timings": {
+        "recognition_seconds": 0,
+        "speech_cleanup_seconds": 0,
+        "planning_seconds": 0.018,
+        "graphics_seconds": 5.212,
+        "scene_render_seconds": 8.854,
+        "scene_transitions": {
+          "count": 2,
+          "method": "padded_picture_dissolve",
+          "maximum_seconds": 0.23333333333333334,
+          "voice_overlap": false
+        },
+        "assembly_seconds": 16,
+        "render_seconds": 24.859,
+        "verification_seconds": 0.345
+      },
+      "metadata": {
+        "width": 720,
+        "height": 1280,
+        "duration": 12.0,
+        "has_audio": true,
+        "rotation": 0
+      },
+      "full_decode": true,
+      "colored_caption_pixels": 1714,
+      "original_audio_tone_amplitude": 0.12471988017420753
+    },
+    {
+      "style": "real_estate",
+      "planning_mode": "fallback",
+      "font": "business",
+      "scenes": 4,
+      "source_frame_count": 1,
+      "zoom_directions": [
+        "in",
+        "out",
+        "in"
+      ],
+      "duration_audit": {
+        "source_duration": 12,
+        "input_timeline_duration": 12,
+        "ai_planned_duration": 12,
+        "post_cut_duration": 12,
+        "filler_removed_seconds": 0,
+        "filler_removed_count": 0,
+        "ffprobe_duration": 12,
+        "timestamp": "2026-10-15T15:35:14.093864+00:00"
+      },
+      "timings": {
+        "recognition_seconds": 0,
+        "speech_cleanup_seconds": 0,
+        "planning_seconds": 0.019,
+        "graphics_seconds": 5.615,
+        "scene_render_seconds": 9.676,
+        "scene_transitions": {
+          "count": 2,
+          "method": "padded_picture_dissolve",
+          "maximum_seconds": 0.16666666666666666,
+          "voice_overlap": false
+        },
+        "assembly_seconds": 15.629,
+        "render_seconds": 25.308,
+        "verification_seconds": 0.379
+      },
+      "metadata": {
+        "width": 720,
+        "height": 1280,
+        "duration": 12.0,
+        "has_audio": true,
+        "rotation": 0
+      },
+      "full_decode": true,
+      "colored_caption_pixels": 1457,
+      "original_audio_tone_amplitude": 0.12471988017420753
+    }
+  ],
+  "page_errors": [],
+  "mobile_overflow": false,
+  "panels": 3,
+  "extra_form_controls": 0,
+  "silent_upload_via_ui": true,
+  "single_source_only": true,
+  "fixture": "Synthetic source with tone; manually supplied SRT; no uploaded images or music",
+  "real_asr_tested": false,
+  "real_model_inference_tested": false,
+  "frame_difference_mean_rgb": [
+    7.786661241319444,
+    6.712387152777778,
+    5.008658854166667
+  ],
+  "validation": {
+    "regression_tests_passed": 213,
+    "regression_seconds": 177.92,
+    "focused_acceptance_tests_passed": 15,
+    "javascript_syntax": true,
+    "git_diff_check": true,
+    "manual_frames_inspected": true,
+    "source_zoom_geometry_measured_in_mp4": true,
+    "gold_captions_verified_on_solid_red_fixture": true
+  },
+  "limits": [
+    "Synthetic fixture and manually imported SRT for spoken-content checks; no real Vietnamese ASR or Ollama inference was exercised.",
+    "No additional stock images are downloaded. Automatic cutaways use frames from the uploaded source video.",
+    "Updating main does not restart the user deployment."
+  ]
+}

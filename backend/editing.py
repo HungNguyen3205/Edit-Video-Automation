@@ -154,6 +154,8 @@ def validate(plan, trusted_assets):
                         raise ValueError('Minh họa vượt thời lượng video nguồn.')
             else:
                 finite(item.get('scale', 1.08), 1, 1.2, 'Mức zoom')
+                if item.get('direction','breath') not in ('in','out','breath'):
+                    raise ValueError('Hướng zoom không hợp lệ.')
     p['assets'] = copy.deepcopy(trusted_assets)
     tracks = p.setdefault('audio_tracks', [])
     if not isinstance(tracks, list) or len(tracks) > 100:
@@ -209,6 +211,10 @@ def validate(plan, trusted_assets):
             library_image(sc['library_visual_id'])
         if sc.get('photo_layout') and sc['photo_layout'] not in ('full','pip'):
             raise ValueError('Bố cục ảnh không hợp lệ.')
+        if not isinstance(sc.get('source_cutaway',False),bool):
+            raise ValueError('Cảnh khung hình nguồn không hợp lệ.')
+        if not isinstance(sc.get('source_photo_label',''),str) or len(sc.get('source_photo_label',''))>60:
+            raise ValueError('Nhãn khung hình nguồn quá dài hoặc không hợp lệ.')
         visual = assets.get(sc.get('visual_asset_id'))
         if sc.get('visual_asset_id') and (not visual or visual['type'] not in ('image','video')):
             raise ValueError('Minh họa cảnh phải thuộc dự án.')
@@ -448,7 +454,11 @@ def compile_render(plan, asset_dir, work_dir, output, preview=False, visual_styl
         bumps = []
         for e in effects:
             start, d = e['timeline_start'], e['duration']
-            bumps.append(f'if(between(on/{fps},{start},{start+d}),{e["scale"]-1}*pow(sin(PI*(on/{fps}-{start})/{d}),2),0)')
+            phase=f'(on/{fps}-{start})/{d}'
+            direction=e.get('direction','breath')
+            curve=(f'(1-cos(PI*{phase}))/2' if direction=='in' else
+                   f'(1+cos(PI*{phase}))/2' if direction=='out' else f'pow(sin(PI*{phase}),2)')
+            bumps.append(f'if(gte(on/{fps},{start})*lt(on/{fps},{start+d}),{e["scale"]-1}*{curve},0)')
         z = '1+' + '+'.join(bumps)
         filters.append(f"[{current}]scale={w*2}:{h*2},zoompan=z='min(1.2,{z})':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)/2':d=1:s={w}x{h}:fps={fps}[zoom]")
         current = 'zoom'

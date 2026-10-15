@@ -137,7 +137,7 @@ def test_music_must_be_audio_from_this_project_and_is_idempotent(media,tmp_path)
     assert not apply_style_preset(r,'real_estate','Không nhạc nền',aid)['audio_tracks']
 
 
-@pytest.mark.parametrize('style,font',[('inspirational','story'),('real_estate','editorial')])
+@pytest.mark.parametrize('style,font',[('inspirational','energetic'),('real_estate','business')])
 def test_make_video_real_mp4_and_persistent_style(media,monkeypatch,style,font):
     """Real renderer and HTTP route; explicitly forced model-unavailable fallback."""
     p=new_project(media)
@@ -163,3 +163,11 @@ def test_make_video_real_mp4_and_persistent_style(media,monkeypatch,style,font):
     assert (meta['width'],meta['height'])==(720,1280)
     assert meta['has_audio'] and meta['duration']==pytest.approx(4,abs=.05)
     subprocess.run(['ffmpeg','-v','error','-xerror','-i',str(output),'-f','null','-'],check=True,capture_output=True)
+    # Source is solid red: gold pixels in the caption band prove that themed
+    # color was burned into MP4, rather than merely recorded in plan metadata.
+    import numpy as np
+    raw=subprocess.run(['ffmpeg','-v','error','-ss','1','-i',str(output),'-frames:v','1',
+        '-f','rawvideo','-pix_fmt','rgb24','-'],check=True,capture_output=True).stdout
+    band=np.frombuffer(raw,dtype=np.uint8).reshape((1280,720,3))[1000:1200].astype(float)
+    gold=(band[:,:,0]>180)&(band[:,:,1]>110)&(band[:,:,2]<band[:,:,1]*.83)&(band[:,:,0]>band[:,:,1]*1.04)
+    assert int(gold.sum())>50

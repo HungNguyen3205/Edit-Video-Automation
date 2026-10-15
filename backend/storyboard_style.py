@@ -47,10 +47,60 @@ def caption_chunks(subs, max_words=7, proper_names=""):
     return result
 
 
+def expressive_captions(lines,plan,preset,profile,ass_color):
+    """Colored phrase captions, highlighting words only with real alignment.
+
+    All inserted ASS tags are engine-owned. Source copy is escaped separately;
+    SRT/segment-only input gets phrase emphasis, never invented word timing.
+    """
+    from PIL import ImageFont
+    subs=mapped_subtitles(plan)
+    all_words=[w for s in subs for w in s.get('words',[])
+        if ' '.join(w['word'].strip() for w in s.get('words',[]))==' '.join(s['text'].split())]
+    animate=not plan.get('motion_style',{}).get('effects_disabled',False)
+    accent=ass_color(preset['accent']);secondary=ass_color(preset['secondary'])
+    base_size=42 if preset['id']=='inspirational' else 38
+    weight=800 if preset['id']=='inspirational' else 700
+    for chunk in caption_chunks(subs,preset['caption_words'],plan.get('proper_names','')):
+        tokens=chunk['text'].split();size=base_size
+        def layout(font):
+            rows=[];line=[];breaks=set()
+            for index,token in enumerate(tokens):
+                if line and font.getlength(' '.join([*line,token]))>600:
+                    rows.append(line);breaks.add(index);line=[]
+                line.append(token)
+            if line:rows.append(line)
+            return rows,breaks
+        if profile:
+            while True:
+                font=ImageFont.truetype(str(font_path(profile,'caption')),size)
+                rows,breaks=layout(font)
+                if size<=18 or len(rows)<=2 and all(font.getlength(' '.join(r))<=600 for r in rows):break
+                size-=1
+        else:breaks=set()
+        aligned=[w for w in all_words if w['start']>=chunk['start']-.001 and w['end']<=chunk['end']+.001 and w['end']>w['start']]
+        credible=(' '.join(w['word'].strip() for w in aligned).split()==tokens
+            and all(a['end']<=b['start']+.001 for a,b in zip(aligned,aligned[1:])))
+        spans=[(w['start'],aligned[i+1]['start'] if i+1<len(aligned) else chunk['end'],i) for i,w in enumerate(aligned)] if credible else [(chunk['start'],chunk['end'],None)]
+        for start,end,active in spans:
+            if end<=start:continue
+            rendered=[]
+            for index,token in enumerate(tokens):
+                highlighted=index==active if active is not None else index>=max(0,len(tokens)-2)
+                color=accent if highlighted else secondary if index==len(tokens)-1 and active is None else '&H00FFFFFF&'
+                grow='\\fscx108\\fscy108\\t(0,130,\\fscx100\\fscy100)' if highlighted and animate else ''
+                rendered.append(('\\N' if index in breaks else ' ' if index else '')+
+                    '{\\c'+color+'\\fscx100\\fscy100'+grow+'}'+escape_ass(token))
+            entry='\\fad(90,70)' if animate and not credible else ''
+            tags='\\b'+str(weight)+'\\fs'+str(size)+entry
+            lines.append(f'Dialogue: 1,{ass_time(start)},{ass_time(end)},Caption,,0,0,0,,{{{tags}}}'+''.join(rendered))
+
+
 def write_storyboard_ass(path, plan, width, height):
     from style_presets import preset_for
     preset=preset_for(plan.get('style_preset',{}).get('id','explainer'))
-    themed=preset['id']!='explainer'
+    expressive=bool(plan.get('style_preset',{}).get('caption_design'))
+    themed=preset['id']!='explainer' or expressive
     def ass_color(color):
         return '&H00'+color[5:7]+color[3:5]+color[1:3]+'&'
     profile = profile_for(plan)
@@ -83,6 +133,9 @@ def write_storyboard_ass(path, plan, width, height):
                 columns[5]=ass_color(preset['background'])
                 columns[6]=ass_color(preset['background'])
                 if columns[0]=='Style: Head':columns[3]=ass_color(preset['accent'])
+                if columns[0]=='Style: Caption' and expressive:
+                    columns[2]='42' if preset['id']=='inspirational' else '38'
+                    columns[7]='-1';columns[15]='1';columns[16]='3';columns[17]='1';columns[21]='155'
                 lines[index]=','.join(columns)
     def event(start, end, style, text, tags='', accent=False, animate=False):
         if end <= start or not text:
@@ -130,8 +183,11 @@ def write_storyboard_ass(path, plan, width, height):
         safe = '\\N'.join(wrapped)
         fade='' if dynamic and plan['motion_style'].get('effects_disabled') else '\\fad(150,150)'
         lines.append(f'Dialogue: 0,{ass_time(start)},{ass_time(end)},{style},,0,0,0,,{{{fade}{tags}}}{safe}')
-    for sub in caption_chunks(mapped_subtitles(plan),max_words=preset['caption_words'] if themed else profile['max_words'] if profile else 7,proper_names=plan.get("proper_names","")) if plan.get('show_captions',True) else []:
-        event(sub['start'],sub['end'],'Caption',sub['text'])
+    if expressive and plan.get('show_captions',True):
+        expressive_captions(lines,plan,preset,profile,ass_color)
+    else:
+        for sub in caption_chunks(mapped_subtitles(plan),max_words=preset['caption_words'] if themed else profile['max_words'] if profile else 7,proper_names=plan.get("proper_names","")) if plan.get('show_captions',True) else []:
+            event(sub['start'],sub['end'],'Caption',sub['text'])
     for scene in plan.get('storyboard', []):
         if scene['scene_type'] not in ('talking_head', 'broll'):
             continue
