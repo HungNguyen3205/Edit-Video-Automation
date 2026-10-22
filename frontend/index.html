@@ -61,6 +61,14 @@
               <input id="input-proper-names" type="text" maxlength="600" placeholder="VD: DANAVA, ChatGPT, Qwen, Nam Hùng">
             </div>
             <div class="field-item">
+              <label for="input-web-url"><strong>Link bài viết / web tham khảo</strong><small>Dán link để AI tự nghiên cứu nội dung &amp; lấy ảnh minh họa</small></label>
+              <div class="web-fetch-row">
+                <input id="input-web-url" type="url" placeholder="https://dantri.com.vn/bai-viet... hoặc link sản phẩm">
+                <button id="btn-fetch-web" class="btn-sub btn-web-fetch" type="button">Lấy ảnh</button>
+              </div>
+              <small id="web-fetch-status" class="web-status-hint"></small>
+            </div>
+            <div class="field-item">
               <label for="input-brand-name"><strong>Tên thương hiệu</strong><small>Hiển thị ở chân trang video</small></label>
               <input id="input-brand-name" type="text" maxlength="100" placeholder="VD: DANAVA STUDIO">
             </div>

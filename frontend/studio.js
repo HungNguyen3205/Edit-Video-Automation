@@ -114,7 +114,7 @@ function controls(on) {
   $('render').textContent = on ? 'Đang dựng video…' : 'Dựng & xuất video';
 
   // Lock optional controls during active render to prevent revision drift
-  for (const id of ['input-prompt', 'input-brand-name', 'input-proper-names', 'chk-illustrations', 'chk-remove-fillers', 'btn-upload-logo', 'btn-upload-music', 'btn-upload-image', 'btn-upload-broll']) {
+  for (const id of ['input-prompt', 'input-brand-name', 'input-proper-names', 'input-web-url', 'btn-fetch-web', 'chk-illustrations', 'chk-remove-fillers', 'btn-upload-logo', 'btn-upload-music', 'btn-upload-image', 'btn-upload-broll']) {
     const el = $(id);
     if (el) el.disabled = on;
   }
@@ -397,7 +397,8 @@ async function render() {
       logo_asset_id: selectedLogoId || '',
       music_asset_id: selectedMusicId || '',
       image_asset_ids: Array.from(selectedImageIds).slice(0, 6),
-      broll_asset_ids: Array.from(selectedBrollIds).slice(0, 6)
+      broll_asset_ids: Array.from(selectedBrollIds).slice(0, 6),
+      web_url: $('input-web-url')?.value.trim() || ''
     };
 
     project = await api(`/api/projects/${project.id}/make-video`, json(payload));
@@ -454,6 +455,48 @@ $('broll-input').onchange = () => {
   Array.from($('broll-input').files).forEach(f => uploadSubAsset(f, 'broll'));
   $('broll-input').value = '';
 };
+
+const btnFetchWeb = $('btn-fetch-web');
+if (btnFetchWeb) {
+  btnFetchWeb.onclick = async () => {
+    const url = $('input-web-url')?.value.trim();
+    if (!url) {
+      alert('Vui lòng dán link trang web cần lấy ảnh.');
+      return;
+    }
+    const statusEl = $('web-fetch-status');
+    try {
+      btnFetchWeb.disabled = true;
+      btnFetchWeb.textContent = 'Đang cào…';
+      if (statusEl) {
+        statusEl.textContent = 'Đang đọc nội dung web và lọc ảnh nét…';
+        statusEl.style.color = '#5a7b70';
+      }
+      await ensureProject();
+      const res = await api(`/api/projects/${project.id}/ingest-web`, json({ url, max_images: 5 }));
+      project = await api(`/api/projects/${project.id}`);
+      for (const a of (res.assets || [])) {
+        selectedImageIds.add(a.id);
+      }
+      renderExtraAssets();
+      if (statusEl) {
+        statusEl.textContent = `✓ Đã lấy được ${res.image_count} ảnh minh họa: "${(res.title || '').slice(0, 40)}…"`;
+        statusEl.style.color = '#10b981';
+      }
+      if ($('input-prompt') && !$('input-prompt').value.trim() && res.summary) {
+        $('input-prompt').value = res.summary;
+      }
+    } catch (err) {
+      if (statusEl) {
+        statusEl.textContent = `✕ Lỗi: ${err.message}`;
+        statusEl.style.color = '#ef4444';
+      }
+    } finally {
+      btnFetchWeb.disabled = false;
+      btnFetchWeb.textContent = 'Lấy ảnh';
+    }
+  };
+}
 
 async function initialize() {
   try {

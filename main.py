@@ -483,6 +483,47 @@ class Options(BaseModel):
     font_style: FontStyle = 'auto'
     motion_style: MotionStyle = 'clean'
     remove_fillers: bool = False
+    web_url: str = Field('', max_length=1500)
+
+
+class WebIngestRequest(BaseModel):
+    url: str = Field(..., min_length=4, max_length=1500)
+    max_images: int = Field(5, ge=1, le=12)
+
+
+@app.post('/api/projects/{project_id}/ingest-web')
+def ingest_web_endpoint(project_id: str, req: WebIngestRequest):
+    import sys
+    sys.path.insert(0, str(BASE_DIR / 'backend'))
+    from web_researcher import ingest_web_reference
+    with LOCK:
+        p = load_project(project_id)
+        try:
+            res = ingest_web_reference(req.url, ASSETS_DIR, max_images=req.max_images)
+        except Exception as exc:
+            raise HTTPException(400, f"Không thể lấy nội dung từ link web: {exc}")
+
+        existing_ids = {a['id'] for a in p['edit_plan']['assets']}
+        new_assets = [a for a in res['assets'] if a['id'] not in existing_ids]
+        p['edit_plan']['assets'].extend(new_assets)
+
+        branding = p['edit_plan'].setdefault('branding', {})
+        current_images = list(branding.get('image_asset_ids', []))
+        for a in new_assets:
+            if len(current_images) < 6 and a['id'] not in current_images:
+                current_images.append(a['id'])
+        branding['image_asset_ids'] = current_images
+
+        p['revision'] = p.get('revision', 0) + 1
+        save_project(project_id, p)
+
+        return {
+            'success': True,
+            'title': res['title'],
+            'summary': res['summary'],
+            'image_count': res['image_count'],
+            'assets': new_assets
+        }
 
 
 def job_update(project_id, **changes):
@@ -576,8 +617,26 @@ def run_job(project_id, job_id, snapshot, options, mode):
                             cleanup_started=time.monotonic()
                             plan=clean_speech(plan,options.remove_fillers,event)
                             timings['speech_cleanup_seconds']=round(time.monotonic()-cleanup_started,3)
-                            warnings.extend(plan.get('speech_cleanup',{}).get('warnings',[]))
                             plan=prepare_source(plan,options.brand_footer,options.proper_names)
+                            if options.web_url.strip():
+                                job_update(project_id, phase='Đang nghiên cứu link web và trích xuất hình ảnh tham chiếu…')
+                                import sys
+                                sys.path.insert(0, str(BASE_DIR / 'backend'))
+                                from web_researcher import ingest_web_reference
+                                try:
+                                    web_res = ingest_web_reference(options.web_url.strip(), ASSETS_DIR, max_images=5)
+                                    existing_ids = {a['id'] for a in plan['assets']}
+                                    new_assets = [a for a in web_res['assets'] if a['id'] not in existing_ids]
+                                    plan['assets'].extend(new_assets)
+                                    for a in new_assets:
+                                        if len(options.image_asset_ids) < 6 and a['id'] not in options.image_asset_ids:
+                                            options.image_asset_ids.append(a['id'])
+                                    if web_res.get('summary'):
+                                        web_context = f"[Nội dung tham khảo từ web: {web_res['summary']}]"
+                                        options.user_prompt = f"{options.user_prompt} {web_context}".strip()
+                                        options.prompt = f"{options.prompt} {web_context}".strip()
+                                except Exception as exc:
+                                    warnings.append(f"Không thể lấy dữ liệu từ link web tham khảo: {exc}")
                             plan.setdefault('learning_context',{})['motion_skills']=skill_context(plan,options.motion_style,options.user_prompt)
                         if options.planner == 'ai':
                             job_update(project_id, phase='AI đang phân tích nội dung và lập kế hoạch theo prompt…')
