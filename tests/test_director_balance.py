@@ -289,3 +289,42 @@ def test_timing_and_speech_integrity():
     # Total duration unchanged
     assert applied['subtitles'][0]['start'] == 0.0
     assert applied['subtitles'][-1]['end'] == 12.0
+
+
+def test_unrepairable_graphic_demotes_to_talking_head_without_schema_error(monkeypatch, tmp_path):
+    """When AI fails to repair invalid graphic labels across all 3 attempts, demote scene to talking_head without crashing into SCHEMA_ERROR."""
+    import json
+    import automatic_director
+    from automatic_director import automatic_direction
+    import main
+
+    plan = {
+        'video_clips': [{'asset_id': 'vid_1', 'source_in': 0.0, 'duration': 12.0, 'timeline_start': 0.0}],
+        'assets': [{'id': 'vid_1', 'type': 'video', 'filename': 'vid.mp4', 'metadata': {'duration': 12.0}}],
+        'subtitles': [
+            {'start': 0.0, 'end': 4.0, 'text': 'Giới thiệu công ty DANAVA.'},
+            {'start': 4.0, 'end': 8.0, 'text': 'Giải pháp chăm sóc sức khỏe toàn diện.'},
+            {'start': 8.0, 'end': 12.0, 'text': 'Kết nối mọi dịch vụ tiện ích.'}
+        ],
+        'output_settings': {'width': 720, 'height': 1280, 'fps': 30, 'fit': 'cover'}
+    }
+
+    calls = []
+    def reply(messages, event, schema):
+        calls.append(messages[-1]['content'])
+        # AI returns an invalid graphic with unsupported words in all attempts
+        return json.dumps({
+            'summary': 'Kế hoạch AI',
+            'scenes': [
+                {'scene_index': 0, 'scene_type': 'talking_head', 'headline': 'GIỚI THIỆU', 'badge_text': '', 'graphic_kind': 'chat', 'graphic_title': '', 'graphic_items': [], 'sound_effect': 'none', 'caption_text': 'Giới thiệu công ty DANAVA.'},
+                {'scene_index': 1, 'scene_type': 'explainer_card', 'headline': 'GIẢI PHÁP', 'badge_text': '', 'graphic_kind': 'process', 'graphic_title': 'Thuật toán siêu việt', 'graphic_items': ['Bịa đặt 1', 'Bịa đặt 2'], 'sound_effect': 'whoosh', 'caption_text': 'Giải pháp chăm sóc sức khỏe toàn diện.'},
+                {'scene_index': 2, 'scene_type': 'talking_head', 'headline': 'KẾT NỐI', 'badge_text': '', 'graphic_kind': 'chat', 'graphic_title': '', 'graphic_items': [], 'sound_effect': 'none', 'caption_text': 'Kết nối mọi dịch vụ tiện ích.'}
+            ]
+        })
+
+    monkeypatch.setattr(automatic_director, 'chat', reply)
+    # Must NOT raise PlanningError with SCHEMA_ERROR; must demote scene 1 to talking_head gracefully
+    result = automatic_direction(plan, 'Minh họa DANAVA', main.ASSETS_DIR, tmp_path, threading.Event())
+    assert result['director']['engine'] == 'ollama'
+    assert result['storyboard'][1]['scene_type'] == 'talking_head'
+

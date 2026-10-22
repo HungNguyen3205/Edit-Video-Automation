@@ -144,7 +144,8 @@ def correct_recognition_copy(text,brief):
         target=name.replace(' ','').casefold()
         def replace(match):
             word=match.group(0)
-            if SequenceMatcher(None,word.casefold(),target).ratio()>=.84:
+            ratio=SequenceMatcher(None,word.casefold(),target).ratio()
+            if ratio>=.75 or (len(word)>=4 and (target.startswith(word.casefold()) or word.casefold().startswith(target[:4]))):
                 return name
             return word
         text=re.sub(r'\b[A-Za-z]{4,}\b',replace,text)
@@ -192,11 +193,13 @@ def scene_graphic_errors(choice, unit, global_vocabulary, brief_vocabulary=None)
     # Chat may contain neutral conversation. Diagrams must label this scene,
     # not borrow names/greetings from another part of the same video.
     local=set(re.findall(r'[^\W_]+',unit['text'].casefold()))
-    allowed=local|set(brief_vocabulary or ())
+    brief=set(brief_vocabulary or ())
+    glob=set(global_vocabulary or ())
+    allowed=local|brief|glob
     if choice.graphic_kind=='chat':return unsupported_graphic_words(choice,allowed)
     missing=unsupported_graphic_words(choice,allowed)
     for label in [choice.graphic_title,*choice.graphic_items]:
-        if not has_graphic_anchor(label,allowed):missing.append('Nhãn phải gắn với ý của cảnh hiện tại')
+        if not has_graphic_anchor(label,local|brief):missing.append('Nhãn phải gắn với ý của cảnh hiện tại')
     return sorted(set(missing))
 
 
@@ -651,10 +654,18 @@ def automatic_direction(plan,prompt,asset_dir,work,event,*unused):
                 and (not choices[u['scene_index']].graphic_title.strip() or len(choices[u['scene_index']].graphic_items)<2
                      or scene_graphic_errors(choices[u['scene_index']],u,vocabulary,brief_vocabulary))]
             if invalid_graphics:
-                retained={i:s for i,s in choices.items() if i not in invalid_graphics}
-                event.ai_valid_choices=copy.deepcopy(retained)
-                repair_indices=invalid_graphics
-                raise ValueError('Repair ONLY scene_index '+str(invalid_graphics)+'. Return only those scenes; the other valid scenes are retained by the engine. Each graphic needs a meaningful graphic_title and at least 2 short graphic_items. For process/network, every label must connect to THIS scene or explicit brief; do not borrow concepts from other scenes. Labels must use vocabulary from the transcript/brief or neutral greetings/connections. Do not introduce first/only/optimization/algorithm claims absent from the source. Never return empty items. Unsupported words: '+str({i:scene_graphic_errors(choices[i],units[i],vocabulary,brief_vocabulary) for i in invalid_graphics}))
+                if attempt < 2:
+                    retained={i:s for i,s in choices.items() if i not in invalid_graphics}
+                    event.ai_valid_choices=copy.deepcopy(retained)
+                    repair_indices=invalid_graphics
+                    raise ValueError('Repair ONLY scene_index '+str(invalid_graphics)+'. Return only those scenes; the other valid scenes are retained by the engine. Each graphic needs a meaningful graphic_title and at least 2 short graphic_items. For process/network, every label must connect to THIS scene or explicit brief; do not borrow concepts from other scenes. Labels must use vocabulary from the transcript/brief or neutral greetings/connections. Do not introduce first/only/optimization/algorithm claims absent from the source. Never return empty items. Unsupported words: '+str({i:scene_graphic_errors(choices[i],units[i],vocabulary,brief_vocabulary) for i in invalid_graphics}))
+                else:
+                    for idx in invalid_graphics:
+                        choices[idx].scene_type = 'talking_head'
+                        choices[idx].sound_effect = 'none'
+                        choices[idx].graphic_title = ''
+                        choices[idx].graphic_items = []
+                    invalid_graphics = []
             event.ai_valid_choices=copy.deepcopy(choices)
             repair_indices=None
             retained={}
@@ -680,11 +691,13 @@ def automatic_direction(plan,prompt,asset_dir,work,event,*unused):
             want_graphics=bool(re.search(r'minh họa|đồ họa|thẻ trắng|sinh động',prompt,re.IGNORECASE))
             no_graphics=bool(re.search(r'không (?:thêm |chèn |dùng |cần )?(?:minh họa|đồ họa|hình|hiệu ứng)',prompt,re.IGNORECASE))
             if length(plan)>8 and plan.get('subtitles') and want_graphics and not no_graphics and not graphics:
-                raise ValueError('The brief asks for illustrations. You returned only talking_head scenes. Choose at least one meaningful explainer_card with actual illustration items; do not avoid graphics to bypass validation.')
+                if attempt < 2:
+                    raise ValueError('The brief asks for illustrations. You returned only talking_head scenes. Choose at least one meaningful explainer_card with actual illustration items; do not avoid graphics to bypass validation.')
             if length(plan)>15 and 'hội thoại' in prompt.casefold() and 'sơ đồ' in prompt.casefold() and not no_graphics:
                 kinds={s.graphic_kind for s in graphics}
                 if 'chat' not in kinds or not kinds.intersection({'process','network'}):
-                    raise ValueError('The user requests both an assistant conversation illustration AND a diagram. Use at least one chat graphic and one process/network graphic at suitable semantic scenes.')
+                    if attempt < 2:
+                        raise ValueError('The user requests both an assistant conversation illustration AND a diagram. Use at least one chat graphic and one process/network graphic at suitable semantic scenes.')
             p=apply_choices(plan,prompt,units,choices,direction.captions)
             warnings=[]
             if caption_fallbacks:
