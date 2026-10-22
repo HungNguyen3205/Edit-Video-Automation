@@ -201,13 +201,58 @@ def fetch_web_page_data(url: str, timeout: float = 10.0, allow_local: bool = Fal
     }
 
 
+def extract_web_search_metadata(alt: str, img_url: str = '', page_title: str = '', page_summary: str = '') -> tuple[str, list[str]]:
+    """Extract clean keywords and multi-word phrases from image alt, URL filename, and page context."""
+    terms = []
+    seen = set()
+
+    def add_term(term: str):
+        t = re.sub(r'[\r\n\t]+', ' ', term).strip()
+        t = re.sub(r'[^\w\s\-/]', ' ', t)
+        t = re.sub(r'\s+', ' ', t).strip()
+        if len(t) >= 2 and t.lower() not in seen:
+            seen.add(t.lower())
+            terms.append(t)
+
+    # 1. From alt text
+    if alt and not alt.startswith('Ảnh tham chiếu web'):
+        add_term(alt)
+        # Add sub-phrases from alt
+        parts = [p.strip() for p in re.split(r'[,;|\-–/]', alt) if p.strip()]
+        for p in parts:
+            if len(p.split()) in (2, 3, 4):
+                add_term(p)
+
+    # 2. From filename in URL
+    if img_url:
+        try:
+            stem = Path(urlparse(img_url).path).stem
+            stem = re.sub(r'[_\-]+', ' ', stem).strip()
+            # Avoid hashes or UUIDs as keywords
+            if stem and not re.fullmatch(r'[a-f0-9]{8,}', stem, re.I) and len(stem) >= 3:
+                add_term(stem)
+        except Exception:
+            pass
+
+    # 3. From page title if specific
+    if page_title and page_title not in ('Trang tham khảo',):
+        title_clean = re.sub(r'[-|–].*$', '', page_title).strip()
+        if len(title_clean.split()) in (2, 3, 4, 5):
+            add_term(title_clean)
+
+    keywords_str = ', '.join(terms[:8])
+    return keywords_str, terms[:12]
+
+
 def download_and_register_web_images(
     candidate_images: list,
     asset_dir: Path,
     max_images: int = 5,
     cancel_event = None,
     existing_hashes: set = None,
-    allow_local: bool = False
+    allow_local: bool = False,
+    page_title: str = '',
+    page_summary: str = ''
 ) -> list:
     """Download candidate images safely outside locks, validate with Pillow, compute content hash."""
     asset_dir = Path(asset_dir)
@@ -270,18 +315,26 @@ def download_and_register_web_images(
                         clean_alt = item.get('alt', '').strip() or f"Ảnh tham chiếu web ({w}x{h})"
                         clean_alt = re.sub(r'[\r\n\t]+', ' ', clean_alt)[:100]
 
+                        kw_str, search_terms = extract_web_search_metadata(
+                            clean_alt, img_url=img_url, page_title=page_title, page_summary=page_summary
+                        )
+
                         asset = {
                             'id': f"web_img_{uid}",
                             'type': 'image',
                             'filename': filename,
                             'original_name': clean_alt,
+                            'keywords': kw_str,
                             'source': 'web_reference',  # Accurately reflect web origin
                             'metadata': {
                                 'width': w,
                                 'height': h,
                                 'source_url': img_url,
                                 'content_hash': sha256,
-                                'reference_alt': clean_alt
+                                'reference_alt': clean_alt,
+                                'search_terms': search_terms,
+                                'page_title': page_title,
+                                'page_summary': page_summary
                             }
                         }
                         saved_assets.append(asset)
@@ -315,7 +368,9 @@ def ingest_web_reference(
         max_images=max_images,
         cancel_event=cancel_event,
         existing_hashes=existing_hashes,
-        allow_local=allow_local
+        allow_local=allow_local,
+        page_title=page_data.get('title', ''),
+        page_summary=page_data.get('summary', '')
     )
     return {
         'url': page_data['url'],
@@ -325,3 +380,4 @@ def ingest_web_reference(
         'assets': assets,
         'image_count': len(assets)
     }
+

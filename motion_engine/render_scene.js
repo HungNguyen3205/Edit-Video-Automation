@@ -49,20 +49,21 @@ function buildHtml(data) {
   const captionWeight = [500,600,700].includes(data.caption_weight) ? data.caption_weight : 600;
   const type = data.scene_type || 'explainer_card';
   const dynamic = data.motion_style === 'dynamic_explainer';
+  const showText = data.show_text !== false && data.text_enabled !== false && data.no_text !== true;
   const themeColor = (value, fallback) => /^#[0-9A-Fa-f]{6}$/.test(value || '') ? value : fallback;
   const themeBackground = themeColor(data.style_theme?.background, '#101b28');
   const themeAccent = themeColor(data.style_theme?.accent, '#ffe05b');
-  let headline = data.headline || '';
-  if(dynamic && data.motion?.accent_words) headline=headline.replace(/(\S+\s+\S+)\s*$/, '<span class="keyword-accent">$1</span>');
-  const subheadline = data.subheadline || '';
-  const badgeText = data.badge_text || '';
+  let headline = showText ? (data.headline || '') : '';
+  if(dynamic && data.motion?.accent_words && headline) headline=headline.replace(/(\S+\s+\S+)\s*$/, '<span class="keyword-accent">$1</span>');
+  const subheadline = showText ? (data.subheadline || '') : '';
+  const badgeText = showText ? (data.badge_text || '') : '';
   const badgeColor = data.badge_color || 'teal'; // teal, navy, red
-  const statNumber = data.stat_number || '';
-  const statLabel = data.stat_label || '';
-  const steps = data.steps || [];
-  const compLeft = data.comparison_left || { badge: '', title: '', points: [] };
-  const compRight = data.comparison_right || { badge: '', title: '', points: [] };
-  const footerText = data.footer || '';
+  const statNumber = showText ? (data.stat_number || '') : '';
+  const statLabel = showText ? (data.stat_label || '') : '';
+  const steps = showText ? (data.steps || []) : [];
+  const compLeft = showText ? (data.comparison_left || { badge: '', title: '', points: [] }) : { badge: '', title: '', points: [] };
+  const compRight = showText ? (data.comparison_right || { badge: '', title: '', points: [] }) : { badge: '', title: '', points: [] };
+  const footerText = showText ? (data.footer || '') : '';
 
   // Helper for image src: convert local path to base64 if exists
   function getImgSrc(p) {
@@ -186,10 +187,10 @@ function buildHtml(data) {
 
   if (assetSrc && data.photo_layout === 'full') {
     sceneContent=`<div class="photo-cover"><img class="photo-image" src="${assetSrc}"/><div class="photo-shade"></div></div>
-      <div class="photo-content">${data.motion?.show_photo_label===false?'':`<div class="photo-label">${data.source_photo_label || 'ẢNH MINH HỌA'}</div>`}
+      <div class="photo-content">${data.motion?.show_photo_label===false || !showText ?'':`<div class="photo-label">${data.source_photo_label || 'ẢNH MINH HỌA'}</div>`}
       ${headline?`<div class="headline anim-headline">${headline}</div>`:''}</div>`;
   }
-  if(dynamic && data.motion?.stagger && Array.isArray(data.graphic_items)) {
+  if(showText && dynamic && data.motion?.stagger && Array.isArray(data.graphic_items)) {
     const list=`<div class="dynamic-list">${data.graphic_items.map(item=>`<div class="motion-list-item anim-stagger">${item}</div>`).join('')}</div>`;
     sceneContent=sceneContent.replace(/<img src="[^"]*" class="card-img" \/>/,list);
   }

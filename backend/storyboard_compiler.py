@@ -141,8 +141,16 @@ def compile_storyboard_scenes(plan, asset_dir, work_dir, output_path, preview=Fa
                 from text_review import headline_layout
                 from typography import profile_for, font_path
                 profile = profile_for(plan)
-                title,title_size=headline_layout(sc.get('headline',''),min(60,profile['heading_size']) if profile else 60,590,plan.get('proper_names',''),font_path(profile,'heading') if profile else None)
-                cfg = {**sc,'headline':title,'headline_font_size':title_size,'duration':dur,'asset_path':str(asset_path),'footer':'' if plan.get('branding') else plan.get('brand_footer','')}
+                text_enabled = plan.get('show_text', True) and plan.get('text_enabled', True)
+                title,title_size=headline_layout(sc.get('headline','') if text_enabled else '',min(60,profile['heading_size']) if profile else 60,590,plan.get('proper_names',''),font_path(profile,'heading') if profile else None)
+                footer_str = '' if (plan.get('branding') or not text_enabled) else plan.get('brand_footer','')
+                cfg = {**sc,'headline':title,'headline_font_size':title_size,'duration':dur,'asset_path':str(asset_path),'footer':footer_str,
+                       'show_text': text_enabled, 'text_enabled': text_enabled}
+                if not text_enabled:
+                    cfg['badge_text'] = ''
+                    cfg['subheadline'] = ''
+                    cfg['graphic_title'] = ''
+                    cfg['graphic_items'] = []
                 if profile:
                     cfg.update(heading_font_file=profile['heading_file'],caption_font_file=profile['caption_file'],heading_weight=profile['heading_weight'],caption_weight=profile['caption_weight'])
                 if plan.get('motion_style',{}).get('preset')=='dynamic_explainer':

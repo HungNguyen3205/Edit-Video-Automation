@@ -72,6 +72,22 @@ def preset_context(identifier):
     return {'id': identifier, 'rules': p['guidance'], 'preferences_only': True}
 
 
+SFX_KINDS = {'whoosh', 'pop', 'impact', 'chime', 'click', 'sfx', 'sound_effect'}
+
+
+def is_sfx_track(track: dict) -> bool:
+    """Check if audio track is an SFX accent, respecting schema kinds and origins."""
+    kind = str(track.get('kind', '')).strip().lower()
+    origin = str(track.get('origin', '')).strip().lower()
+    category = str(track.get('category', '')).strip().lower()
+    tid = str(track.get('id', '')).strip().lower()
+    if kind in SFX_KINDS or origin in ('sfx', 'sound_effect') or category == 'sfx':
+        return True
+    if tid.startswith('sfx_'):
+        return True
+    return False
+
+
 def apply_user_overrides(plan, prompt='', options=None):
     """Unified final normalization enforcing strict user opt-outs over styles and presets.
 
@@ -103,7 +119,7 @@ def apply_user_overrides(plan, prompt='', options=None):
         if no_music:
             p['audio_tracks'] = [t for t in p.get('audio_tracks', []) if t.get('kind') != 'music']
         if no_sfx:
-            p['audio_tracks'] = [t for t in p.get('audio_tracks', []) if t.get('kind') != 'sfx' and not str(t.get('id', '')).startswith('sfx_')]
+            p['audio_tracks'] = [t for t in p.get('audio_tracks', []) if not is_sfx_track(t)]
             for sc in p.get('storyboard', []):
                 sc['sound_effect'] = 'none'
                 sc['sound_volume'] = 0
@@ -111,12 +127,19 @@ def apply_user_overrides(plan, prompt='', options=None):
     # 2. Text & Captions overrides
     if no_text:
         p['show_captions'] = False
+        p['show_text'] = False
+        p['text_enabled'] = False
         p['text_overlays'] = []
+        p['brand_footer'] = ''
+        if isinstance(p.get('branding'), dict):
+            p['branding']['show_brand_name'] = False
         for sc in p.get('storyboard', []):
             sc['headline'] = ''
+            sc['subheadline'] = ''
             sc['badge_text'] = ''
             sc['graphic_title'] = ''
             sc['graphic_items'] = []
+            sc['suppress_headline'] = True
             if 'motion' in sc:
                 sc['motion']['closing_text'] = ''
                 sc['motion']['show_photo_label'] = False
@@ -125,6 +148,8 @@ def apply_user_overrides(plan, prompt='', options=None):
                 sc['scene_type'] = 'talking_head'
     elif no_captions:
         p['show_captions'] = False
+        p['show_text'] = True
+        p['text_enabled'] = True
 
     # 3. Zoom & Motion Effects overrides
     if no_effects:
@@ -179,10 +204,12 @@ def apply_style_preset(plan, identifier='explainer', prompt='', music_asset_id='
         p['branding'].update(style_preset=identifier, music_asset_id=music_asset_id)
     p['audio_tracks'] = [t for t in p.get('audio_tracks', []) if t.get('origin') != 'style_preset']
     no_sound = bool(re.search(NO_SOUND, prompt, re.I))
+    no_sfx = bool(re.search(NO_SFX, prompt, re.I))
     no_music = bool(re.search(NO_MUSIC, prompt, re.I))
     no_effects = bool(re.search(NO_EFFECTS, prompt, re.I))
     no_zoom = bool(re.search(NO_ZOOM, prompt, re.I))
     no_text = bool(re.search(NO_TEXT, prompt, re.I))
+    no_captions = bool(re.search(NO_CAPTIONS, prompt, re.I))
     warnings = p.setdefault('director', {}).setdefault('warnings', [])
     if music_asset_id and not no_sound and not no_music:
         asset = next((a for a in p['assets'] if a['id'] == music_asset_id and a['type'] == 'audio'), None)
@@ -315,7 +342,7 @@ def apply_style_preset(plan, identifier='explainer', prompt='', music_asset_id='
             sc['headline'] = ''; sc['badge_text'] = ''
         elif not grounded_phrase(sc.get('headline', ''), speech):
             sc['headline'] = ' '.join(speech.split()[:5]).strip(' ,.;:!?')[:80]
-        sc['sound_effect'] = ('whoosh' if i%2 else 'pop') if identifier=='inspirational' and not no_sound and not no_effects and i < 100-len(p['audio_tracks']) else 'none'
+        sc['sound_effect'] = ('whoosh' if i%2 else 'pop') if identifier=='inspirational' and not no_sound and not no_effects and not no_sfx and i < 100-len(p['audio_tracks']) else 'none'
         sc['sound_volume'] = .16 if sc['sound_effect']!='none' else 0
         sc['animation_in'] = 'none' if no_effects else 'fade'
         sc['animation_out'] = 'none' if no_effects else sc.get('animation_out', 'none')
@@ -330,7 +357,17 @@ def apply_style_preset(plan, identifier='explainer', prompt='', music_asset_id='
                 'scale': preset['zoom_scale']})
             camera_count+=1
     if no_text:
-        p['text_overlays'] = []; p['show_captions'] = False
+        p['text_overlays'] = []
+        p['show_captions'] = False
+        p['show_text'] = False
+        p['text_enabled'] = False
+        p['brand_footer'] = ''
+        if isinstance(p.get('branding'), dict):
+            p['branding']['show_brand_name'] = False
+    elif no_captions:
+        p['show_captions'] = False
+        p['show_text'] = True
+        p['text_enabled'] = True
     if identifier == 'real_estate' and not photos:
         warnings.append('Chưa ghép được ảnh bất động sản phù hợp; bản dựng dùng video gốc, không tạo ảnh tài sản thay thế.')
     p['style_preset']['source_frame_count']=source_frames

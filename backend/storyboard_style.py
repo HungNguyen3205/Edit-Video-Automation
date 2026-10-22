@@ -188,34 +188,46 @@ def write_storyboard_ass(path, plan, width, height):
         safe = '\\N'.join(wrapped)
         fade='' if dynamic and plan['motion_style'].get('effects_disabled') else '\\fad(150,150)'
         lines.append(f'Dialogue: 0,{ass_time(start)},{ass_time(end)},{style},,0,0,0,,{{{fade}{tags}}}{safe}')
-    if expressive and plan.get('show_captions',True):
-        expressive_captions(lines,plan,preset,profile,ass_color)
-    else:
-        for sub in caption_chunks(mapped_subtitles(plan),max_words=preset['caption_words'] if themed else profile['max_words'] if profile else 7,proper_names=plan.get("proper_names","")) if plan.get('show_captions',True) else []:
-            event(sub['start'],sub['end'],'Caption',sub['text'])
-    for scene in plan.get('storyboard', []):
-        if scene['scene_type'] not in ('talking_head', 'broll'):
-            continue
-        start = scene['timeline_start']
-        end = start + scene['duration']
-        motion=scene.get('motion',{}) if dynamic else {}
-        closing=motion.get('closing_text','')
-        headline_end=min(end,start+motion.get('headline_seconds',scene['duration']))
-        closing_start=max(start,end-2.6) if closing else end
-        if closing:headline_end=min(headline_end,closing_start-.15)
-        color = {'teal':'&H0088940D&','navy':'&H003B2D17&','red':'&H002626DC&'}.get(scene.get('badge_color'), '&H0088940D&')
-        event(start,end,'Label',scene.get('badge_text',''),f'\\3c{color}\\4c{color}')
-        if not any(t['timeline_start'] < end and t['timeline_start']+t['duration'] > start for t in plan.get('text_overlays', [])):
-            strong=themed and preset['id']=='inspirational'
-            movement=('\\move(360,940,360,900,0,180)\\frz-3' if strong else '\\move(360,194,360,176,0,260)') if motion.get('animate',True) else ('\\pos(360,900)' if strong else '')
-            event(start+.15,headline_end,'Head',scene.get('headline',''),movement,accent=bool(motion.get('accent_words')),animate=bool(motion.get('animate',False)))
-        if closing:
-            event(closing_start,end,'Head',closing,accent=True,animate=motion.get('animate',False))
-    # Explicit titles remain editable. Hide camera headings during their span.
-    # AI is instructed to use scene headlines instead of duplicate title tracks.
-    for title in plan.get('text_overlays', []):
-        start = title['timeline_start']
-        event(start,start+title['duration'],'Head',title['text'])
-    if plan.get('branding',{}).get('brand_name'):
-        event(0,sum(c['duration'] for c in plan['video_clips']),'Brand',plan['branding']['brand_name'])
+
+    text_enabled = plan.get('show_text', True) and plan.get('text_enabled', True)
+    show_captions = text_enabled and plan.get('show_captions', True)
+
+    if show_captions:
+        if expressive:
+            expressive_captions(lines,plan,preset,profile,ass_color)
+        else:
+            for sub in caption_chunks(mapped_subtitles(plan),max_words=preset['caption_words'] if themed else profile['max_words'] if profile else 7,proper_names=plan.get("proper_names","")):
+                event(sub['start'],sub['end'],'Caption',sub['text'])
+
+    if text_enabled:
+        for scene in plan.get('storyboard', []):
+            if scene['scene_type'] not in ('talking_head', 'broll'):
+                continue
+            start = scene['timeline_start']
+            end = start + scene['duration']
+            motion=scene.get('motion',{}) if dynamic else {}
+            closing=motion.get('closing_text','')
+            headline_end=min(end,start+motion.get('headline_seconds',scene['duration']))
+            closing_start=max(start,end-2.6) if closing else end
+            if closing:headline_end=min(headline_end,closing_start-.15)
+            color = {'teal':'&H0088940D&','navy':'&H003B2D17&','red':'&H002626DC&'}.get(scene.get('badge_color'), '&H0088940D&')
+            if scene.get('badge_text'):
+                event(start,end,'Label',scene.get('badge_text',''),f'\\3c{color}\\4c{color}')
+            if scene.get('headline') and not any(t['timeline_start'] < end and t['timeline_start']+t['duration'] > start for t in plan.get('text_overlays', [])):
+                strong=themed and preset['id']=='inspirational'
+                movement=('\\move(360,940,360,900,0,180)\\frz-3' if strong else '\\move(360,194,360,176,0,260)') if motion.get('animate',True) else ('\\pos(360,900)' if strong else '')
+                event(start+.15,headline_end,'Head',scene.get('headline',''),movement,accent=bool(motion.get('accent_words')),animate=bool(motion.get('animate',False)))
+            if closing:
+                event(closing_start,end,'Head',closing,accent=True,animate=motion.get('animate',False))
+
+        # Explicit titles remain editable. Hide camera headings during their span.
+        for title in plan.get('text_overlays', []):
+            start = title['timeline_start']
+            if title.get('text'):
+                event(start,start+title['duration'],'Head',title['text'])
+
+        branding_cfg = plan.get('branding', {})
+        if branding_cfg.get('brand_name') and branding_cfg.get('show_brand_name', True) and not plan.get('brand_footer') == '':
+            event(0,sum(c['duration'] for c in plan['video_clips']),'Brand',branding_cfg['brand_name'])
+
     path.write_text('\n'.join(lines)+'\n',encoding='utf-8')

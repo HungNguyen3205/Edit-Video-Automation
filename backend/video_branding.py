@@ -11,6 +11,14 @@ def words(text):
     return set(re.findall(r'\w+', normalize_text(text)))
 
 
+STOPWORDS = {
+    'và', 'của', 'là', 'các', 'những', 'trong', 'với', 'cho', 'một', 'được', 'có', 'đến', 'về',
+    'này', 'đó', 'thì', 'ở', 'tại', 'ra', 'vào', 'khi', 'đã', 'sẽ', 'đang', 'ảnh', 'hình', 'video',
+    'trên', 'dưới', 'bởi', 'do', 'để', 'the', 'a', 'an', 'and', 'or', 'in', 'on', 'at', 'to', 'for',
+    'of', 'with', 'by', 'from'
+}
+
+
 def parse_keywords(raw_keywords):
     """Extract list of clean keyword strings from raw keywords (comma-separated or words)."""
     if not raw_keywords or not isinstance(raw_keywords, str):
@@ -20,10 +28,82 @@ def parse_keywords(raw_keywords):
     return list(words(raw_keywords))
 
 
-def calculate_transcript_match_score(speech_text, keywords):
-    """Calculate relevance score of speech_text given a list of keywords.
-    Independent and stateless: only depends on speech and asset keywords.
+def extract_asset_search_metadata(asset):
+    """Collect meaningful phrases (multi-word) and keywords from asset metadata, alt, and name."""
+    phrases = []
+    single_words = []
+    seen_norm = set()
+
+    def add_candidate(text):
+        if not text or not isinstance(text, str):
+            return
+        parts = [p.strip() for p in re.split(r'[,;|\-–/]', text) if p.strip()]
+        for p in parts:
+            p_words = p.split()
+            norm_p = normalize_text(p)
+            if 2 <= len(p_words) <= 5 and norm_p not in seen_norm:
+                seen_norm.add(norm_p)
+                phrases.append((p, norm_p))
+            for w in p_words:
+                norm_w = normalize_text(w)
+                if len(norm_w) >= 3 and norm_w not in STOPWORDS and norm_w not in seen_norm:
+                    seen_norm.add(norm_w)
+                    single_words.append((w, norm_w))
+
+    # Keywords from explicit field
+    if asset.get('keywords'):
+        for k in parse_keywords(asset['keywords']):
+            add_candidate(k)
+
+    # Search terms from web metadata
+    meta = asset.get('metadata', {})
+    for term in meta.get('search_terms', []):
+        add_candidate(term)
+
+    # Reference alt or original name
+    add_candidate(meta.get('reference_alt', ''))
+    add_candidate(asset.get('original_name', ''))
+
+    return phrases, single_words
+
+
+def calculate_visual_relevance(speech_text, asset):
+    """Calculate semantic relevance score and matched terms between speech and asset.
+    Prioritizes full phrase matches over isolated single words.
     """
+    if not speech_text:
+        return 0.0, []
+
+    phrases, single_words = extract_asset_search_metadata(asset)
+    if not phrases and not single_words:
+        return 0.0, []
+
+    speech = normalize_text(speech_text)
+    score = 0.0
+    matched_terms = []
+
+    # 1. Multi-word phrase matching (high confidence)
+    for orig_phrase, norm_phrase in phrases:
+        if norm_phrase in speech:
+            phrase_score = 3.0 + len(norm_phrase.split()) * 1.5
+            score += phrase_score
+            matched_terms.append(orig_phrase)
+
+    # 2. Distinctive single-word matching
+    for orig_w, norm_w in single_words:
+        if norm_w in STOPWORDS:
+            continue
+        if re.search(r'\b' + re.escape(norm_w) + r'\b', speech):
+            # Only add if not already part of a matched phrase
+            if not any(norm_w in normalize_text(mp) for mp in matched_terms):
+                score += 1.0
+                matched_terms.append(orig_w)
+
+    return score, matched_terms
+
+
+def calculate_transcript_match_score(speech_text, keywords):
+    """Legacy backward-compatible keyword matching score."""
     if not speech_text or not keywords:
         return 0
     speech = normalize_text(speech_text)
@@ -96,26 +176,64 @@ def apply_visual_assets(plan, prompt, brand_name='', logo_asset_id='', image_ass
         if not candidates:
             warnings.append('Video chưa đủ đoạn để chèn tất cả ảnh đã chọn.')
             break
-        kw_list = parse_keywords(assets[aid].get('keywords', ''))
-        if kw_list:
-            scored = []
-            for i in candidates:
-                s = calculate_transcript_match_score(scenes[i].get('transcript_meaning', ''), kw_list)
-                if s > 0:
-                    scored.append((s, i))
-            if not scored:
-                warnings.append('Chưa tìm thấy lời nói phù hợp với chủ đề ảnh ' + assets[aid].get('original_name', '') + '.')
-                diagnostics.append({'scene_index': -1, 'selected_id': aid, 'source': 'user_uploaded', 'relevance_score': 0.0, 'matched_terms': kw_list, 'tier': 'none', 'fallback_reason': 'no_matching_transcript'})
+
+        cur_asset = assets[aid]
+        is_web = (cur_asset.get('source') == 'web_reference' or 'web_img' in str(aid))
+        phrases, single_words = extract_asset_search_metadata(cur_asset)
+        has_search_metadata = bool(phrases or single_words)
+
+        scored = []
+        for i in candidates:
+            speech = scenes[i].get('transcript_meaning', '')
+            score, matched = calculate_visual_relevance(speech, cur_asset)
+            if score > 0:
+                scored.append((score, matched, i))
+
+        if is_web:
+            # Web reference images MUST have meaningful relevance score (>= 2.0)
+            # Never fallback to arbitrary scenes like pool image into facial recognition
+            valid_scores = [item for item in scored if item[0] >= 2.0]
+            if not valid_scores:
+                warnings.append('Chưa tìm thấy lời nói phù hợp với chủ đề ảnh ' + cur_asset.get('original_name', '') + '.')
+                diagnostics.append({'scene_index': -1, 'selected_id': aid, 'source': 'web_reference',
+                                    'relevance_score': 0.0, 'matched_terms': [], 'tier': 'none',
+                                    'fallback_reason': 'unrelated_content'})
                 continue
-            index = max(scored, key=lambda x: (x[0], -x[1]))[1]
+            best = max(valid_scores, key=lambda x: (x[0], -x[2]))
+            index = best[2]
+            best_score = best[0]
+            matched_terms = best[1]
+            tier = 'semantic_match'
         else:
-            index = candidates[0]
+            # User uploaded image: prioritize matching transcript, else fallback to user intent
+            if scored:
+                best = max(scored, key=lambda x: (x[0], -x[2]))
+                index = best[2]
+                best_score = best[0]
+                matched_terms = best[1]
+                tier = 'user_specified'
+            elif has_search_metadata and cur_asset.get('keywords'):
+                # Explicit keywords provided but transcript did not match
+                warnings.append('Chưa tìm thấy lời nói phù hợp với chủ đề ảnh ' + cur_asset.get('original_name', '') + '.')
+                diagnostics.append({'scene_index': -1, 'selected_id': aid, 'source': 'user_uploaded',
+                                    'relevance_score': 0.0, 'matched_terms': list(single_words or phrases),
+                                    'tier': 'none', 'fallback_reason': 'no_matching_transcript'})
+                continue
+            else:
+                index = candidates[0]
+                best_score = 1.0
+                matched_terms = []
+                tier = 'user_specified'
+
         sc = scenes[index]
         sc.update(scene_type='talking_head_pip', visual_asset_id=aid,
                   sound_effect='none' if no_sound else 'pop')
         used.add(index)
-        source.append({'scene_index': index, 'source': 'user_uploaded', 'asset_id': aid})
-        diagnostics.append({'scene_index': index, 'scene_id': sc.get('scene_id'), 'selected_id': aid, 'source': 'user_uploaded', 'relevance_score': 1.0, 'matched_terms': kw_list, 'tier': 'user_specified', 'fallback_reason': ''})
+        source.append({'scene_index': index, 'source': cur_asset.get('source', 'user_uploaded'), 'asset_id': aid})
+        diagnostics.append({'scene_index': index, 'scene_id': sc.get('scene_id'), 'selected_id': aid,
+                            'source': cur_asset.get('source', 'user_uploaded'), 'relevance_score': float(best_score),
+                            'matched_terms': matched_terms, 'tier': tier, 'fallback_reason': ''})
+
 
     for bid in brolls:
         interior = [i for i in range(len(scenes)) if (len(scenes) <= 2 or 0 < i < len(scenes) - 1)]
