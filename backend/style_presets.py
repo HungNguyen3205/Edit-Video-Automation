@@ -132,6 +132,7 @@ def apply_user_overrides(plan, prompt='', options=None):
         p.setdefault('motion_style', {})['effects_disabled'] = True
         for sc in p.get('storyboard', []):
             sc['animation_in'] = 'none'
+            sc['animation_out'] = 'none'
             sc['sound_effect'] = 'none'
             sc['sound_volume'] = 0
             motion = sc.setdefault('motion', {})
@@ -295,11 +296,12 @@ def apply_style_preset(plan, identifier='explainer', prompt='', music_asset_id='
             sc['headline'] = ' '.join(speech.split()[:5]).strip(' ,.;:!?')[:80]
         sc['sound_effect'] = ('whoosh' if i%2 else 'pop') if identifier=='inspirational' and not no_sound and not no_effects and i < 100-len(p['audio_tracks']) else 'none'
         sc['sound_volume'] = .16 if sc['sound_effect']!='none' else 0
-        sc['animation_in'] = 'fade'
-        sc['motion'] = {'animate': not no_effects, 'stagger': identifier=='inspirational',
+        sc['animation_in'] = 'none' if no_effects else 'fade'
+        sc['animation_out'] = 'none' if no_effects else sc.get('animation_out', 'none')
+        sc['motion'] = {'animate': not no_effects, 'stagger': identifier=='inspirational' and not no_effects,
             'accent_words': 0, 'headline_seconds': min(duration, preset['headline_seconds']),
             'transition_seconds': 0 if no_effects else preset['transition_seconds'],
-            'show_photo_label': not no_text, 'photo_zoom': preset['photo_zoom']}
+            'show_photo_label': not no_text, 'photo_zoom': 0 if (no_effects or no_zoom) else preset['photo_zoom']}
         sc['style_theme'] = p['style_preset']['theme']
         if not no_effects and not no_zoom and sc['scene_type'] == 'talking_head' and duration >= 1.2:
             p['effect_keyframes'].append({'id': f'preset_zoom_{i}', 'origin': 'style_preset',

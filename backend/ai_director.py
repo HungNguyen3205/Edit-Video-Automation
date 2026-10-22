@@ -79,7 +79,7 @@ class StoryboardScene(Decision):
     asset_query: str = Field(default='', max_length=100)
     sound_effect: str = Field(default='none', pattern='^(whoosh|impact|chime|pop|click|none)$')
     sound_volume: float = Field(default=.10, ge=0, le=1)
-    animation_in: str = Field(default='pop_in', pattern='^(pop_in|slide_up|fade)$')
+    animation_in: str = Field(default='pop_in', pattern='^(pop_in|slide_up|fade|none)$')
     animation_out: str = Field(default='fade', pattern='^(fade|none)$')
     layout_rationale: str = Field(default='', max_length=500)
     comparison_left: ComparisonColumn | None = None

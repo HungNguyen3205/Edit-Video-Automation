@@ -34,7 +34,7 @@ class SceneChoice(Decision):
     graphic_items: list[str] = Field(max_length=5)
     sound_effect: str = Field(pattern='^(none|pop|whoosh|chime|click|impact)$')
     caption_text: str = Field(default='',max_length=1200)
-    animation_in: str = Field(default='pop_in',pattern='^(pop_in|slide_up|fade)$')
+    animation_in: str = Field(default='pop_in',pattern='^(pop_in|slide_up|fade|none)$')
     zoom_scale: float = Field(default=1,ge=1,le=1.2)
 
 

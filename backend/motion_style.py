@@ -89,8 +89,21 @@ def apply_motion_style(plan, requested='clean', prompt=''):
     if requested=='clean':
         if no_effects:
             p['effect_keyframes']=[]
+            for sc in p.get('storyboard',[]):
+                sc['animation_in']='none'
+                sc['animation_out']='none'
+                sc['sound_effect']='none'
+                sc['sound_volume']='none' if False else 0
+                motion=sc.setdefault('motion',{})
+                motion['animate']=False
+                motion['transition_seconds']=0
+                motion['photo_zoom']=0
+                motion['stagger']=False
         elif no_zoom:
             p['effect_keyframes']=[e for e in p.get('effect_keyframes',[]) if not (e.get('scale',1.0)!=1.0 or 'zoom' in str(e.get('id','')))]
+            for sc in p.get('storyboard',[]):
+                if 'motion' in sc:
+                    sc['motion']['photo_zoom']=0
         if no_sound or no_sfx:
             for sc in p.get('storyboard',[]):
                 sc['sound_effect']='none'
@@ -148,6 +161,9 @@ def apply_motion_style(plan, requested='clean', prompt=''):
             motion['stagger']=('progressive_list' in enabled and sc.get('graphic_kind') in ('process','network') and not sc.get('visual_asset_id') and not sc.get('library_visual_id') and 2<=len(items)<=5 and sc['duration']>=1.2+.55*len(items) and (sc['scene_type']!='talking_head_pip' or len(items)<=3) and all(len(item)<=60 and grounded_phrase(item,speech) for item in items))
             if 'soft_entries' in enabled and not no_effects:sc['animation_in']='slide_up'
             if 'quiet_accents' in enabled:sc['sound_volume']=min(sc.get('sound_volume',.1),.07)
+        if no_effects:
+            sc['animation_in']='none'
+            sc['animation_out']='none'
         if no_sound or no_sfx or no_effects:sc['sound_effect']='none'
         if no_text:
             sc['headline']='';sc['badge_text']='';motion['stagger']=False

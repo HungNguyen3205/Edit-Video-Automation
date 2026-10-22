@@ -101,6 +101,7 @@ def test_user_opt_outs_and_font_override_are_respected(media):
     r=apply_style_preset(p,'inspirational','Không hiệu ứng, không chữ, không âm thanh')
     assert r['effect_keyframes']==[] and r['audio_tracks']==[] and not r['show_captions']
     assert all(not s['headline'] and not s['motion']['animate'] and s['sound_effect']=='none' for s in r['storyboard'])
+    validate(r, r['assets'])
     assert apply_typography(r,'business')['typography']['profile_id']=='business'
 
 

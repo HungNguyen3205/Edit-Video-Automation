@@ -615,7 +615,7 @@ async function render() {
       if(cfg.headlineSeconds<cfg.duration) {
         document.querySelectorAll('.headline').forEach(el=>el.style.visibility=currTime>=cfg.headlineSeconds?'hidden':'visible');
       }
-      if(cfg.dynamic && !cfg.animate){
+      if(!cfg.animate || cfg.animation === 'none'){
         for(const el of document.querySelectorAll('.anim-badge,.anim-card,.anim-headline,.anim-stat,.anim-sub,.anim-stagger')){el.style.opacity='1';el.style.transform='none';}
         document.querySelector('.main-content').style.opacity='1';
         return;
@@ -673,8 +673,8 @@ async function render() {
       document.querySelector('.main-content').style.opacity = cfg.exit === 'fade' ? Math.min(1, Math.max(0, (cfg.duration-currTime)/.18)) : 1;
     }, {time: t, dynamic: sceneData.motion_style==='dynamic_explainer', animate:sceneData.motion?.animate!==false,
       photoZoom:Number.isFinite(sceneData.motion?.photo_zoom)?Math.max(0,Math.min(.08,sceneData.motion.photo_zoom)):.045,
-      headlineSeconds:sceneData.style_theme && Number.isFinite(sceneData.motion?.headline_seconds)?sceneData.motion.headline_seconds:duration,
-      animation: sceneData.animation_in || 'pop_in', exit: sceneData.animation_out || 'none', duration});
+      animation: (sceneData.animation_in === 'none' || sceneData.motion?.animate === false) ? 'none' : (sceneData.animation_in || 'pop_in'),
+      exit: (sceneData.animation_out === 'none' || sceneData.motion?.animate === false) ? 'none' : (sceneData.animation_out || 'none'), duration});
 
     const buffer = await page.screenshot({ type: 'png' });
     if (!ffmpeg.stdin.write(buffer)) await new Promise(resolve => ffmpeg.stdin.once('drain', resolve));

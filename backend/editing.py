@@ -204,7 +204,7 @@ def validate(plan, trusted_assets):
         if sc.get('sound_effect','none') not in ('none','pop','whoosh','impact','chime','click'):
             raise ValueError('Âm thanh cảnh không hợp lệ.')
         finite(sc.get('sound_volume',.10),0,1,'Âm lượng cảnh')
-        if sc.get('animation_in','pop_in') not in ('pop_in','slide_up','fade') or sc.get('animation_out','none') not in ('fade','none'):
+        if sc.get('animation_in','pop_in') not in ('pop_in','slide_up','fade','none') or sc.get('animation_out','none') not in ('fade','none'):
             raise ValueError('Chuyển động cảnh không hợp lệ.')
         if sc.get('library_visual_id'):
             from visual_library import library_image
