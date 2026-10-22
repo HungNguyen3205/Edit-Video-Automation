@@ -109,7 +109,7 @@ def base_url():
 
 
 def model_name():
-    return os.getenv('VIDEO_AI_MODEL', 'qwen3:4b')
+    return os.getenv('VIDEO_AI_MODEL', 'qwen2.5:3b')
 
 
 ANALYZER_VERSION = '2.0.0'
