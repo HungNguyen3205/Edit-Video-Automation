@@ -947,7 +947,8 @@ def run_job(project_id, job_id, snapshot, options, mode):
                     options=options,
                     duration=duration,
                     event=event,
-                    fallback_reason=plan.get('director', {}).get('fallback_reason')
+                    fallback_reason=plan.get('director', {}).get('fallback_reason'),
+                    execution_manifest=timings.get('execution_manifest')
                 )
                 if not report['quality_gate']['passed']:
                     output.unlink(missing_ok=True)

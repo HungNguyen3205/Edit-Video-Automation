@@ -62,6 +62,7 @@ def compile_storyboard_scenes(plan, asset_dir, work_dir, output_path, preview=Fa
         and (not plan.get('branding') or a['type']!='image' or a['id'] in selected_images)]
     resolver = AssetResolver(resolver_assets, asset_dir, work_dir)
     scene_files, rendered_scenes, cursor = [], [], 0.0
+    scene_manifest = []
     clip=plan['video_clips'][0] if len(plan['video_clips'])==1 else None
     camera_source=(asset_dir/assets[clip['asset_id']]['filename']
         if clip and not preview and not plan.get('crop_reference_right_half')
@@ -73,6 +74,23 @@ def compile_storyboard_scenes(plan, asset_dir, work_dir, output_path, preview=Fa
         assembled=camera_source
         metrics['scene_render_seconds']=0.0
         metrics['camera_source_reused']=True
+        for i, sc in enumerate(storyboard):
+            dur = sc['duration']
+            frames = round(dur * fps)
+            scene_manifest.append({
+                'scene_index': i,
+                'scene_id': sc.get('scene_id'),
+                'scene_type': 'talking_head',
+                'duration': round(dur, 3),
+                'frames': frames,
+                'source_asset_id': sc.get('asset_id'),
+                'source_range': [sc.get('source_in', 0), sc.get('source_in', 0) + dur],
+                'visual_asset_id': None,
+                'visual_source_range': None,
+                'animation_in': sc.get('animation_in', 'none'),
+                'sound_effect': sc.get('sound_effect', 'none'),
+                'executed_method': 'camera_source_passthrough'
+            })
         assembly_started=time.monotonic()
         if phase:
             phase('Đang dựng zoom, giọng nói và phụ đề từ video nguồn')
@@ -99,6 +117,7 @@ def compile_storyboard_scenes(plan, asset_dir, work_dir, output_path, preview=Fa
             source = asset_dir / assets[sc['asset_id']]['filename']
             scene_file, src_in = work_dir / f'scene_{i}.mp4', sc['source_in']
             fit = f'scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},setsar=1,fps={fps},format=yuv420p'
+            v_src_range = None
             if typ in ('talking_head', 'broll'):
                 input_opts = ['-ss',str(src_in),'-i',str(source)]
                 if typ == 'broll':
@@ -106,7 +125,12 @@ def compile_storyboard_scenes(plan, asset_dir, work_dir, output_path, preview=Fa
                     if not visual:
                         raise ValueError('B-roll cần ảnh/video minh họa thuộc dự án.')
                     path = asset_dir / visual['filename']
-                    input_opts = ['-loop','1','-i',str(path)] if visual['type'] == 'image' else ['-ss',str(sc.get('visual_source_in',0)),'-i',str(path)]
+                    if visual['type'] == 'image':
+                        input_opts = ['-loop','1','-i',str(path)]
+                    else:
+                        v_in = float(sc.get('visual_source_in', 0))
+                        input_opts = ['-ss',str(v_in),'-i',str(path)]
+                        v_src_range = [v_in, v_in + dur]
                 crop = 'crop=iw/2:ih:iw/2:0,' if typ == 'talking_head' and plan.get('crop_reference_right_half') else ''
                 run(['ffmpeg','-v','error','-y',*input_opts,'-an','-vf',crop+fit,
                      '-frames:v',str(frames),'-c:v','libx264','-crf','20','-preset','fast',
@@ -174,6 +198,20 @@ def compile_storyboard_scenes(plan, asset_dir, work_dir, output_path, preview=Fa
                 raise RuntimeError(f'Cảnh {i+1} bị thiếu hình; không xuất video bị cụt.')
             scene_files.append(scene_file)
             rendered_scenes.append({**sc,'duration':dur})
+            scene_manifest.append({
+                'scene_index': i,
+                'scene_id': sc.get('scene_id'),
+                'scene_type': typ,
+                'duration': round(dur, 3),
+                'frames': frames,
+                'source_asset_id': sc.get('asset_id'),
+                'source_range': [src_in, src_in + dur] if typ in ('talking_head', 'broll') else None,
+                'visual_asset_id': sc.get('visual_asset_id'),
+                'visual_source_range': v_src_range,
+                'animation_in': sc.get('animation_in', 'none'),
+                'sound_effect': sc.get('sound_effect', 'none'),
+                'executed_method': 'video_stream' if typ in ('talking_head', 'broll') else 'motion_graphics'
+            })
             cursor = end
             if progress:
                 progress(20+int(55*cursor/total))
@@ -201,8 +239,14 @@ def compile_storyboard_scenes(plan, asset_dir, work_dir, output_path, preview=Fa
     carrier = work_dir/'audio_carrier.mp4'
     cmd,_ = compile_render(audio_plan,asset_dir,work_dir,carrier,preview)
     run(cmd,event)
+    from style_presets import is_sfx_track
+    from render_report import is_zoom_effect
+    executed_sfx = [t for t in audio_plan.get('audio_tracks', []) if is_sfx_track(t) or str(t.get('id', '')).startswith('sfx_')]
+
     # Editable overlays/zooms now operate on the actual motion storyboard.
     picture = assembled
+    applied_overlays = []
+    applied_keyframes = []
     if plan['visual_overlays'] or plan['effect_keyframes']:
         picture_plan = copy.deepcopy(plan)
         picture_plan['assets'].append({'id':'rendered_story','type':'video','filename':str(assembled.resolve()),'metadata':probe(assembled)})
@@ -211,10 +255,29 @@ def compile_storyboard_scenes(plan, asset_dir, work_dir, output_path, preview=Fa
             picture_plan[key] = []
         for key in ('visual_overlays','effect_keyframes'):
             picture_plan[key] = [{**e,'duration':min(e['duration'],total-e['timeline_start'])} for e in picture_plan[key] if e['timeline_start'] < total-.04]
+        applied_overlays = picture_plan['visual_overlays']
+        applied_keyframes = picture_plan['effect_keyframes']
         picture_plan['output_settings'].update(width=w,height=h,fit='cover')
         picture = work_dir/'picture_effects.mp4'
         cmd,_ = compile_render(picture_plan,asset_dir,work_dir,picture,False)
         run(cmd,event)
+
+    # Compile authoritative execution manifest for audit reporting
+    scene_trans = metrics.get('scene_transitions', {'count': 0, 'method': 'camera_passthrough' if camera_source is not None else 'hard_cuts'})
+    metrics['execution_manifest'] = {
+        'scenes': scene_manifest,
+        'scene_count': len(scene_manifest),
+        'executed_transitions': scene_trans,
+        'executed_transition_count': scene_trans.get('count', 0),
+        'executed_sfx_tracks': executed_sfx,
+        'executed_sfx_count': len(executed_sfx),
+        'executed_visual_overlays': applied_overlays,
+        'executed_overlay_count': len(applied_overlays),
+        'executed_effect_keyframes': applied_keyframes,
+        'executed_zoom_count': len([k for k in applied_keyframes if is_zoom_effect(k)]),
+        'camera_source_reused': camera_source is not None
+    }
+
     ass = work_dir/'storyboard.ass'
     write_storyboard_ass(ass,plan,w,h)
     output_fit=f'scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},setsar=1,fps={fps},format=yuv420p,' if camera_source is not None else ''

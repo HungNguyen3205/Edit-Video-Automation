@@ -213,7 +213,8 @@ function finish(p) {
   const reportDetails = $('report-details');
   if (reportDetails && report.plan_metrics) {
     const pm = report.plan_metrics;
-    const rm = report.rendered_metrics || {};
+    const re = report.rendered_execution || {};
+    const fv = report.file_verification || report.rendered_metrics || {};
     const qg = report.quality_gate || {};
     const va = report.vision_analysis || {};
 
@@ -223,21 +224,32 @@ function finish(p) {
           <h4>Kế hoạch dự kiến</h4>
           <div class="report-item"><span>Tổng số cảnh:</span><span>${pm.scene_count}</span></div>
           <div class="report-item"><span>Cảnh minh họa:</span><span>${pm.illustration_scene_count} (${pm.illustration_duration_seconds}s)</span></div>
-          <div class="report-item"><span>Tỷ lệ minh họa:</span><span>${Math.round((pm.illustration_duration_ratio || 0) * 100)}%</span></div>
-          <div class="report-item"><span>Hiệu ứng zoom:</span><span>${pm.zoom_count}</span></div>
+          <div class="report-item"><span>Zoom dự kiến:</span><span>${pm.zoom_count}</span></div>
+          <div class="report-item"><span>Hoạt ảnh cảnh:</span><span>${pm.animation_in_count || 0}</span></div>
+          <div class="report-item"><span>Chuyển cảnh dự kiến:</span><span>${pm.planned_transition_count || 0}</span></div>
           <div class="report-item"><span>Âm thanh SFX:</span><span>${pm.sfx_count}</span></div>
           <div class="report-item"><span>Tài nguyên người dùng:</span><span>${pm.user_assets_used_count} file</span></div>
           <div class="report-item"><span>Phụ đề nhận dạng:</span><span>${pm.subtitle_count} câu</span></div>
         </div>
         <div class="report-card">
-          <h4>Xác thực thực tế (Renderer)</h4>
-          <div class="report-item"><span>Thời lượng đo được:</span><span>${rm.duration_seconds || dur}s</span></div>
-          <div class="report-item"><span>Kích thước khung hình:</span><span>${rm.width || 720} × ${rm.height || 1280}</span></div>
-          <div class="report-item"><span>Dung lượng xuất:</span><span>${(Number(rm.file_size_bytes || 0) / 1024 / 1024).toFixed(1)} MB</span></div>
-          <div class="report-item"><span>Âm thanh đầu ra:</span><span>${rm.has_audio ? 'Hợp lệ' : 'Thiếu'}</span></div>
-          <div class="report-item"><span>Lớp phủ đồ họa:</span><span>${rm.actual_rendered_overlays || 0}</span></div>
-          <div class="report-item"><span>Engine thực tế:</span><span>${report.engine || 'rules'} ${report.model ? `(${report.model})` : ''}</span></div>
+          <h4>Thực thi (Renderer)</h4>
+          <div class="report-item"><span>Cảnh đã dựng:</span><span>${re.executed_scene_count || pm.scene_count}</span></div>
+          <div class="report-item"><span>Chuyển cảnh thực tế:</span><span>${re.executed_transition_count || 0}</span></div>
+          <div class="report-item"><span>Zoom thực tế:</span><span>${re.executed_zoom_count || 0}</span></div>
+          <div class="report-item"><span>SFX thực tế:</span><span>${re.executed_sfx_count || 0}</span></div>
+          <div class="report-item"><span>Lớp phủ đồ họa:</span><span>${re.executed_overlay_count || 0}</span></div>
+          <div class="report-item"><span>Engine lập kế hoạch:</span><span>${report.engine || 'rules'} ${report.model ? `(${report.model})` : ''}</span></div>
           <div class="report-item"><span>Thị giác (Vision):</span><span>${va.vision_used ? `Đã quét ${va.sampled_frame_count} frame` : 'Tắt'}</span></div>
+        </div>
+        <div class="report-card">
+          <h4>Xác thực file kỹ thuật (FFprobe)</h4>
+          <div class="report-item"><span>Thời lượng đo được:</span><span>${fv.duration_seconds || dur}s</span></div>
+          <div class="report-item"><span>Kích thước khung hình:</span><span>${fv.width || 720} × ${fv.height || 1280}</span></div>
+          <div class="report-item"><span>Dung lượng xuất:</span><span>${(Number(fv.file_size_bytes || 0) / 1024 / 1024).toFixed(1)} MB</span></div>
+          <div class="report-item"><span>Âm thanh đầu ra:</span><span>${fv.has_audio ? 'Hợp lệ' : 'Thiếu'}</span></div>
+          <div style="margin-top:8px;font-size:10px;color:#64748b;line-height:1.3">
+            * FFprobe chỉ kiểm tra thuộc tính stream, codec, thời lượng và kích thước kỹ thuật.
+          </div>
         </div>
       </div>
       ${report.fallback_reason_detail ? `

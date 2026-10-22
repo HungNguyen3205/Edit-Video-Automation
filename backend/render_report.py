@@ -44,8 +44,24 @@ def sanitize_value(val):
     return val
 
 
-def check_quality_gate(meta, output_path, expected_duration, source_has_audio=False, is_automatic=True):
-    """Verify rendered MP4 against technical standards."""
+def is_zoom_effect(effect: dict) -> bool:
+    """Check if keyframe represents a camera zoom based on standard attributes, not ID prefix."""
+    if not isinstance(effect, dict):
+        return False
+    scale = effect.get('scale', 1.0)
+    if isinstance(scale, (int, float)) and abs(scale - 1.0) > 0.001:
+        return True
+    if effect.get('direction') in ('in', 'out'):
+        return True
+    if effect.get('type') == 'zoom' or effect.get('kind') == 'zoom':
+        return True
+    if 'zoom' in str(effect.get('id', '')).lower():
+        return True
+    return False
+
+
+def check_quality_gate(meta, output_path, expected_duration, source_has_audio=False, is_automatic=True, execution_manifest=None, required_assets=None):
+    """Verify rendered MP4 against technical standards and execution completeness."""
     out_file = Path(output_path)
     file_exists = out_file.is_file()
     file_size = out_file.stat().st_size if file_exists else 0
@@ -61,13 +77,19 @@ def check_quality_gate(meta, output_path, expected_duration, source_has_audio=Fa
     height = int(meta.get('height', 0))
     dimensions_valid = (width, height) == (720, 1280) if is_automatic else (width > 0 and height > 0)
 
-    passed = file_readable and audio_valid and duration_matched and dimensions_valid
+    # Verify scene execution integrity if manifest is supplied
+    scenes_intact = True
+    if execution_manifest and 'scene_count' in execution_manifest:
+        scenes_intact = execution_manifest.get('scene_count', 0) > 0
+
+    passed = file_readable and audio_valid and duration_matched and dimensions_valid and scenes_intact
 
     checks = {
         'file_readable': file_readable,
         'audio_valid': audio_valid,
         'duration_matched': duration_matched,
         'dimensions_valid': dimensions_valid,
+        'scenes_rendered_intact': scenes_intact,
         'duration_actual': round(duration_actual, 2),
         'duration_expected': round(expected_duration, 2),
         'file_size_bytes': file_size
@@ -82,11 +104,13 @@ def check_quality_gate(meta, output_path, expected_duration, source_has_audio=Fa
         error_msg = f"Thời lượng video xuất ({duration_actual:.1f}s) lệch so với kế hoạch ({expected_duration:.1f}s)."
     elif not dimensions_valid:
         error_msg = f"Kích thước khung hình ({width}x{height}) chưa đạt chuẩn 720x1280."
+    elif not scenes_intact:
+        error_msg = 'Lỗi render: Một hoặc nhiều cảnh không được tạo thành công trong bản dựng.'
 
     return passed, checks, error_msg
 
 
-def check_low_edit_density(plan, user_prompt):
+def check_low_edit_density(plan, user_prompt, execution_manifest=None):
     """Check if output has minimal editing while user requested dynamic output."""
     explicit_minimal = bool(re.search(
         r'tối giản|không (?:cần |dùng |thêm )?(?:hiệu ứng|minh họa|zoom|sfx|chữ|đồ họa)|minimal|chỉ chữ|chỉ camera',
@@ -96,16 +120,21 @@ def check_low_edit_density(plan, user_prompt):
     keyframes = plan.get('effect_keyframes', [])
 
     ill_count = len([s for s in storyboard if s.get('scene_type') != 'talking_head'])
-    zoom_count = len([k for k in keyframes if str(k.get('id', '')).startswith('zoom')])
+    zoom_count = len([k for k in keyframes if is_zoom_effect(k)])
     sfx_count = len([s for s in storyboard if s.get('sound_effect') and s.get('sound_effect') != 'none'])
 
-    if not explicit_minimal and ill_count == 0 and zoom_count <= 1 and sfx_count == 0:
-        return True, "Mức độ biên tập thấp: Video chủ yếu chỉ có camera gốc và phụ đề; chưa có đồ họa minh họa hoặc nhịp dựng năng động như yêu cầu (có thể do AI chuyển sang bản dự phòng hoặc thiếu tài nguyên phù hợp)."
+    # Also check executed transitions from renderer
+    executed_transitions = 0
+    if execution_manifest:
+        executed_transitions = execution_manifest.get('executed_transition_count', 0)
+
+    if not explicit_minimal and ill_count == 0 and zoom_count == 0 and sfx_count == 0 and executed_transitions == 0:
+        return True, "Mức độ biên tập thấp: Bản dựng thực tế chủ yếu gồm video gốc và chữ, chưa có hình minh họa/B-roll hoặc nhịp chuyển cảnh năng động."
 
     return False, None
 
 
-def build_render_report(plan, snapshot, meta, output_path, options, duration, event=None, fallback_reason=None):
+def build_render_report(plan, snapshot, meta, output_path, options, duration, event=None, fallback_reason=None, execution_manifest=None):
     """Construct full post-render audit comparing plan to actual rendered video."""
     storyboard = plan.get('storyboard', [])
     keyframes = plan.get('effect_keyframes', [])
@@ -118,8 +147,17 @@ def build_render_report(plan, snapshot, meta, output_path, options, duration, ev
     ill_duration = sum(float(s.get('duration', 0)) for s in ill_scenes)
     ill_count = len(ill_scenes)
 
-    zoom_count = len([k for k in keyframes if str(k.get('id', '')).startswith('zoom')])
-    transition_count = len([s for s in storyboard if s.get('animation_in') and s.get('animation_in') != 'none'])
+    # Standardized zoom counting: inspects scale/direction/type, not arbitrary ID prefix
+    zoom_count = len([k for k in keyframes if is_zoom_effect(k)])
+
+    # Separate scene animation_in from transition between scenes
+    animation_in_count = len([s for s in storyboard if s.get('animation_in') and s.get('animation_in') != 'none'])
+
+    # Count planned transitions between adjacent scenes
+    from scene_transitions import transition_frames
+    fps = plan.get('output_settings', {}).get('fps', 30)
+    planned_transitions = sum(1 for a, b in zip(storyboard, storyboard[1:]) if transition_frames(a, b, fps) > 0)
+
     sfx_count = len([s for s in storyboard if s.get('sound_effect') and s.get('sound_effect') != 'none'])
 
     user_assets_used = set()
@@ -130,13 +168,15 @@ def build_render_report(plan, snapshot, meta, output_path, options, duration, ev
         if o.get('asset_id'):
             user_assets_used.add(str(o['asset_id']))
 
+    # 1. Metrics purely inferred from the edit plan
     plan_metrics = {
         'scene_count': len(storyboard),
         'illustration_scene_count': ill_count,
         'illustration_duration_seconds': round(ill_duration, 2),
         'illustration_duration_ratio': round(ill_duration / max(0.001, duration), 3),
         'zoom_count': zoom_count,
-        'transition_count': transition_count,
+        'animation_in_count': animation_in_count,
+        'planned_transition_count': planned_transitions,
         'sfx_count': sfx_count,
         'audio_track_count': len(audio_tracks),
         'user_assets_used_count': len(user_assets_used),
@@ -144,18 +184,42 @@ def build_render_report(plan, snapshot, meta, output_path, options, duration, ev
         'review_warning_count': len(subtitle_review)
     }
 
+    # 2. Manifest returned by the renderer (only what was truly compiled/executed)
+    exec_manifest = execution_manifest or {}
+    executed_scenes = exec_manifest.get('scenes', [])
+    executed_transitions_count = exec_manifest.get('executed_transition_count', planned_transitions if not exec_manifest else 0)
+    executed_sfx_count = exec_manifest.get('executed_sfx_count', sfx_count if not exec_manifest else 0)
+    executed_overlays_count = exec_manifest.get('executed_overlay_count', len(overlays) if not exec_manifest else 0)
+    executed_zoom_count = exec_manifest.get('executed_zoom_count', zoom_count if not exec_manifest else 0)
+
+    rendered_execution = {
+        'executed_scene_count': len(executed_scenes) or len(storyboard),
+        'executed_transition_count': executed_transitions_count,
+        'executed_sfx_count': executed_sfx_count,
+        'executed_overlay_count': executed_overlays_count,
+        'executed_zoom_count': executed_zoom_count,
+        'camera_source_reused': bool(exec_manifest.get('camera_source_reused', False))
+    }
+
+    # 3. Verified file metrics via FFprobe and filesystem
     out_file = Path(output_path)
     file_size = out_file.stat().st_size if out_file.is_file() else 0
-    rendered_metrics = {
+    file_verification = {
         'probe_verified': True,
+        'technical_scope_note': 'FFprobe chỉ xác minh thông số container, stream codec, kích thước khung hình và thời lượng; không đánh giá tính thẩm mỹ hay nội dung minh họa.',
         'output_filename': out_file.name,
         'file_size_bytes': file_size,
         'duration_seconds': round(float(meta.get('duration', 0.0)), 2),
         'width': int(meta.get('width', 0)),
         'height': int(meta.get('height', 0)),
-        'has_audio': bool(meta.get('has_audio', False)),
-        'actual_rendered_zooms': zoom_count,
-        'actual_rendered_overlays': len(overlays),
+        'has_audio': bool(meta.get('has_audio', False))
+    }
+
+    # Backward compatibility with existing frontend expectations
+    rendered_metrics = {
+        **file_verification,
+        'actual_rendered_zooms': executed_zoom_count,
+        'actual_rendered_overlays': executed_overlays_count,
         'actual_rendered_audio_tracks': len(audio_tracks)
     }
 
@@ -171,10 +235,13 @@ def build_render_report(plan, snapshot, meta, output_path, options, duration, ev
     }
 
     source_has_audio = bool(snapshot.get('video', {}).get('metadata', {}).get('has_audio'))
-    gate_passed, checks, gate_err = check_quality_gate(meta, output_path, duration, source_has_audio, options.automatic)
+    gate_passed, checks, gate_err = check_quality_gate(
+        meta, output_path, duration, source_has_audio, options.automatic,
+        execution_manifest=exec_manifest
+    )
 
     user_prompt = (getattr(options, 'user_prompt', None) or getattr(options, 'prompt', '') or '').strip()
-    is_low_edit, low_edit_reason = check_low_edit_density(plan, user_prompt)
+    is_low_edit, low_edit_reason = check_low_edit_density(plan, user_prompt, exec_manifest)
 
     director = plan.get('director', {})
     engine = director.get('engine', 'rules')
@@ -215,6 +282,9 @@ def build_render_report(plan, snapshot, meta, output_path, options, duration, ev
         'fallback_reason_detail': reason_desc,
         'plan_metrics': plan_metrics,
         'rendered_metrics': rendered_metrics,
+        'rendered_execution': rendered_execution,
+        'file_verification': file_verification,
+        'execution_manifest': exec_manifest,
         'vision_analysis': vision_analysis,
         'quality_gate': {
             'passed': gate_passed,
