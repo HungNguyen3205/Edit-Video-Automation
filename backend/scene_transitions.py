@@ -3,8 +3,14 @@ from pathlib import Path
 
 
 def transition_frames(previous,current,fps):
-    if previous['scene_type']==current['scene_type']=='talking_head':return 0
     if previous.get('motion',{}).get('animate') is not True or current.get('motion',{}).get('animate') is not True:return 0
+    if previous['scene_type']==current['scene_type']=='talking_head':
+        has_intent = bool(current.get('transition') in ('fade','dissolve') or
+                          current.get('transition_in') in ('fade','dissolve') or
+                          current.get('allow_camera_transition') is True)
+        is_continuous = bool(current.get('is_continuous_speech'))
+        if not (has_intent and not is_continuous):
+            return 0
     seconds=min(current.get('motion',{}).get('transition_seconds',0),previous['duration']/3,current['duration']/3,.25)
     return max(0,round(seconds*fps))
 

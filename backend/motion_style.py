@@ -6,9 +6,14 @@ from typing import Literal
 from project_paths import SKILLS_DIR
 
 MotionStyle = Literal['clean', 'dynamic_explainer']
-NO_EFFECTS = r'(?:không|tắt|bỏ)\s+(?:thêm |chèn |dùng )?(?:hiệu ứng|zoom)|no effects'
-NO_TEXT = r'(?:không|tắt|bỏ)\s+(?:thêm |chèn |dùng )?(?:chữ|text)|no text'
-NO_SOUND = r'(?:không|tắt|bỏ|no)\s+(?:thêm |chèn |dùng )?(?:âm thanh|tiếng|sfx|sound)'
+NO_EFFECTS = r'(?:không|tắt|bỏ|đừng|ko)\s+(?:thêm |chèn |dùng |cần )?(?:hiệu ứng|chuyển động|animation|motion)|no effects'
+NO_ZOOM = r'(?:không|tắt|bỏ|đừng|ko)\s+(?:thêm |chèn |dùng |cần )?(?:zoom|phóng to|thu nhỏ)|no zoom'
+NO_TEXT = r'(?:không|tắt|bỏ|đừng|ko)\s+(?:thêm |chèn |dùng |cần )?(?:chữ|text|tiêu đề|headline)|no text'
+NO_CAPTIONS = r'(?:không|tắt|bỏ|đừng|ko)\s+(?:thêm |chèn |dùng |cần )?(?:phụ đề|subtitles|caption|sub)|no (?:subtitles|captions|sub)'
+NO_SOUND = r'(?:không|tắt|bỏ|no|đừng|ko)\s+(?:thêm |chèn |dùng |cần )?(?:âm thanh|tiếng|sound)'
+NO_SFX = r'(?:không|tắt|bỏ|no|đừng|ko)\s+(?:thêm |chèn |dùng |cần )?(?:sfx|âm thanh hiệu ứng|tiếng động|tiếng whoosh|tiếng pop)|no sfx'
+NO_MUSIC = r'(?:không|tắt|bỏ|no|đừng|ko)\s+(?:thêm |chèn |dùng |cần )?(?:nhạc|music|nhạc nền|bgr? music)|no music'
+NO_ILLUSTRATIONS = r'(?:không|tắt|bỏ|đừng|ko)\s+(?:thêm |chèn |dùng |cần )?(?:minh họa|đồ họa|hình ảnh|ảnh|b-roll|cutaway)|no (?:illustrations|graphics|images)'
 CTA = re.compile(r'\b(?:đăng ký|theo dõi|liên hệ|bình luận|chia sẻ|lưu lại|đặt lịch)\b', re.I)
 NUMBER = re.compile(r'\b\d+(?:[.,]\d+)*\s*(?:VNĐ|VND|đồng|triệu|phút|ngày|giờ|%)', re.I)
 
@@ -74,15 +79,37 @@ def apply_motion_style(plan, requested='clean', prompt=''):
     p.pop('motion_style',None)
     p['effect_keyframes']=[e for e in p.get('effect_keyframes',[]) if e.get('origin')!='motion_skill']
     for sc in p.get('storyboard',[]):sc.pop('motion',None)
-    if requested=='clean':return p
+
     no_effects=bool(re.search(NO_EFFECTS,prompt,re.I))
+    no_zoom=bool(re.search(NO_ZOOM,prompt,re.I))
     no_text=bool(re.search(NO_TEXT,prompt,re.I))
     no_sound=bool(re.search(NO_SOUND,prompt,re.I))
+    no_sfx=bool(re.search(NO_SFX,prompt,re.I))
+
+    if requested=='clean':
+        if no_effects:
+            p['effect_keyframes']=[]
+        elif no_zoom:
+            p['effect_keyframes']=[e for e in p.get('effect_keyframes',[]) if not (e.get('scale',1.0)!=1.0 or 'zoom' in str(e.get('id','')))]
+        if no_sound or no_sfx:
+            for sc in p.get('storyboard',[]):
+                sc['sound_effect']='none'
+                sc['sound_volume']=0
+        if no_text:
+            for sc in p.get('storyboard',[]):
+                sc['headline']=''
+                sc['badge_text']=''
+        return p
+
     context=skill_context(p,requested,prompt)
     enabled={s['id'] for s in context}
-    if no_effects:p['effect_keyframes']=[]
-    if not no_effects and 'camera_breath' in enabled:
+    if no_effects:
+        p['effect_keyframes']=[]
+    elif no_zoom:
+        p['effect_keyframes']=[e for e in p.get('effect_keyframes',[]) if not (e.get('scale',1.0)!=1.0 or 'zoom' in str(e.get('id','')))]
+    elif 'camera_breath' in enabled:
         p['effect_keyframes']=[e for e in p.get('effect_keyframes',[]) if e.get('origin') not in ('auto','motion_skill')]
+
     statistics=[];cta=[];camera=0;added_list=False
     allow_lists=('progressive_list' in enabled and not no_text and p.get('branding',{}).get('illustrations',True) and not re.search(r'không (?:thêm |chèn |dùng |cần )?(?:minh họa|đồ họa|hình)',prompt,re.I))
     photos=0
@@ -112,7 +139,7 @@ def apply_motion_style(plan, requested='clean', prompt=''):
                 'accent_words':2 if accent and 'keyword_accent' in enabled else 0,
                 'animate':not no_effects,'stagger':False}
         if sc['scene_type']=='talking_head':
-            if 'camera_breath' in enabled and not no_effects and speech.strip() and camera%2==0:
+            if 'camera_breath' in enabled and not no_effects and not no_zoom and speech.strip() and camera%2==0:
                 duration=min(4.8,sc['duration'])
                 if duration>=1.2:p.setdefault('effect_keyframes',[]).append({'id':f'motion_zoom_{index}','origin':'motion_skill','timeline_start':start,'duration':duration,'scale':1.065})
             camera+=1
@@ -121,7 +148,7 @@ def apply_motion_style(plan, requested='clean', prompt=''):
             motion['stagger']=('progressive_list' in enabled and sc.get('graphic_kind') in ('process','network') and not sc.get('visual_asset_id') and not sc.get('library_visual_id') and 2<=len(items)<=5 and sc['duration']>=1.2+.55*len(items) and (sc['scene_type']!='talking_head_pip' or len(items)<=3) and all(len(item)<=60 and grounded_phrase(item,speech) for item in items))
             if 'soft_entries' in enabled and not no_effects:sc['animation_in']='slide_up'
             if 'quiet_accents' in enabled:sc['sound_volume']=min(sc.get('sound_volume',.1),.07)
-        if no_sound or no_effects:sc['sound_effect']='none'
+        if no_sound or no_sfx or no_effects:sc['sound_effect']='none'
         if no_text:
             sc['headline']='';sc['badge_text']='';motion['stagger']=False
             if not sc.get('visual_asset_id') and not sc.get('library_visual_id'):sc['scene_type']='talking_head';sc['graphic_items']=[];sc['graphic_title']=''

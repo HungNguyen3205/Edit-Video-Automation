@@ -31,12 +31,89 @@
         <div id="error" class="error" role="alert" hidden></div>
         <div id="empty-result" class="empty-result"><span aria-hidden="true">▶</span><p>Video đã dựng sẽ xuất hiện ở đây</p><small>Phong cách đã chọn được áp dụng vào file xuất.</small></div>
         <video id="result-player" controls playsinline preload="metadata" hidden aria-label="Video kết quả"></video>
+        <div id="status-badge" class="status-badge" hidden></div>
         <p id="result-status" class="result-status" role="status" hidden></p>
         <a id="download" class="download" download hidden>Tải video đã dựng ↓</a>
+        <details id="render-report" class="render-report" hidden>
+          <summary id="report-summary">Báo cáo sau dựng &amp; kiểm tra chất lượng</summary>
+          <div id="report-details" class="report-details"></div>
+        </details>
         <details id="warnings" hidden><summary>Lưu ý về bản dựng</summary><ul id="warning-list"></ul></details>
       </section>
     </div>
+    <details id="extra-resources" class="extra-drawer">
+      <summary class="extra-summary">
+        <div class="summary-left">
+          <span class="icon-gear" aria-hidden="true">⚙</span>
+          <strong>Tài nguyên &amp; yêu cầu thêm (tùy chọn)</strong>
+        </div>
+        <span id="extra-badge" class="extra-badge">Mặc định tự động</span>
+      </summary>
+      <div class="extra-content">
+        <div class="extra-grid">
+          <div class="extra-col">
+            <div class="field-item">
+              <label for="input-prompt"><strong>Yêu cầu dựng cho AI</strong><small>Ghi chú nhấn mạnh ý chính hoặc nhịp dựng</small></label>
+              <textarea id="input-prompt" rows="2" maxlength="4000" placeholder="VD: Nhấn mạnh phần giải thích, zoom cận lúc mở đầu..."></textarea>
+            </div>
+            <div class="field-item">
+              <label for="input-proper-names"><strong>Tên riêng cần nhận dạng đúng</strong><small>Danh từ riêng, thương hiệu, thuật ngữ</small></label>
+              <input id="input-proper-names" type="text" maxlength="600" placeholder="VD: DANAVA, ChatGPT, Qwen, Nam Hùng">
+            </div>
+            <div class="field-item">
+              <label for="input-brand-name"><strong>Tên thương hiệu</strong><small>Hiển thị ở chân trang video</small></label>
+              <input id="input-brand-name" type="text" maxlength="100" placeholder="VD: DANAVA STUDIO">
+            </div>
+          </div>
+
+          <div class="extra-col">
+            <div class="sub-upload-row">
+              <div class="sub-upload-box">
+                <span class="sub-box-title">Logo thương hiệu</span>
+                <input id="logo-input" type="file" accept=".png,.webp,.jpg" hidden>
+                <button id="btn-upload-logo" class="btn-sub" type="button">+ Tải logo</button>
+                <div id="logo-box" class="selected-asset-tag" hidden></div>
+              </div>
+              <div class="sub-upload-box">
+                <span class="sub-box-title">Nhạc nền</span>
+                <input id="music-input" type="file" accept=".mp3,.wav,.m4a,.aac,.ogg,.flac" hidden>
+                <button id="btn-upload-music" class="btn-sub" type="button">+ Tải nhạc nền</button>
+                <div id="music-box" class="selected-asset-tag" hidden></div>
+              </div>
+            </div>
+
+            <div class="field-item">
+              <div class="sub-assets-header">
+                <strong>Ảnh minh họa &amp; Video B-roll phụ</strong>
+                <small id="sub-assets-count">0 ảnh · 0 B-roll</small>
+              </div>
+              <div class="sub-upload-buttons">
+                <input id="image-input" type="file" accept=".png,.jpg,.jpeg,.webp" multiple hidden>
+                <button id="btn-upload-image" class="btn-sub" type="button">+ Thêm ảnh minh họa</button>
+                <input id="broll-input" type="file" accept=".mp4,.mov,.webm" multiple hidden>
+                <button id="btn-upload-broll" class="btn-sub" type="button">+ Thêm video B-roll</button>
+              </div>
+              <div id="assets-container" class="assets-checklist">
+                <p class="empty-assets-note">Chưa tải tài nguyên phụ nào. Bạn có thể bấm nút trên để thêm ảnh hoặc video B-roll.</p>
+              </div>
+            </div>
+
+            <div class="field-item checkbox-group">
+              <label class="checkbox-label">
+                <input id="chk-illustrations" type="checkbox" checked>
+                <span>Tự động thêm minh họa và sơ đồ khi lời thoại có ý rõ</span>
+              </label>
+              <label class="checkbox-label">
+                <input id="chk-remove-fillers" type="checkbox">
+                <span>Lọc bỏ tiếng đệm (à, ừm, ờ)</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </details>
     <footer>Hình bổ sung tự động lấy từ video gốc khi phù hợp. <a href="https://github.com/HungNguyen3205/Edit-Video-Automation/blob/main/docs/APPROVED_STYLE.md" target="_blank" rel="noopener">Hướng dẫn chuẩn bị máy</a></footer>
   </main>
 </body>
 </html>
+

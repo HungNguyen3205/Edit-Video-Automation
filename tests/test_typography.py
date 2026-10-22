@@ -7,6 +7,7 @@ from fontTools.ttLib import TTFont
 from typography import PROFILES, FONT_DIR, apply_typography, font_path
 from storyboard_style import write_storyboard_ass
 from text_review import headline_layout
+from editing import filter_path
 from test_pipeline import client, media, new_project
 import automatic_director
 
@@ -68,7 +69,7 @@ def test_ass_applies_fonts_without_dropping_caption_words(identifier,tmp_path):
     p={'subtitles':[{'asset_id':'source','start':0,'end':12,'text':speech}],'video_clips':[{'asset_id':'source','source_in':0,'source_out':12,'timeline_start':0,'duration':12}], 'storyboard':[], 'text_overlays':[]}
     p=apply_typography(p,identifier)
     path=tmp_path/'caption.ass';write_storyboard_ass(path,p,720,1280)
-    text=path.read_text()
+    text=path.read_text(encoding='utf-8')
     assert 'Style: Caption,'+PROFILES[identifier]['font_family'] in text
     captions=[line.split('}',1)[-1].replace('\\N',' ') for line in text.splitlines() if line.startswith('Dialogue:')]
     assert ' '.join(captions).split()==speech.split()
@@ -83,7 +84,7 @@ def test_libass_uses_actual_family_and_each_role_weight(identifier,tmp_path):
           'video_clips':[{'asset_id':'source','source_in':0,'source_out':1,'timeline_start':0,'duration':1}],
           'storyboard':[{'scene_type':'talking_head','timeline_start':0,'duration':1,'headline':'Ý TƯỞNG MỚI'}]}
     path=tmp_path/'fonts.ass';write_storyboard_ass(path,apply_typography(plan,identifier),720,1280)
-    result=subprocess.run(['ffmpeg','-f','lavfi','-i','color=s=720x1280:r=10:d=1','-vf',f'subtitles={path}:fontsdir={FONT_DIR}','-f','null','-'],capture_output=True,text=True)
+    result=subprocess.run(['ffmpeg','-f','lavfi','-i','color=s=720x1280:r=10:d=1','-vf',f"subtitles=filename='{filter_path(path)}':fontsdir='{filter_path(FONT_DIR)}'",'-f','null','-'],capture_output=True,text=True)
     assert result.returncode==0,result.stderr
     for weight in {profile['caption_weight'],profile['heading_weight']}:
         assert f"fontselect: ({profile['font_family']}, {weight}, 0) -> AVStudio" in result.stderr

@@ -33,8 +33,9 @@ from typography import FontStyle, public_profiles, apply_typography
 from motion_style import MotionStyle, apply_motion_style, skill_context
 from text_review import prepare_source, review_issues, subtitle_fingerprint, valid_confirmations, unconfirmed_issues, record_review_evidence
 from learning_store import LearningStore
+from render_report import build_render_report, FALLBACK_REASONS
 from recognition_config import name_hint, recognition_config, cache_changed
-from style_presets import StylePreset, preset_for, public_presets, apply_style_preset
+from style_presets import StylePreset, preset_for, public_presets, apply_style_preset, apply_user_overrides
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.getenv('VIDEO_DATA_DIR', BASE_DIR / 'data')).resolve()
@@ -476,6 +477,7 @@ class Options(BaseModel):
     user_prompt: str = Field('',max_length=4000)
     logo_asset_id: str = Field('',max_length=100)
     image_asset_ids: list[str] = Field(default_factory=list,max_length=6)
+    broll_asset_ids: list[str] = Field(default_factory=list,max_length=6)
     illustrations: bool = True
     proper_names: str = Field('',max_length=600)
     font_style: FontStyle = 'auto'
@@ -611,10 +613,27 @@ def run_job(project_id, job_id, snapshot, options, mode):
                             warnings.append('Chưa có phụ đề: bản dựng dùng nhịp theo thời gian, chưa ghép minh họa theo lời nói.')
                     if mode=='auto' and options.automatic:
                         memory=plan.get('learning_context',{})
-                        plan['director']['style_memory']={'mode':'style_memory','reference_count':len(memory.get('approved_style_examples',[])),
+                        mem_diag=memory.get('style_memory_diagnostics',{}) if isinstance(memory,dict) else {}
+                        applied_to_ai=plan['director']['engine']=='ollama' and bool(getattr(event,'style_memory_applied',False))
+                        plan['director']['style_memory']={
+                            'mode':'style_memory',
+                            'model_weights_trained':False,
+                            'dataset_kind':'style_supervision',
+                            'applied_to_ai':applied_to_ai,
+                            'memory_applied':applied_to_ai,
+                            'tier_applied':getattr(event,'style_memory_tier','none' if not applied_to_ai else 'full'),
+                            'reference_count':len(memory.get('approved_style_examples',[])),
                             'initial_reference_count':1 if memory.get('initial_visual_reference') else 0,
-                            'applied_to_ai':plan['director']['engine']=='ollama' and bool(getattr(event,'style_memory_applied',False)),'model_weights_trained':False}
-                        plan=apply_visual_assets(plan,options.prompt,options.brand_footer,options.logo_asset_id,options.image_asset_ids,options.illustrations)
+                            'total_records':mem_diag.get('total_records',0),
+                            'selected_examples_count':len(memory.get('approved_style_examples',[])),
+                            'reference_ids':mem_diag.get('selected_reference_ids',[]),
+                            'selection_reasons':mem_diag.get('selection_reasons',[]),
+                            'applied_rules':len(memory.get('rules',[])),
+                            'conflicts_detected':mem_diag.get('conflicts_detected',[]),
+                            'dropped_due_to_limit':getattr(event,'style_memory_dropped_items',[]),
+                            'dropped_reason':getattr(event,'style_memory_dropped_reason',None)
+                        }
+                        plan=apply_visual_assets(plan,options.prompt,options.brand_footer,options.logo_asset_id,options.image_asset_ids,options.illustrations,options.broll_asset_ids)
                         plan=apply_library_visuals(plan,options.user_prompt,options.motion_style=='dynamic_explainer')
                         font_choice=options.font_style
                         preset_font=options.style_preset!='explainer' and font_choice=='auto'
@@ -623,12 +642,27 @@ def run_job(project_id, job_id, snapshot, options, mode):
                         if preset_font:plan['typography'].update(requested='auto',selected_by='preset')
                         plan=apply_motion_style(plan,options.motion_style,options.user_prompt)
                         plan=apply_style_preset(plan,options.style_preset,options.user_prompt,options.music_asset_id)
+                        plan=apply_user_overrides(plan,options.user_prompt,options)
                         warnings=list(dict.fromkeys([*warnings,*plan['director']['warnings']]))
                         issues=unconfirmed_issues(plan,review_issues(plan.get('subtitles',[])))
                         plan['subtitle_review']=issues
                         if issues:
                             warnings.append('Có '+str(len(issues))+' câu phụ đề cần nghe lại. Mở mục sửa phụ đề để kiểm tra trước khi dùng video.')
-                        job_update(project_id,illustration_count=plan['director']['illustration_count'])
+                        plan.setdefault('branding', {}).update(
+                            prompt=options.user_prompt,
+                            proper_names=options.proper_names,
+                            brand_name=options.brand_footer,
+                            logo_asset_id=options.logo_asset_id or None,
+                            music_asset_id=options.music_asset_id or None,
+                            image_asset_ids=options.image_asset_ids,
+                            broll_asset_ids=options.broll_asset_ids,
+                            illustrations=options.illustrations,
+                            style_preset=options.style_preset,
+                            font_style=options.font_style,
+                            motion_style=options.motion_style,
+                            remove_fillers=options.remove_fillers
+                        )
+                        job_update(project_id, illustration_count=plan['director']['illustration_count'], branding=plan['branding'])
                     timings['planning_seconds']=round(time.monotonic()-phase_started,3)
                     job_update(project_id,timings=timings)
                     with LOCK:
@@ -701,15 +735,24 @@ def run_job(project_id, job_id, snapshot, options, mode):
                 timings['verification_seconds']=round(time.monotonic()-verify_started,3)
                 job_update(project_id,timings=timings)
                 meta = probe(output)
-                if options.automatic and (meta['width'],meta['height'])!=(720,1280):
+
+                report = build_render_report(
+                    plan=plan,
+                    snapshot=snapshot,
+                    meta=meta,
+                    output_path=output,
+                    options=options,
+                    duration=duration,
+                    event=event,
+                    fallback_reason=plan.get('director', {}).get('fallback_reason')
+                )
+                if not report['quality_gate']['passed']:
                     output.unlink(missing_ok=True)
-                    raise RuntimeError('Video chưa đúng khung hình dọc 720 × 1280; chưa lưu kết quả.')
-                if snapshot.get('video',{}).get('metadata',{}).get('has_audio') and not meta.get('has_audio'):
-                    output.unlink(missing_ok=True)
-                    raise RuntimeError('MP4 bị thiếu âm thanh; chưa lưu kết quả.')
-                if abs(meta['duration'] - duration) > 0.45:
-                    output.unlink(missing_ok=True)
-                    raise RuntimeError(f"Thời lượng kết quả ({meta['duration']}s) không đúng bản dựng ({duration}s).")
+                    raise RuntimeError(report['quality_gate'].get('error_message') or 'Kiểm tra chất lượng kỹ thuật thất bại; chưa lưu kết quả.')
+
+                for w in report.get('warnings', []):
+                    if w not in warnings:
+                        warnings.append(w)
                 
                 # Duration Audit log
                 main_vid = snapshot.get('video')
@@ -734,6 +777,7 @@ def run_job(project_id, job_id, snapshot, options, mode):
                     latest['preview_revision' if options.preview else 'output_revision'] = snapshot['revision']
                     latest['export_status'] = 'succeeded'
                     latest['duration_audit'] = audit
+                    latest['render_report'] = report
                     latest.setdefault('history', []).append({
                         'revision': latest.get('revision', 0),
                         'timestamp': stamp(),
@@ -742,12 +786,27 @@ def run_job(project_id, job_id, snapshot, options, mode):
                     })
                     if len(latest['history']) > 10:
                         latest['history'] = latest['history'][-10:]
-                    latest['job'].update(status='succeeded', phase='Bản xem thử đã sẵn sàng' if options.preview else 'Video hoàn chỉnh đã sẵn sàng', progress=100, warnings=warnings, duration_audit=audit)
+                    latest['job'].update(
+                        status='succeeded',
+                        phase='Bản xem thử đã sẵn sàng' if options.preview else 'Video hoàn chỉnh đã sẵn sàng',
+                        progress=100,
+                        warnings=warnings,
+                        duration_audit=audit,
+                        render_report=report,
+                        status_category=report['status_category'],
+                        status_code=report['status_code']
+                    )
                     save_project(project_id, latest)
     except Exception as exc:
         cancelled = isinstance(exc, InterruptedError)
-        job_update(project_id, status='cancelled' if cancelled else 'failed', phase='Đã hủy' if cancelled else 'Cần xử lý lỗi', error=str(exc),
-                   error_code=getattr(exc, 'code', 'AI_CANCELLED' if cancelled else ''), ai_diagnostics=getattr(event, 'ai_diagnostics', {}))
+        job_update(project_id,
+                   status='cancelled' if cancelled else 'failed',
+                   status_category='Đã hủy' if cancelled else 'Dựng thất bại',
+                   status_code='cancelled' if cancelled else 'failed',
+                   phase='Đã hủy' if cancelled else 'Cần xử lý lỗi',
+                   error=str(exc),
+                   error_code=getattr(exc, 'code', 'AI_CANCELLED' if cancelled else 'RENDER_FAILED'),
+                   ai_diagnostics=getattr(event, 'ai_diagnostics', {}))
         patch(project_id, export_status='cancelled' if cancelled else 'failed', transcribe_status='failed' if mode == 'transcribe' else load_project(project_id).get('transcribe_status', 'none'))
     finally:
         CANCEL.pop(job_id, None)
@@ -781,9 +840,9 @@ def enqueue(project_id, background_tasks, options, mode):
         identifier = uid()
         p['job'] = {'id': identifier, 'status': 'queued', 'phase': 'Đang chờ worker', 'progress': None, 'error': None, 'warnings': [], 'mode': mode, 'preview': options.preview}
         if options.automatic:
-            p['job']['branding']={'brand_name':options.brand_footer,'logo_asset_id':options.logo_asset_id,
-                'image_asset_ids':options.image_asset_ids,'illustrations':options.illustrations,'proper_names':options.proper_names,'font_style':options.font_style,'motion_style':options.motion_style,'remove_fillers':options.remove_fillers,
-                'style_preset':options.style_preset,'music_asset_id':options.music_asset_id}
+            p['job']['branding']={'brand_name':options.brand_footer,'logo_asset_id':options.logo_asset_id or None,
+                'image_asset_ids':options.image_asset_ids,'broll_asset_ids':options.broll_asset_ids,'illustrations':options.illustrations,'proper_names':options.proper_names,'font_style':options.font_style,'motion_style':options.motion_style,'remove_fillers':options.remove_fillers,
+                'style_preset':options.style_preset,'music_asset_id':options.music_asset_id or None,'prompt':options.user_prompt}
         p['export_status'] = 'queued'
         if mode == 'transcribe':
             p['transcribe_status'] = 'running'
@@ -791,8 +850,14 @@ def enqueue(project_id, background_tasks, options, mode):
         CANCEL[identifier] = threading.Event()
         snapshot = copy.deepcopy(p)
         if options.automatic:
-            snapshot['edit_plan']['learning_context']=LearningStore(DATA_DIR).context()
-            snapshot['edit_plan']['learning_context']['motion_skills']=skill_context(snapshot['edit_plan'],options.motion_style,options.user_prompt)
+            target_criteria = {
+                'style_preset': options.style_preset,
+                'motion_preset': options.motion_style,
+                'prompt': options.prompt or options.user_prompt,
+                'target_duration': options.target_duration
+            }
+            snapshot['edit_plan']['learning_context'] = LearningStore(DATA_DIR).context(target_criteria=target_criteria)
+            snapshot['edit_plan']['learning_context']['motion_skills'] = skill_context(snapshot['edit_plan'], options.motion_style, options.user_prompt)
     background_tasks.add_task(run_job, project_id, identifier, snapshot, options, mode)
     return p
 
@@ -809,6 +874,7 @@ class MakeVideo(BaseModel):
     brand_name: str = Field('',max_length=100)
     logo_asset_id: str = Field('',max_length=100)
     image_asset_ids: list[str] = Field(default_factory=list,max_length=6)
+    broll_asset_ids: list[str] = Field(default_factory=list,max_length=6)
     illustrations: bool = True
     proper_names: str = Field('',max_length=600)
     font_style: FontStyle = 'auto'
@@ -841,6 +907,13 @@ def make_video(project_id: str, body: MakeVideo, background_tasks: BackgroundTas
         raise HTTPException(422,'Logo và ảnh minh họa phải là ảnh thuộc dự án này.')
     if body.logo_asset_id and body.logo_asset_id in body.image_asset_ids:
         raise HTTPException(422,'Logo không được dùng làm ảnh minh họa.')
+    if body.broll_asset_ids:
+        main_aid = p.get('video', {}).get('asset_id')
+        for bid in body.broll_asset_ids:
+            if bid not in assets or assets[bid]['type'] not in ('video', 'image') or bid == main_aid:
+                raise HTTPException(422, 'B-roll phải là video hoặc ảnh phụ thuộc dự án này.')
+            if body.logo_asset_id and bid == body.logo_asset_id:
+                raise HTTPException(422, 'Logo không được dùng làm B-roll.')
     if body.brand_name.strip():
         brief+='\nThương hiệu do người dùng cung cấp: '+body.brand_name.strip()
     if body.illustrations:
@@ -853,10 +926,11 @@ def make_video(project_id: str, body: MakeVideo, background_tasks: BackgroundTas
         style_preset=body.style_preset,music_asset_id=body.music_asset_id,
         preview=False,use_current_plan=False,transcribe=bool(p['video']['metadata'].get('has_audio')),
         automatic=True,user_prompt=body.prompt.strip(),brand_footer=body.brand_name.strip(),
-        logo_asset_id=body.logo_asset_id,image_asset_ids=body.image_asset_ids,illustrations=body.illustrations,proper_names=body.proper_names.strip(),
+        logo_asset_id=body.logo_asset_id,image_asset_ids=body.image_asset_ids,broll_asset_ids=body.broll_asset_ids,illustrations=body.illustrations,proper_names=body.proper_names.strip(),
         font_style=body.font_style,
         motion_style=body.motion_style,remove_fillers=cleanup)
     return enqueue(project_id,background_tasks,options,'auto')
+
 
 
 @app.post('/api/projects/{project_id}/export')
@@ -905,5 +979,16 @@ def rollback(project_id: str, body: dict = None):
 
 
 if __name__ == '__main__':
+    import os
+    import socket
     import uvicorn
-    uvicorn.run(app, host='127.0.0.1', port=8000)
+
+    def is_port_in_use(p: int) -> bool:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            return s.connect_ex(('127.0.0.1', p)) == 0
+
+    port = int(os.getenv('PORT', '0'))
+    if port == 0:
+        port = 8000 if not is_port_in_use(8000) else 8001
+    print(f"Server started at: http://127.0.0.1:{port}/frontend/index.html")
+    uvicorn.run(app, host='127.0.0.1', port=port)

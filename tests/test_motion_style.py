@@ -71,13 +71,13 @@ def test_explicit_opt_out_blocks_all_motion_and_new_copy(tmp_path):
     assert all(not s['motion']['animate'] and not s['motion']['stagger'] and not s['headline'] and s['sound_effect']=='none' for s in p['storyboard'])
     assert p['subtitles']==plan()['subtitles']  # caption visibility remains the director's explicit decision
     path=tmp_path/'static.ass';write_storyboard_ass(path,p,720,1280)
-    assert '\\move' not in path.read_text() and '\\fad' not in path.read_text()
+    assert '\\move' not in path.read_text(encoding='utf-8') and '\\fad' not in path.read_text(encoding='utf-8')
 
 
 def test_ass_accent_is_literal_time_bounded_and_does_not_repeat_subtitles(tmp_path):
     p=apply_typography(apply_motion_style(plan(),'dynamic_explainer'),'impact')
     p['storyboard'][0]['headline']='{\\pos(0,0)} Chữ riêng'
-    path=tmp_path/'styled.ass';write_storyboard_ass(path,p,720,1280);text=path.read_text()
+    path=tmp_path/'styled.ass';write_storyboard_ass(path,p,720,1280);text=path.read_text(encoding='utf-8')
     assert '{\\pos(0,0)}' not in text
     assert '\\c&H00C8F2FF&' in text and '\\fscx96' in text
     assert '0:00:02.60,Head' in text

@@ -21,7 +21,7 @@ def test_caption_safe_areas_and_literal_text(media, tmp_path):
     plan['storyboard']=[{'scene_type':'talking_head','timeline_start':0,'duration':4,'headline':'{\\pos(0,0)} Không chèn mã','badge_text':'DANAVA'}]
     path=tmp_path/'style.ass'
     write_storyboard_ass(path,plan,720,1280)
-    content=path.read_text()
+    content=path.read_text(encoding='utf-8')
     assert 'Barlow Condensed' in content and 'Inter' in content
     assert '{\\pos(0,0)}' not in content
     assert len(caption_chunks(plan['subtitles'])) == 3

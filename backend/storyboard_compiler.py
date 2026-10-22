@@ -127,6 +127,10 @@ def compile_storyboard_scenes(plan, asset_dir, work_dir, output_path, preview=Fa
                     asset_path = work_dir / f'visual_frame_{i}.png'
                     run(['ffmpeg','-v','error','-y','-ss',str(sc.get('visual_source_in',0)),
                          '-i',str(asset_dir/visual['filename']),'-frames:v','1',str(asset_path)], event)
+                    warn_msg = f"Cảnh {i+1} dạng thẻ ({typ}) dùng khung hình tĩnh trích từ video '{visual.get('original_name', visual.get('filename'))}' tại {sc.get('visual_source_in', 0)}s; dùng scene_type 'broll' để hiển thị video chuyển động."
+                    if warn_msg not in plan.setdefault('director', {}).setdefault('warnings', []):
+                        plan['director']['warnings'].append(warn_msg)
+
                 else:
                     info = resolver.resolve_visual(query=sc.get('asset_query') or sc.get('headline',''),
                         fallback_title=sc.get('headline',''),fallback_badge=sc.get('badge_text',''),

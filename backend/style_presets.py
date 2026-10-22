@@ -9,7 +9,17 @@ import re
 from typing import Literal
 
 from editing import length, mapped_subtitles
-from motion_style import NO_EFFECTS, NO_SOUND, NO_TEXT, grounded_phrase
+from motion_style import (
+    NO_EFFECTS,
+    NO_ZOOM,
+    NO_TEXT,
+    NO_CAPTIONS,
+    NO_SOUND,
+    NO_SFX,
+    NO_MUSIC,
+    NO_ILLUSTRATIONS,
+    grounded_phrase,
+)
 
 StylePreset = Literal['explainer', 'inspirational', 'real_estate']
 PRESETS = {
@@ -62,6 +72,101 @@ def preset_context(identifier):
     return {'id': identifier, 'rules': p['guidance'], 'preferences_only': True}
 
 
+def apply_user_overrides(plan, prompt='', options=None):
+    """Unified final normalization enforcing strict user opt-outs over styles and presets.
+
+    Order of precedence:
+    1. User explicit opt-outs/opt-ins (prompt / options)
+    2. Content grounding and factual validity
+    3. Valid plan structure
+    4. Style guidance & presets
+    5. System defaults
+    """
+    p = copy.deepcopy(plan)
+    warnings = p.setdefault('director', {}).setdefault('warnings', [])
+    no_effects = bool(re.search(NO_EFFECTS, prompt, re.I))
+    no_zoom = bool(re.search(NO_ZOOM, prompt, re.I))
+    no_text = bool(re.search(NO_TEXT, prompt, re.I))
+    no_captions = bool(re.search(NO_CAPTIONS, prompt, re.I))
+    no_sound = bool(re.search(NO_SOUND, prompt, re.I))
+    no_sfx = bool(re.search(NO_SFX, prompt, re.I))
+    no_music = bool(re.search(NO_MUSIC, prompt, re.I))
+    no_illustrations = bool(re.search(NO_ILLUSTRATIONS, prompt, re.I))
+
+    # 1. Sound & Audio overrides
+    if no_sound:
+        p['audio_tracks'] = []
+        for sc in p.get('storyboard', []):
+            sc['sound_effect'] = 'none'
+            sc['sound_volume'] = 0
+    else:
+        if no_music:
+            p['audio_tracks'] = [t for t in p.get('audio_tracks', []) if t.get('kind') != 'music']
+        if no_sfx:
+            p['audio_tracks'] = [t for t in p.get('audio_tracks', []) if t.get('kind') != 'sfx' and not str(t.get('id', '')).startswith('sfx_')]
+            for sc in p.get('storyboard', []):
+                sc['sound_effect'] = 'none'
+                sc['sound_volume'] = 0
+
+    # 2. Text & Captions overrides
+    if no_text:
+        p['show_captions'] = False
+        p['text_overlays'] = []
+        for sc in p.get('storyboard', []):
+            sc['headline'] = ''
+            sc['badge_text'] = ''
+            sc['graphic_title'] = ''
+            sc['graphic_items'] = []
+            if 'motion' in sc:
+                sc['motion']['closing_text'] = ''
+                sc['motion']['show_photo_label'] = False
+                sc['motion']['stagger'] = False
+            if sc.get('scene_type') == 'explainer_card' and not sc.get('visual_asset_id') and not sc.get('library_visual_id'):
+                sc['scene_type'] = 'talking_head'
+    elif no_captions:
+        p['show_captions'] = False
+
+    # 3. Zoom & Motion Effects overrides
+    if no_effects:
+        p['effect_keyframes'] = []
+        p.setdefault('motion_style', {})['effects_disabled'] = True
+        for sc in p.get('storyboard', []):
+            sc['animation_in'] = 'none'
+            sc['sound_effect'] = 'none'
+            sc['sound_volume'] = 0
+            motion = sc.setdefault('motion', {})
+            motion['animate'] = False
+            motion['stagger'] = False
+            motion['transition_seconds'] = 0
+            motion['photo_zoom'] = 0
+    elif no_zoom:
+        p['effect_keyframes'] = [e for e in p.get('effect_keyframes', [])
+            if not (e.get('scale', 1.0) != 1.0 or 'zoom' in str(e.get('id', '')))]
+        for sc in p.get('storyboard', []):
+            if 'motion' in sc:
+                sc['motion']['photo_zoom'] = 0
+
+    # 4. Illustrations overrides
+    if no_illustrations:
+        user_images = p.get('branding', {}).get('image_asset_ids', [])
+        if user_images:
+            warnings.append('Yêu cầu không minh họa nhưng có ảnh được chọn cụ thể; ưu tiên ảnh do bạn chỉ định, bỏ minh họa tự động.')
+            for sc in p.get('storyboard', []):
+                sc.pop('library_visual_id', None)
+                sc.pop('source_cutaway', None)
+        else:
+            for sc in p.get('storyboard', []):
+                sc.pop('library_visual_id', None)
+                sc.pop('source_cutaway', None)
+                sc.pop('visual_asset_id', None)
+                if sc.get('scene_type') in ('explainer_card', 'talking_head_pip') and not sc.get('graphic_items'):
+                    sc['scene_type'] = 'talking_head'
+                    sc['photo_layout'] = 'pip'
+
+    p['director']['warnings'] = list(dict.fromkeys(warnings))
+    return p
+
+
 def apply_style_preset(plan, identifier='explainer', prompt='', music_asset_id=''):
     """Apply timing-safe presentation after shared visual/typography adapters."""
     preset = preset_for(identifier)
@@ -72,8 +177,9 @@ def apply_style_preset(plan, identifier='explainer', prompt='', music_asset_id='
         p['branding'].update(style_preset=identifier, music_asset_id=music_asset_id)
     p['audio_tracks'] = [t for t in p.get('audio_tracks', []) if t.get('origin') != 'style_preset']
     no_sound = bool(re.search(NO_SOUND, prompt, re.I))
-    no_music = bool(re.search(r'(?:không|tắt|bỏ)\s+(?:thêm |chèn |dùng )?(?:nhạc|music)|no music', prompt, re.I))
+    no_music = bool(re.search(NO_MUSIC, prompt, re.I))
     no_effects = bool(re.search(NO_EFFECTS, prompt, re.I))
+    no_zoom = bool(re.search(NO_ZOOM, prompt, re.I))
     no_text = bool(re.search(NO_TEXT, prompt, re.I))
     warnings = p.setdefault('director', {}).setdefault('warnings', [])
     if music_asset_id and not no_sound and not no_music:
@@ -91,13 +197,18 @@ def apply_style_preset(plan, identifier='explainer', prompt='', music_asset_id='
         p['audio_tracks'] = []  # Original speech is on the source clips, never muted.
     elif no_music:
         p['audio_tracks'] = [t for t in p['audio_tracks'] if t.get('kind')!='music']
+
     if identifier == 'explainer':
-        return p
+        return apply_user_overrides(p, prompt)
 
     p['effect_keyframes'] = [e for e in p.get('effect_keyframes', [])
         if e.get('origin') not in ('auto', 'motion_skill', 'style_preset')]
     if no_effects:
         p['effect_keyframes'] = []
+    elif no_zoom:
+        p['effect_keyframes'] = [e for e in p['effect_keyframes']
+            if not (e.get('scale', 1.0) != 1.0 or 'zoom' in str(e.get('id', '')))]
+
     p['style_preset']['theme'] = {k: preset[k] for k in ('background', 'accent', 'secondary')}
     p['style_preset']['caption_words'] = preset['caption_words']
     p['motion_style'] = {**p.get('motion_style', {}), 'preset': 'dynamic_explainer',
@@ -108,7 +219,7 @@ def apply_style_preset(plan, identifier='explainer', prompt='', music_asset_id='
     # Split a brief interior cutaway; never freeze the entire take or invent a photo.
     scenes=p.get('storyboard',[])
     allow_cutaway=(p.get('branding',{}).get('illustrations',True) and not no_effects
-        and not re.search(r'không (?:thêm |chèn |dùng |cần )?(?:minh họa|đồ họa|hình|ảnh)',prompt,re.I))
+        and not re.search(NO_ILLUSTRATIONS, prompt, re.I))
     if allow_cutaway and 2<=len(scenes)<200 and not any(s.get('source_cutaway') for s in scenes):
         expanded=[]
         for index,sc in enumerate(scenes):
@@ -116,13 +227,16 @@ def apply_style_preset(plan, identifier='explainer', prompt='', music_asset_id='
                 tail=1.4 if identifier=='real_estate' else 1.2
                 first=copy.deepcopy(sc);first['duration']-=tail
                 last=copy.deepcopy(sc);last.update(scene_id=sc.get('scene_id','scene')+'_source_frame',
-                    timeline_start=sc['timeline_start']+first['duration'],duration=tail,source_cutaway=True,suppress_headline=True)
+                    timeline_start=sc['timeline_start']+first['duration'],duration=tail,
+                    source_in=sc.get('source_in', 0)+first['duration'],source_cutaway=True,suppress_headline=True)
                 expanded.extend([first,last])
             else:expanded.append(sc)
         p['storyboard']=expanded
+
     # Strong preset is deterministic even when the language model is unavailable.
     # Split presentation only: source clips, subtitles and original voice stay intact.
-    if identifier == 'inspirational' and not no_effects:
+    already_divided = any('_beat' in s.get('scene_id', '') for s in p.get('storyboard', []))
+    if identifier == 'inspirational' and not no_effects and not already_divided:
         expanded=[]
         source_scenes=p.get('storyboard', [])
         for index,sc in enumerate(source_scenes):
@@ -130,11 +244,14 @@ def apply_style_preset(plan, identifier='explainer', prompt='', music_asset_id='
             count=max(1,min(budget,math.ceil(sc['duration']/2.4)))
             for n in range(count):
                 part=copy.deepcopy(sc)
+                offset = sc['duration']*n/count
                 part.update(scene_id=sc['scene_id']+f'_beat{n}' if count>1 else sc['scene_id'],
-                    timeline_start=sc['timeline_start']+sc['duration']*n/count,
-                    duration=sc['duration']/count)
+                    timeline_start=sc['timeline_start']+offset,
+                    duration=sc['duration']/count,
+                    source_in=sc.get('source_in', 0)+offset)
                 expanded.append(part)
         p['storyboard']=expanded
+
     photos=0;source_frames=0;camera_count=0
     for i, sc in enumerate(p.get('storyboard', [])):
         start, duration = sc['timeline_start'], sc['duration']
@@ -147,6 +264,8 @@ def apply_style_preset(plan, identifier='explainer', prompt='', music_asset_id='
                 sc.pop('source_cutaway',None)
                 sc.update(library_visual_id=matches[0]['id'],photo_layout='full',scene_type='explainer_card')
         visual = next((a for a in p['assets'] if a['id'] == sc.get('visual_asset_id')), None)
+        items = sc.get('graphic_items', [])
+        has_grounded_items = bool(items) and all(grounded_phrase(item, speech) for item in items)
         if sc.get('source_cutaway'):
             sc.update(scene_type='explainer_card',photo_layout='full',source_photo_label='KHUNG HÌNH TỪ VIDEO GỐC')
             source_frames+=1
@@ -158,6 +277,11 @@ def apply_style_preset(plan, identifier='explainer', prompt='', music_asset_id='
             sc['photo_layout'] = 'full' if identifier == 'real_estate' or photos % 2 == 0 else 'pip'
             sc['scene_type'] = 'explainer_card' if sc['photo_layout'] == 'full' else 'talking_head_pip'
             photos += 1
+        elif has_grounded_items and sc.get('scene_type') in ('explainer_card', 'talking_head_pip'):
+            # Valid explanatory/info graphic card grounded with speech: keep content intact!
+            sc['scene_type'] = 'explainer_card'
+            sc.pop('library_visual_id', None)
+            sc.pop('visual_asset_id', None)
         else:
             # A generic library illustration must never pose as a property photo.
             sc['scene_type'] = 'talking_head'
@@ -177,7 +301,7 @@ def apply_style_preset(plan, identifier='explainer', prompt='', music_asset_id='
             'transition_seconds': 0 if no_effects else preset['transition_seconds'],
             'show_photo_label': not no_text, 'photo_zoom': preset['photo_zoom']}
         sc['style_theme'] = p['style_preset']['theme']
-        if not no_effects and sc['scene_type'] == 'talking_head' and duration >= 1.2:
+        if not no_effects and not no_zoom and sc['scene_type'] == 'talking_head' and duration >= 1.2:
             p['effect_keyframes'].append({'id': f'preset_zoom_{i}', 'origin': 'style_preset',
                 'timeline_start': start, 'duration': duration, 'direction':'in' if camera_count%2==0 else 'out',
                 'scale': preset['zoom_scale']})
@@ -190,4 +314,4 @@ def apply_style_preset(plan, identifier='explainer', prompt='', music_asset_id='
     p['director']['illustration_count'] = photos+source_frames
     p['director']['visual_sources'] = [s for s in p['director'].get('visual_sources', []) if s.get('source')=='user_uploaded']
     p['director']['warnings'] = list(dict.fromkeys(warnings))
-    return p
+    return apply_user_overrides(p, prompt)

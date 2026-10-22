@@ -11,23 +11,30 @@ def words(text):
     return set(re.findall(r'\w+', normalize_text(text)))
 
 
-def apply_visual_assets(plan, prompt, brand_name='', logo_asset_id='', image_asset_ids=None, illustrations=True):
+def apply_visual_assets(plan, prompt, brand_name='', logo_asset_id='', image_asset_ids=None, illustrations=True, broll_asset_ids=None):
     p=copy.deepcopy(plan)
     assets={a['id']:a for a in p['assets']}
     images=list(dict.fromkeys(image_asset_ids or []))
+    brolls=list(dict.fromkeys(broll_asset_ids or []))
     for aid in ([logo_asset_id] if logo_asset_id else [])+images:
         if aid not in assets or assets[aid]['type']!='image':
             raise ValueError('Logo và ảnh minh họa phải là ảnh thuộc dự án này.')
+    for bid in brolls:
+        if bid not in assets or assets[bid]['type'] not in ('video', 'image'):
+            raise ValueError('B-roll phải là video hoặc ảnh thuộc dự án này.')
     if logo_asset_id and logo_asset_id in images:
         raise ValueError('Logo không được dùng làm ảnh minh họa.')
+    if logo_asset_id and logo_asset_id in brolls:
+        raise ValueError('Logo không được dùng làm B-roll.')
     p['brand_footer']=brand_name
     p['branding']={'brand_name':brand_name,'logo_asset_id':logo_asset_id,
-                   'image_asset_ids':images,'illustrations':illustrations}
+                   'image_asset_ids':images,'broll_asset_ids':brolls,'illustrations':illustrations}
     p['visual_overlays']=[o for o in p.get('visual_overlays',[]) if o.get('origin')!='branding']
     if logo_asset_id:
         p['visual_overlays'].append({'id':'brand_logo','origin':'branding','role':'logo',
             'asset_id':logo_asset_id,'mode':'pip','timeline_start':0,'duration':length(p),
             'x':.77,'y':.025,'width':.20})
+
     scenes=p.get('storyboard',[])
     if p.get('director',{}).get('engine')=='rules':
         retained=set(p['director'].get('retained_ai_scene_indices',[]))
@@ -53,24 +60,69 @@ def apply_visual_assets(plan, prompt, brand_name='', logo_asset_id='', image_ass
                 sc['scene_type']='talking_head';sc['sound_effect']='none';sc.pop('visual_asset_id',None)
     no_sound=bool(re.search(r'(?:không|tắt|bỏ|no)\s+(?:thêm |chèn |dùng )?(?:âm thanh|tiếng|sfx|sound)',prompt,re.I))
     used=set()
+    diagnostics = p.setdefault('director', {}).setdefault('visual_diagnostics', [])
     for aid in images:
         candidates=[i for i in interior if i not in used]
         if not candidates:
             warnings.append('Video chưa đủ đoạn để chèn tất cả ảnh đã chọn.');break
-        keywords=words(assets[aid].get('keywords',''))
-        def relevance(i):return len(keywords & words(scenes[i].get('transcript_meaning','')))
-        if keywords:
-            candidates=[i for i in candidates if relevance(i)>0]
+        raw_kws = assets[aid].get('keywords', '')
+        kw_list = [k.strip() for k in raw_kws.split(',') if k.strip()] if ',' in raw_kws else list(words(raw_kws))
+        
+        def match_score(i):
+            speech = normalize_text(scenes[i].get('transcript_meaning',''))
+            score = 0
+            for k in kw_list:
+                k_clean = normalize_text(k)
+                if not k_clean:
+                    continue
+                if len(k_clean) <= 2:
+                    if re.search(r'\b' + re.escape(k_clean) + r'\b', speech):
+                        score += 2
+                elif k_clean in speech:
+                    score += 1
+            return score
+
+        if kw_list:
+            candidates=[i for i in candidates if match_score(i)>0]
             if not candidates:
-                warnings.append('Chưa tìm thấy lời nói phù hợp với chủ đề ảnh '+assets[aid].get('original_name','')+'.');continue
-            index=max(candidates,key=relevance)
+                warnings.append('Chưa tìm thấy lời nói phù hợp với chủ đề ảnh '+assets[aid].get('original_name','')+'.')
+                diagnostics.append({'scene_index': -1, 'selected_id': aid, 'source': 'user_uploaded', 'relevance_score': 0.0, 'matched_terms': [], 'tier': 'none', 'fallback_reason': 'no_matching_transcript'})
+                continue
+            index=max(candidates,key=match_score)
         else:
             index=candidates[0]
         sc=scenes[index]
         sc.update(scene_type='talking_head_pip',visual_asset_id=aid,
                   sound_effect='none' if no_sound else 'pop')
-        used.add(index);source.append({'scene_index':index,'source':'user_uploaded','asset_id':aid})
+        used.add(index)
+        source.append({'scene_index':index,'source':'user_uploaded','asset_id':aid})
+        diagnostics.append({'scene_index': index, 'scene_id': sc.get('scene_id'), 'selected_id': aid, 'source': 'user_uploaded', 'relevance_score': 1.0, 'matched_terms': kw_list, 'tier': 'user_specified', 'fallback_reason': ''})
+    for bid in brolls:
+        candidates=[i for i in interior if i not in used]
+        if not candidates:
+            warnings.append('Video chưa đủ đoạn để chèn tất cả B-roll đã chọn.');break
+        b_asset = assets[bid]
+        raw_kws = b_asset.get('keywords', '')
+        kw_list = [k.strip() for k in raw_kws.split(',') if k.strip()] if ',' in raw_kws else list(words(raw_kws))
+        if kw_list:
+            cands = [i for i in candidates if match_score(i) > 0]
+            index = max(cands, key=match_score) if cands else candidates[0]
+        else:
+            index = candidates[0]
+        sc = scenes[index]
+        media_type = b_asset.get('type', 'video')
+        sc.update(scene_type='broll' if media_type == 'video' else 'talking_head_pip',
+                  visual_asset_id=bid, visual_source_in=b_asset.get('source_in', 0),
+                  sound_effect='none' if no_sound else 'pop')
+        used.add(index)
+        source.append({'scene_index': index, 'source': 'user_uploaded', 'asset_id': bid})
+        diagnostics.append({'scene_index': index, 'scene_id': sc.get('scene_id'), 'selected_id': bid, 'source': 'user_uploaded', 'relevance_score': 1.0, 'matched_terms': kw_list, 'tier': 'user_specified', 'fallback_reason': ''})
     if not excluded:
+
+        # Check real estate authenticity: do not add generic conceptual diagrams for real estate listings
+        combined_text = ' '.join(scenes[i].get('transcript_meaning','') for i in range(len(scenes)))
+        is_real_estate = bool(re.search(r'bất động sản|nhà đất|căn hộ|chung cư|biệt thự|villa|đất nền|nhà phố', f'{combined_text} {prompt}', re.I))
+
         # When AI supplied no graphics, use only clearly recognised concepts.
         # These are labelled rule-based diagrams, never claimed to be photos.
         has_chat=any(s['scene_type']!='talking_head' and s.get('graphic_kind')=='chat' for s in scenes)
@@ -78,7 +130,7 @@ def apply_visual_assets(plan, prompt, brand_name='', logo_asset_id='', image_ass
         candidates=[i for i in interior if i not in used and scenes[i]['scene_type']=='talking_head']
         def text(i):return correct_recognition_copy(scenes[i].get('transcript_meaning',''),prompt)
         assistant=any(re.search(r'trợ lý|hội thoại|trò chuyện',text(i),re.I) for i in range(len(scenes)))
-        if not has_chat and assistant and candidates:
+        if not has_chat and assistant and candidates and not is_real_estate:
             ranked=[i for i in candidates if re.search(r'\bAI\b|trợ lý|hội thoại|trò chuyện',text(i),re.I)]
             if ranked:
                 index=max(ranked,key=lambda i:len(re.findall(r'\bAI\b|trợ lý|hội thoại|trò chuyện',text(i),re.I)))
@@ -86,7 +138,8 @@ def apply_visual_assets(plan, prompt, brand_name='', logo_asset_id='', image_ass
                 sc.update(scene_type='talking_head_pip',headline='TRỢ LÝ AI' if re.search(r'\bAI\b',text(index),re.I) else 'TRỢ LÝ',graphic_kind='chat',graphic_title='Trợ lý',
                     graphic_items=['Chào bạn','Bạn cần hỗ trợ gì?'],sound_effect='none' if no_sound else 'pop')
                 source.append({'scene_index':index,'source':'source_rules'});used.add(index)
-        if not has_diagram and length(p)>15:
+                diagnostics.append({'scene_index': index, 'scene_id': sc.get('scene_id'), 'selected_id': 'chat_graphic', 'source': 'conceptual_graphic', 'relevance_score': 0.8, 'matched_terms': ['trợ lý'], 'tier': 'exact_concept', 'fallback_reason': ''})
+        if not has_diagram and length(p)>15 and not is_real_estate:
             concepts=['thương hiệu','thông điệp','doanh nghiệp','chiến lược','truyền tải','kết nối',
                       'báo cáo','doanh thu','khách hàng','nhân viên','lịch lớp','gói tập']
             matches={i:[c for c in concepts if re.search(r'\b'+c+r'\b',text(i),re.I)]
@@ -98,7 +151,10 @@ def apply_visual_assets(plan, prompt, brand_name='', logo_asset_id='', image_ass
                 sc.update(scene_type='explainer_card',headline=items[0].upper(),graphic_kind='network',graphic_title='Ý chính',
                     graphic_items=[c.capitalize() for c in items],sound_effect='none' if no_sound else 'whoosh')
                 source.append({'scene_index':index,'source':'source_rules'})
+                diagnostics.append({'scene_index': index, 'scene_id': sc.get('scene_id'), 'selected_id': 'network_diagram', 'source': 'conceptual_graphic', 'relevance_score': 0.75, 'matched_terms': items, 'tier': 'exact_concept', 'fallback_reason': ''})
     p['director']['visual_sources']=source
+    p['director']['visual_diagnostics']=diagnostics
+
     names=p.get('proper_names','')
     for sc in scenes:
         for key in ('headline','badge_text','graphic_title','subheadline'):

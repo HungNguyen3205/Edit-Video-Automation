@@ -28,6 +28,6 @@ def test_sfx_script_preserves_project_relative_output(tmp_path):
     shutil.copy2(Path(main.BASE_DIR)/'scripts/generate_sfx.py',clone/'scripts/generate_sfx.py')
     run=subprocess.run([sys.executable,str(clone/'scripts/generate_sfx.py')],cwd=tmp_path,capture_output=True,text=True)
     assert run.returncode==0,run.stderr
-    metadata=json.loads((clone/'data/sfx/metadata.json').read_text())
+    metadata=json.loads((clone/'data/sfx/metadata.json').read_text(encoding='utf-8'))
     assert set(metadata)=={'pop','click','whoosh','impact','chime'}
     assert all((clone/'data/sfx'/record['file']).is_file() for record in metadata.values())

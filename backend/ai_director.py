@@ -7,6 +7,7 @@ import asyncio
 from contextlib import contextmanager, suppress
 from contextvars import ContextVar
 import copy
+import hashlib
 import json
 import math
 import logging
@@ -111,17 +112,70 @@ def model_name():
     return os.getenv('VIDEO_AI_MODEL', 'qwen3:4b')
 
 
+ANALYZER_VERSION = '2.0.0'
+_ANALYSIS_MEMORY_CACHE = {}
+
+KNOWN_VISION_MODELS = {
+    'llava', 'llava-phi3', 'llava-llama3', 'llama3.2-vision',
+    'qwen2.5-vl', 'qwen-vl', 'minicpm-v', 'bakllava', 'moondream',
+    'gemma3', 'internvl'
+}
+
+
+class AnalysisResult(dict):
+    """Analysis result containing cues, sampled frames, and diagnostic metadata.
+
+    Supports tuple unpacking: cues, frames = analyse(...) for backward compatibility.
+    """
+    def __init__(self, cues, frames, diagnostics):
+        super().__init__(cues=cues, frames=frames, diagnostics=diagnostics)
+        self.cues = cues
+        self.frames = frames
+        self.diagnostics = diagnostics
+
+    def __iter__(self):
+        yield self.cues
+        yield self.frames
+
+
+def model_supports_vision(model: str = None) -> bool:
+    """Check if the configured or specified model supports image inputs."""
+    name = (model or model_name()).casefold()
+    base = name.split(':')[0]
+    if any(m in base for m in ('vision', '-vl', '_vl', 'llava', 'minicpm-v', 'moondream', 'bakllava')):
+        return True
+    if base in KNOWN_VISION_MODELS:
+        return True
+    try:
+        with httpx.Client(timeout=2, trust_env=False) as client:
+            resp = client.post(base_url() + '/api/show', json={'name': name})
+            if resp.status_code == 200:
+                data = resp.json()
+                families = data.get('details', {}).get('families', [])
+                if any('clip' in f.casefold() or 'vision' in f.casefold() or 'mllama' in f.casefold() for f in families):
+                    return True
+                arch = data.get('model_info', {}).get('general.architecture', '')
+                if any(v in arch.casefold() for v in ('mllama', 'llava', 'vision', 'clip')):
+                    return True
+    except Exception:
+        pass
+    return False
+
+
 def ai_health():
-    result = {'available': False, 'model': model_name(), 'models': [],
-              'vision': os.getenv('VIDEO_AI_VISION', '0') == '1'}
+    curr_model = model_name()
+    result = {'available': False, 'model': curr_model, 'models': [],
+              'vision': os.getenv('VIDEO_AI_VISION', '0') == '1',
+              'model_supports_vision': False}
     try:
         with httpx.Client(timeout=5, trust_env=False) as client:
             response = client.get(base_url() + '/api/tags')
             response.raise_for_status()
             result['models'] = [m['name'] for m in response.json().get('models', [])]
-            result['available'] = model_name() in result['models'] or model_name() + ':latest' in result['models']
+            result['available'] = curr_model in result['models'] or curr_model + ':latest' in result['models']
+            result['model_supports_vision'] = model_supports_vision(curr_model)
     except (httpx.HTTPError, ValueError, KeyError):
-        pass
+        result['model_supports_vision'] = model_supports_vision(curr_model)
     return result
 
 
@@ -130,41 +184,177 @@ def cancelled(event):
         raise InterruptedError('Đã hủy tác vụ AI.')
 
 
+def analysis_cache_key(plan, asset_dir, vision_requested, max_frames, max_seconds, scene_threshold):
+    hasher = hashlib.sha256()
+    hasher.update(f"v={ANALYZER_VERSION};vis={vision_requested};mf={max_frames};ms={max_seconds};st={scene_threshold};".encode())
+    assets = {a['id']: a for a in plan.get('assets', [])}
+    for clip in plan.get('video_clips', []):
+        aid = clip.get('asset_id', '')
+        a = assets.get(aid, {})
+        source = asset_dir / a.get('filename', '') if a.get('filename') else None
+        stat_sig = ''
+        if source and source.is_file():
+            try:
+                st = source.stat()
+                stat_sig = f"{st.st_size}_{st.st_mtime_ns}"
+            except Exception:
+                pass
+        hasher.update(f"clip={aid}:{clip.get('source_in', 0)}:{clip.get('duration', 0)}:{stat_sig};".encode())
+    return hasher.hexdigest()
+
+
 def analyse(plan, asset_dir, work, event):
-    """Bounded scene/silence cues; frames are sent only to an opted-in vision model."""
-    assets = {a['id']: a for a in plan['assets']}
-    cues, images = [], []
-    cursor = 0
-    vision = os.getenv('VIDEO_AI_VISION', '0') == '1'
-    for index, clip in enumerate(plan['video_clips']):
+    """Extract scene-change cues, silence cues, and uniformly sampled video frames.
+
+    Returns AnalysisResult which unpacks into (cues, frames).
+    """
+    max_frames = max(1, min(24, int(os.getenv('VIDEO_AI_MAX_FRAMES', '6'))))
+    max_seconds = max(5.0, float(os.getenv('VIDEO_AI_MAX_ANALYSE_SECONDS', '120')))
+    scene_threshold = max(0.1, min(0.9, float(os.getenv('VIDEO_AI_SCENE_THRESHOLD', '0.3'))))
+    vision_requested = os.getenv('VIDEO_AI_VISION', '0') == '1'
+    current_model = model_name()
+    has_vision_support = model_supports_vision(current_model)
+    vision_used = bool(vision_requested and has_vision_support)
+
+    warnings = []
+    if vision_requested and not has_vision_support:
+        warnings.append(f"Model '{current_model}' không hỗ trợ thị giác. Đã chuyển sang phân tích phi thị giác; chưa phân tích nội dung hình ảnh.")
+
+    cache_key = analysis_cache_key(plan, asset_dir, vision_requested, max_frames, max_seconds, scene_threshold)
+    if cache_key in _ANALYSIS_MEMORY_CACHE:
+        cached = _ANALYSIS_MEMORY_CACHE[cache_key]
+        cached_diag = {**cached['diagnostics'], 'cache_hit': True}
+        return AnalysisResult(copy.deepcopy(cached['cues']), copy.deepcopy(cached['frames']), cached_diag)
+
+    assets = {a['id']: a for a in plan.get('assets', [])}
+    cues, frames = [], []
+    analysed_ranges = []
+
+    for index, clip in enumerate(plan.get('video_clips', [])):
         cancelled(event)
-        a = assets[clip['asset_id']]
-        source = asset_dir / a['filename']
-        # Sample up to 120s per clip; avoid falsely claiming full video analysis.
-        seconds = min(120, clip['duration'])
+        a = assets.get(clip['asset_id'], {})
+        filename = a.get('filename')
+        source = asset_dir / filename if filename else None
+        seconds = min(max_seconds, clip['duration'])
+        if not source or not source.is_file():
+            # If asset file is not on disk (e.g. synthetic test plan), record empty cue interval
+            cues.append({
+                'clip': index,
+                'source_start': round(clip['source_in'], 3),
+                'source_end': round(clip['source_in'] + seconds, 3),
+                'timeline_start': round(clip['timeline_start'], 3),
+                'timeline_end': round(clip['timeline_start'] + seconds, 3),
+                'scene_changes': [],
+                'silence': []
+            })
+            analysed_ranges.append({
+                'clip': index,
+                'source_start': round(clip['source_in'], 3),
+                'source_end': round(clip['source_in'] + seconds, 3),
+                'timeline_start': round(clip['timeline_start'], 3),
+                'timeline_end': round(clip['timeline_start'] + seconds, 3)
+            })
+            continue
+
         command = ['ffmpeg', '-hide_banner', '-ss', str(clip['source_in']), '-t', str(seconds), '-i', str(source),
-                   '-vf', "select='gt(scene,0.3)',showinfo", '-an', '-f', 'null', '-']
-        if a['metadata'].get('has_audio'):
+                   '-vf', f"select='gt(scene,{scene_threshold})',showinfo", '-an', '-f', 'null', '-']
+        if a.get('metadata', {}).get('has_audio'):
             command[command.index('-an'):command.index('-an')+1] = ['-af', 'silencedetect=noise=-35dB:d=0.45']
-        result = subprocess.run(command, capture_output=True, text=True, timeout=180)
+        
+        result = subprocess.run(command, capture_output=True, text=True, timeout=120)
         if result.returncode:
             raise RuntimeError('Không phân tích được video: ' + result.stderr[-1000:])
-        scenes = [cursor + float(t) for t in re.findall(r'pts_time:([\d.]+)', result.stderr)][:60]
-        silence = [{'kind': kind, 'time': cursor + float(t)} for kind, t in re.findall(r'silence_(start|end): ([\d.]+)', result.stderr)][:120]
-        cues.append({'clip': index, 'analysed_start': cursor, 'analysed_end': cursor + seconds,
-                     'scene_changes': scenes, 'silence': silence})
-        if vision and len(images) < 8:
-            for offset in (0, seconds / 2):
+
+        scenes = []
+        for t in re.findall(r'pts_time:([\d.]+)', result.stderr)[:60]:
+            offset = float(t)
+            scenes.append({
+                'source_time': round(clip['source_in'] + offset, 3),
+                'timeline_time': round(clip['timeline_start'] + offset, 3)
+            })
+
+        silence = []
+        for kind, t in re.findall(r'silence_(start|end): ([\d.]+)', result.stderr)[:120]:
+            offset = float(t)
+            silence.append({
+                'kind': kind,
+                'source_time': round(clip['source_in'] + offset, 3),
+                'timeline_time': round(clip['timeline_start'] + offset, 3)
+            })
+
+        cues.append({
+            'clip': index,
+            'source_start': round(clip['source_in'], 3),
+            'source_end': round(clip['source_in'] + seconds, 3),
+            'timeline_start': round(clip['timeline_start'], 3),
+            'timeline_end': round(clip['timeline_start'] + seconds, 3),
+            'scene_changes': scenes,
+            'silence': silence
+        })
+        analysed_ranges.append({
+            'clip': index,
+            'source_start': round(clip['source_in'], 3),
+            'source_end': round(clip['source_in'] + seconds, 3),
+            'timeline_start': round(clip['timeline_start'], 3),
+            'timeline_end': round(clip['timeline_start'] + seconds, 3)
+        })
+
+    # Sample video frames uniformly across analysed duration if vision is enabled and supported
+    if vision_used and analysed_ranges:
+        total_analysed = sum(r['timeline_end'] - r['timeline_start'] for r in analysed_ranges)
+        if total_analysed > 0:
+            target_count = min(max_frames, max(1, int(total_analysed / 4)))
+            target_times = [(k + 0.5) * total_analysed / target_count for k in range(target_count)]
+            for k, target_t in enumerate(target_times):
                 cancelled(event)
-                frame = work / f'frame-{index}-{offset}.jpg'
-                subprocess.run(['ffmpeg', '-v', 'error', '-y', '-ss', str(clip['source_in'] + offset),
-                                '-i', str(source), '-frames:v', '1', '-vf', 'scale=384:-2', str(frame)],
-                               check=True, capture_output=True, timeout=30)
-                images.append({'timeline_time': cursor + offset, 'data': base64.b64encode(frame.read_bytes()).decode()})
-                if len(images) >= 8:
-                    break
-        cursor += clip['duration']
-    return cues, images
+                acc = 0.0
+                for index, clip in enumerate(plan.get('video_clips', [])):
+                    dur = min(max_seconds, clip['duration'])
+                    if acc <= target_t <= acc + dur or index == len(plan['video_clips']) - 1:
+                        offset = min(dur, max(0.0, target_t - acc))
+                        source_time = clip['source_in'] + offset
+                        timeline_time = clip['timeline_start'] + offset
+                        a = assets.get(clip['asset_id'], {})
+                        filename = a.get('filename')
+                        source = asset_dir / filename if filename else None
+                        if source and source.is_file():
+                            frame_path = work / f'frame-{index}-{k}.jpg'
+                            try:
+                                subprocess.run(['ffmpeg', '-v', 'error', '-y', '-ss', str(source_time),
+                                                '-i', str(source), '-frames:v', '1', '-vf', 'scale=384:-2', str(frame_path)],
+                                               check=True, capture_output=True, timeout=15)
+                                if frame_path.is_file():
+                                    data = base64.b64encode(frame_path.read_bytes()).decode('ascii')
+                                    frames.append({
+                                        'data': data,
+                                        'source_time': round(source_time, 3),
+                                        'timeline_time': round(timeline_time, 3),
+                                        'clip_index': index
+                                    })
+                            finally:
+                                frame_path.unlink(missing_ok=True)
+                        break
+                    acc += dur
+
+    diagnostics = {
+        'vision_requested': vision_requested,
+        'vision_used': vision_used,
+        'model': current_model,
+        'sampled_frame_count': len(frames),
+        'analysed_ranges': analysed_ranges,
+        'scene_cue_count': sum(len(c.get('scene_changes', [])) for c in cues),
+        'silence_cue_count': sum(len(c.get('silence', [])) for c in cues),
+        'cache_hit': False,
+        'warnings': warnings,
+    }
+
+    _ANALYSIS_MEMORY_CACHE[cache_key] = {
+        'cues': cues,
+        'frames': frames,
+        'diagnostics': diagnostics
+    }
+
+    return AnalysisResult(cues, frames, diagnostics)
 
 
 SYSTEM = '''You are an expert, highly creative Vietnamese video editor specializing in viral Reels/TikTok videos.
@@ -181,6 +371,7 @@ RULES:
 - Every effect (titles, zooms, illustrations, sounds) start/duration refers to the FINAL OUTPUT timeline (AFTER cuts).
 - Use only given asset IDs for illustrations.
 - Never invent spoken words, facts, or assets. Titles MUST paraphrase the transcript.
+- Never infer or hallucinate prices, addresses, personal identities, legal terms, or business claims from video frames or uncertain visuals.
 - Music is available only when a music_asset_id is supplied. Source captions are remapped automatically (don't output them).
 - summary and warnings must be in Vietnamese.
 - For explainer_ref, return a semantic storyboard covering the ENTIRE output timeline without gaps or overlap. Every scene needs timeline_start and explicit duration. Choose camera, graphics, comparisons or steps from meaning, not a fixed alternating schedule. Keep titles short and faithful to speech. A comparison needs comparison_left and comparison_right (title, badge, points). Never reuse businesses, statistics, phone numbers or CTA from a reference.
@@ -268,10 +459,13 @@ async def _chat_stream(messages, event, schema, session):
                     record.setdefault('first_chunk_seconds', round(time.monotonic()-started, 3))
                     chunk = json.loads(line)
                     if chunk.get('error'):
-                        raise AIError('AI_MODEL_ERROR', 'Ollama: '+str(chunk['error']))
+                        err_str = str(chunk['error'])
+                        if any(phrase in err_str.lower() for phrase in ('not found', 'pull model', 'does not exist', 'unknown model')):
+                            raise AIError('MODEL_MISSING', f"Model '{model_name()}' chưa có trong Ollama: {err_str}")
+                        raise AIError('AI_MODEL_ERROR', 'Ollama: '+err_str)
                     parts.append(chunk.get('message', {}).get('content', ''))
                     if sum(map(len, parts)) > 150000:
-                        raise AIError('AI_OUTPUT_LIMIT', 'Phản hồi AI quá lớn; đã dừng để giữ tác vụ trong giới hạn.')
+                        raise AIError('CONTEXT_LIMIT', 'Phản hồi AI quá lớn; đã dừng để giữ tác vụ trong giới hạn.')
                     if chunk.get('done'):
                         for key in ('load_duration','prompt_eval_duration','eval_duration','total_duration','prompt_eval_count','eval_count','done_reason'):
                             if key in chunk:
@@ -294,8 +488,12 @@ async def _chat_stream(messages, event, schema, session):
                 record['status'] = 'succeeded'
                 return result
     except httpx.TimeoutException as exc:
-        code = 'AI_CONNECT_TIMEOUT' if isinstance(exc, httpx.ConnectTimeout) else 'AI_IDLE_TIMEOUT'
+        code = 'AI_IDLE_TIMEOUT' if isinstance(exc, httpx.ReadTimeout) else 'AI_TIMEOUT'
         raise AIError(code, 'Kết nối AI quá thời gian chờ dữ liệu. Kiểm tra Ollama và tài nguyên máy; không có video kết quả mới.') from exc
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            raise AIError('MODEL_MISSING', f"Model '{model_name()}' chưa có trong Ollama (HTTP 404); hãy chạy ollama pull {model_name()}") from exc
+        raise AIError('AI_CONNECTION', f"Không gọi được Ollama/model {model_name()}; kiểm tra OLLAMA_URL và trạng thái Ollama. {exc}") from exc
     except httpx.HTTPError as exc:
         raise AIError('AI_CONNECTION', f'Không gọi được Ollama/model {model_name()}; kiểm tra OLLAMA_URL và trạng thái Ollama. {exc}') from exc
     except json.JSONDecodeError as exc:
@@ -521,7 +719,9 @@ def build_semantic_storyboard(plan, direction=None, headline=''):
 
 
 def direct(plan, prompt, asset_dir, work, event, music_asset_id='', headline='', duration_policy='preserve', target_duration=0.0, visual_style='clean_expert'):
-    cues, frames = analyse(plan, asset_dir, work, event)
+    analysis = analyse(plan, asset_dir, work, event)
+    cues, frames = analysis
+    vision_diag = getattr(analysis, 'diagnostics', {})
     
     policy_desc = ''
     if duration_policy == 'preserve':
@@ -606,10 +806,15 @@ def direct(plan, prompt, asset_dir, work, event, music_asset_id='', headline='',
                 title_times.append((t.start, t.start + t.duration))
 
             result['director']['prompt'] = prompt
+            result['director']['vision_diagnostics'] = vision_diag
+            for w in vision_diag.get('warnings', []):
+                if w not in result['director']['warnings']:
+                    result['director']['warnings'].append(w)
             if not plan.get('subtitles'):
                 result['director']['warnings'].append('Không có lời thoại nhận dạng; AI chưa hiểu đầy đủ nội dung nói. Cài Whisper hoặc nhập SRT.')
-            if not frames:
-                result['director']['warnings'].append('Model đang đọc lời thoại và mốc cảnh/âm thanh; chưa phân tích hình ảnh bằng model thị giác.')
+            if not vision_diag.get('vision_used'):
+                if not any('chưa phân tích' in w.lower() for w in result['director']['warnings']):
+                    result['director']['warnings'].append('Model đang đọc lời thoại và mốc cảnh/âm thanh; chưa phân tích nội dung hình ảnh.')
             return result
         except (ValueError, KeyError, TypeError) as exc:
             if attempt:

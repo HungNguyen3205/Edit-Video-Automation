@@ -28,22 +28,50 @@ def styled(media,aligned=True):
 
 def test_root_has_exactly_three_panels_and_no_optional_editor_controls():
     class Page(HTMLParser):
-        def __init__(self):super().__init__();self.panels=[];self.forms=[]
-        def handle_starttag(self,tag,attrs):
-            attrs=dict(attrs)
-            if tag=='section':self.panels.append(attrs.get('data-panel'))
-            if tag in ('textarea','select','input'):self.forms.append((tag,attrs))
-    page=Page();html=client.get('/frontend/index.html').text;page.feed(html)
-    assert page.panels==['upload','style','output']
-    assert [tag for tag,_ in page.forms]==['input']
-    assert page.forms[0][1]['type']=='file'
+        def __init__(self):
+            super().__init__()
+            self.panels = []
+            self.main_forms = []
+            self.in_extra = False
+            self.extra_details = False
+            self.extra_open = False
+        def handle_starttag(self, tag, attrs):
+            attrs = dict(attrs)
+            if tag == 'section' and 'data-panel' in attrs:
+                self.panels.append(attrs.get('data-panel'))
+            if tag == 'details' and attrs.get('id') == 'extra-resources':
+                self.in_extra = True
+                self.extra_details = True
+                self.extra_open = 'open' in attrs
+            if not self.in_extra and tag in ('textarea', 'select', 'input'):
+                self.main_forms.append((tag, attrs))
+        def handle_endtag(self, tag):
+            if tag == 'details' and self.in_extra:
+                self.in_extra = False
+
+    page = Page()
+    html = client.get('/frontend/index.html').text
+    page.feed(html)
+    # The primary workflow must strictly preserve the 3 simple panels
+    assert page.panels == ['upload', 'style', 'output']
+    # The 3 primary panels contain only the video file input
+    assert [tag for tag, _ in page.main_forms] == ['input']
+    assert page.main_forms[0][1]['type'] == 'file'
+    # The extra resources section is collapsible and closed by default
+    assert page.extra_details is True
+    assert page.extra_open is False
+    assert 'id="extra-resources"' in html
+    assert 'Tài nguyên &amp; yêu cầu thêm' in html
+    assert 'id="input-prompt"' in html
+    assert 'id="btn-upload-logo"' in html
+    assert 'id="btn-upload-music"' in html
     assert '/frontend/studio.js' in html and '/frontend/studio.css' in html
     assert 'id="render"' in html and 'id="download"' in html
 
 
 def test_colored_word_captions_use_only_actual_alignment_and_escape_copy(media,tmp_path):
     p=styled(media);path=tmp_path/'words.ass';write_storyboard_ass(path,p,720,1280)
-    text=path.read_text();rows=[r for r in text.splitlines() if r.startswith('Dialogue: 1,')]
+    text=path.read_text(encoding='utf-8');rows=[r for r in text.splitlines() if r.startswith('Dialogue: 1,')]
     assert len(rows)==4
     assert ',0:00:00.10,0:00:01.10,Caption,' in rows[0]
     assert ',0:00:03.10,0:00:03.80,Caption,' in rows[-1]
@@ -51,12 +79,12 @@ def test_colored_word_captions_use_only_actual_alignment_and_escape_copy(media,t
     assert rows[0].index('\\c&H0000E6FF&')<rows[0].index('Mỗi')
     p['subtitles'][0]['text']='{\\pos(1,1)} ký tự';p['subtitles'][0]['words']=[]
     write_storyboard_ass(path,p,720,1280)
-    assert '{\\pos(1,1)}' not in path.read_text()
+    assert '{\\pos(1,1)}' not in path.read_text(encoding='utf-8')
 
 
 def test_unaligned_srt_gets_phrase_design_without_fake_word_highlights(media,tmp_path):
     p=styled(media,False);path=tmp_path/'phrase.ass';write_storyboard_ass(path,p,720,1280)
-    rows=[r for r in path.read_text().splitlines() if r.startswith('Dialogue: 1,')]
+    rows=[r for r in path.read_text(encoding='utf-8').splitlines() if r.startswith('Dialogue: 1,')]
     assert len(rows)==2
     assert ',0:00:00.00,0:00:03.00,Caption,' in rows[0]
     assert ',0:00:03.00,0:00:04.00,Caption,' in rows[1]

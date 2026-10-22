@@ -1,9 +1,11 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "images": [
     {
       "id": "ai_assistant",
       "file": "ai-assistant.webp",
+      "media_type": "image",
+      "topic": "ai_technology",
       "keywords": [
         "trợ lý AI",
         "trợ lý",
@@ -12,12 +14,19 @@
         "AI"
       ],
       "description": "Generic fictional AI assistant concept; not a product screenshot.",
+      "aspect_ratio": "16:9",
+      "duration": null,
+      "origin": "curated_stock",
+      "license": "DANAVA Studio Built-in Graphic / Local Illustration",
+      "usage_scope": "conceptual_illustration",
       "sha256": "fa63457a2ace93b8187e41c90b1ef8ba7f7b6b2a0f8a7ebb0e09feb7fb614fc4",
       "provenance": "Created with built-in imagegen for this project; distributed as local illustration. No runtime API call."
     },
     {
       "id": "brand_strategy",
       "file": "brand-strategy.webp",
+      "media_type": "image",
+      "topic": "business_marketing",
       "keywords": [
         "thương hiệu",
         "chiến lược",
@@ -27,8 +36,14 @@
         "kế hoạch nội dung"
       ],
       "description": "Fictional professionals planning visual strategy; not an actual client case.",
+      "aspect_ratio": "16:9",
+      "duration": null,
+      "origin": "curated_stock",
+      "license": "DANAVA Studio Built-in Graphic / Local Illustration",
+      "usage_scope": "conceptual_illustration",
       "sha256": "0372ade686b7aae593f650bf18a636e2eb16e45b44eff401d1fa456210aaa92a",
       "provenance": "Created with built-in imagegen for this project; distributed as local illustration. No runtime API call."
     }
   ]
 }
+
