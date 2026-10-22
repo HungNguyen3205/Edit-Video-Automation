@@ -11,6 +11,35 @@ def words(text):
     return set(re.findall(r'\w+', normalize_text(text)))
 
 
+def parse_keywords(raw_keywords):
+    """Extract list of clean keyword strings from raw keywords (comma-separated or words)."""
+    if not raw_keywords or not isinstance(raw_keywords, str):
+        return []
+    if ',' in raw_keywords:
+        return [k.strip() for k in raw_keywords.split(',') if k.strip()]
+    return list(words(raw_keywords))
+
+
+def calculate_transcript_match_score(speech_text, keywords):
+    """Calculate relevance score of speech_text given a list of keywords.
+    Independent and stateless: only depends on speech and asset keywords.
+    """
+    if not speech_text or not keywords:
+        return 0
+    speech = normalize_text(speech_text)
+    score = 0
+    for k in keywords:
+        k_clean = normalize_text(k)
+        if not k_clean:
+            continue
+        if len(k_clean) <= 2:
+            if re.search(r'\b' + re.escape(k_clean) + r'\b', speech):
+                score += 2
+        elif k_clean in speech:
+            score += 1
+    return score
+
+
 def apply_visual_assets(plan, prompt, brand_name='', logo_asset_id='', image_asset_ids=None, illustrations=True, broll_asset_ids=None):
     p=copy.deepcopy(plan)
     assets={a['id']:a for a in p['assets']}
@@ -48,7 +77,6 @@ def apply_visual_assets(plan, prompt, brand_name='', logo_asset_id='', image_ass
             # Uncertain recognition is never promoted into a large heading.
             sc['headline']=topic.upper() if topic else (brand_name.upper()[:80] if brand_name and i in (0,len(scenes)-1)
                 else 'GIỚI THIỆU' if i==0 and speech.strip() else '')
-    interior=list(range(1,len(scenes)-1)) if len(scenes)>2 else list(range(len(scenes)))
     source=[]
     warnings=p.setdefault('director',{}).setdefault('warnings',[])
     # User instructions can disable automatic graphics without hiding their
@@ -61,62 +89,163 @@ def apply_visual_assets(plan, prompt, brand_name='', logo_asset_id='', image_ass
     no_sound=bool(re.search(r'(?:không|tắt|bỏ|no)\s+(?:thêm |chèn |dùng )?(?:âm thanh|tiếng|sfx|sound)',prompt,re.I))
     used=set()
     diagnostics = p.setdefault('director', {}).setdefault('visual_diagnostics', [])
-    for aid in images:
-        candidates=[i for i in interior if i not in used]
-        if not candidates:
-            warnings.append('Video chưa đủ đoạn để chèn tất cả ảnh đã chọn.');break
-        raw_kws = assets[aid].get('keywords', '')
-        kw_list = [k.strip() for k in raw_kws.split(',') if k.strip()] if ',' in raw_kws else list(words(raw_kws))
-        
-        def match_score(i):
-            speech = normalize_text(scenes[i].get('transcript_meaning',''))
-            score = 0
-            for k in kw_list:
-                k_clean = normalize_text(k)
-                if not k_clean:
-                    continue
-                if len(k_clean) <= 2:
-                    if re.search(r'\b' + re.escape(k_clean) + r'\b', speech):
-                        score += 2
-                elif k_clean in speech:
-                    score += 1
-            return score
 
-        if kw_list:
-            candidates=[i for i in candidates if match_score(i)>0]
-            if not candidates:
-                warnings.append('Chưa tìm thấy lời nói phù hợp với chủ đề ảnh '+assets[aid].get('original_name','')+'.')
-                diagnostics.append({'scene_index': -1, 'selected_id': aid, 'source': 'user_uploaded', 'relevance_score': 0.0, 'matched_terms': [], 'tier': 'none', 'fallback_reason': 'no_matching_transcript'})
-                continue
-            index=max(candidates,key=match_score)
-        else:
-            index=candidates[0]
-        sc=scenes[index]
-        sc.update(scene_type='talking_head_pip',visual_asset_id=aid,
-                  sound_effect='none' if no_sound else 'pop')
-        used.add(index)
-        source.append({'scene_index':index,'source':'user_uploaded','asset_id':aid})
-        diagnostics.append({'scene_index': index, 'scene_id': sc.get('scene_id'), 'selected_id': aid, 'source': 'user_uploaded', 'relevance_score': 1.0, 'matched_terms': kw_list, 'tier': 'user_specified', 'fallback_reason': ''})
-    for bid in brolls:
-        candidates=[i for i in interior if i not in used]
+    for aid in images:
+        interior = [i for i in range(len(scenes)) if (len(scenes) <= 2 or 0 < i < len(scenes) - 1)]
+        candidates = [i for i in interior if i not in used]
         if not candidates:
-            warnings.append('Video chưa đủ đoạn để chèn tất cả B-roll đã chọn.');break
-        b_asset = assets[bid]
-        raw_kws = b_asset.get('keywords', '')
-        kw_list = [k.strip() for k in raw_kws.split(',') if k.strip()] if ',' in raw_kws else list(words(raw_kws))
+            warnings.append('Video chưa đủ đoạn để chèn tất cả ảnh đã chọn.')
+            break
+        kw_list = parse_keywords(assets[aid].get('keywords', ''))
         if kw_list:
-            cands = [i for i in candidates if match_score(i) > 0]
-            index = max(cands, key=match_score) if cands else candidates[0]
+            scored = []
+            for i in candidates:
+                s = calculate_transcript_match_score(scenes[i].get('transcript_meaning', ''), kw_list)
+                if s > 0:
+                    scored.append((s, i))
+            if not scored:
+                warnings.append('Chưa tìm thấy lời nói phù hợp với chủ đề ảnh ' + assets[aid].get('original_name', '') + '.')
+                diagnostics.append({'scene_index': -1, 'selected_id': aid, 'source': 'user_uploaded', 'relevance_score': 0.0, 'matched_terms': kw_list, 'tier': 'none', 'fallback_reason': 'no_matching_transcript'})
+                continue
+            index = max(scored, key=lambda x: (x[0], -x[1]))[1]
         else:
             index = candidates[0]
         sc = scenes[index]
-        media_type = b_asset.get('type', 'video')
-        sc.update(scene_type='broll' if media_type == 'video' else 'talking_head_pip',
-                  visual_asset_id=bid, visual_source_in=b_asset.get('source_in', 0),
+        sc.update(scene_type='talking_head_pip', visual_asset_id=aid,
                   sound_effect='none' if no_sound else 'pop')
         used.add(index)
-        source.append({'scene_index': index, 'source': 'user_uploaded', 'asset_id': bid})
-        diagnostics.append({'scene_index': index, 'scene_id': sc.get('scene_id'), 'selected_id': bid, 'source': 'user_uploaded', 'relevance_score': 1.0, 'matched_terms': kw_list, 'tier': 'user_specified', 'fallback_reason': ''})
+        source.append({'scene_index': index, 'source': 'user_uploaded', 'asset_id': aid})
+        diagnostics.append({'scene_index': index, 'scene_id': sc.get('scene_id'), 'selected_id': aid, 'source': 'user_uploaded', 'relevance_score': 1.0, 'matched_terms': kw_list, 'tier': 'user_specified', 'fallback_reason': ''})
+
+    for bid in brolls:
+        interior = [i for i in range(len(scenes)) if (len(scenes) <= 2 or 0 < i < len(scenes) - 1)]
+        candidates = [i for i in interior if i not in used]
+        if not candidates:
+            warnings.append('Video chưa đủ đoạn để chèn tất cả B-roll đã chọn.')
+            break
+        b_asset = assets[bid]
+        kw_list = parse_keywords(b_asset.get('keywords', ''))
+        if kw_list:
+            scored = []
+            for i in candidates:
+                s = calculate_transcript_match_score(scenes[i].get('transcript_meaning', ''), kw_list)
+                if s > 0:
+                    scored.append((s, i))
+            if not scored:
+                warnings.append('Chưa tìm thấy lời nói phù hợp với chủ đề B-roll ' + b_asset.get('original_name', '') + '.')
+                diagnostics.append({'scene_index': -1, 'selected_id': bid, 'source': 'user_uploaded', 'relevance_score': 0.0, 'matched_terms': kw_list, 'tier': 'none', 'fallback_reason': 'no_matching_transcript'})
+                continue
+            index = max(scored, key=lambda x: (x[0], -x[1]))[1]
+        else:
+            index = candidates[0]
+
+        sc = scenes[index]
+        media_type = b_asset.get('type', 'video')
+        if media_type != 'video':
+            sc.update(scene_type='talking_head_pip', visual_asset_id=bid, visual_source_in=0,
+                      sound_effect='none' if no_sound else 'pop')
+            used.add(index)
+            source.append({'scene_index': index, 'source': 'user_uploaded', 'asset_id': bid})
+            diagnostics.append({'scene_index': index, 'scene_id': sc.get('scene_id'), 'selected_id': bid, 'source': 'user_uploaded', 'relevance_score': 1.0, 'matched_terms': kw_list, 'tier': 'user_specified', 'source_range': [0, sc['duration']], 'used_duration': sc['duration'], 'fallback_reason': ''})
+            continue
+
+        b_meta = b_asset.get('metadata', {})
+        b_dur = float(b_meta.get('duration', 0.0))
+        b_src_in = max(0.0, float(b_asset.get('source_in', 0.0)))
+        if b_dur <= 0:
+            warnings.append('B-roll ' + b_asset.get('original_name', '') + ' không có dữ liệu thời lượng.')
+            diagnostics.append({'scene_index': -1, 'selected_id': bid, 'source': 'user_uploaded', 'relevance_score': 0.0, 'matched_terms': kw_list, 'tier': 'none', 'fallback_reason': 'missing_duration'})
+            continue
+        if b_src_in >= b_dur - 0.001:
+            warnings.append('B-roll ' + b_asset.get('original_name', '') + ' có điểm đầu vượt thời lượng file.')
+            diagnostics.append({'scene_index': -1, 'selected_id': bid, 'source': 'user_uploaded', 'relevance_score': 0.0, 'matched_terms': kw_list, 'tier': 'none', 'fallback_reason': 'invalid_source_in'})
+            continue
+
+        available_dur = b_dur - b_src_in
+        fps = p.get('output_settings', {}).get('fps', 30)
+        min_scene_dur = max(0.1, 2.0 / fps)
+
+        if available_dur < min_scene_dur:
+            warnings.append(f"B-roll {b_asset.get('original_name', '')} thời lượng khả dụng ({round(available_dur, 2)}s) quá ngắn.")
+            diagnostics.append({'scene_index': -1, 'selected_id': bid, 'source': 'user_uploaded', 'relevance_score': 0.0, 'matched_terms': kw_list, 'tier': 'none', 'fallback_reason': 'duration_too_short'})
+            continue
+
+        sc_dur = sc['duration']
+        if available_dur >= sc_dur - 0.02:
+            sc.update(scene_type='broll', visual_asset_id=bid, visual_source_in=b_src_in,
+                      sound_effect='none' if no_sound else 'pop')
+            used.add(index)
+            source.append({'scene_index': index, 'source': 'user_uploaded', 'asset_id': bid})
+            diagnostics.append({'scene_index': index, 'scene_id': sc.get('scene_id'), 'selected_id': bid, 'source': 'user_uploaded', 'relevance_score': 1.0, 'matched_terms': kw_list, 'tier': 'user_specified', 'source_range': [b_src_in, b_src_in + sc_dur], 'used_duration': sc_dur, 'fallback_reason': ''})
+        else:
+            used_broll_dur = available_dur
+            remainder_dur = sc_dur - used_broll_dur
+            if remainder_dur < min_scene_dur:
+                if used_broll_dur - (min_scene_dur - remainder_dur) >= min_scene_dur:
+                    remainder_dur = min_scene_dur
+                    used_broll_dur = round(sc_dur - remainder_dur, 4)
+                else:
+                    warnings.append(f"Không thể chia cảnh cho B-roll {b_asset.get('original_name', '')} do thời lượng cảnh quá ngắn.")
+                    diagnostics.append({'scene_index': -1, 'selected_id': bid, 'source': 'user_uploaded', 'relevance_score': 0.0, 'matched_terms': kw_list, 'tier': 'none', 'fallback_reason': 'cannot_split_safely'})
+                    continue
+
+            orig_source_in = sc.get('source_in', sc['timeline_start'])
+            orig_timeline_start = sc['timeline_start']
+
+            sc_broll = copy.deepcopy(sc)
+            sc_broll.update(
+                scene_id=f"{sc.get('scene_id', 'sc')}_broll",
+                timeline_start=orig_timeline_start,
+                duration=used_broll_dur,
+                source_in=orig_source_in,
+                scene_type='broll',
+                visual_asset_id=bid,
+                visual_source_in=b_src_in,
+                sound_effect='none' if no_sound else 'pop'
+            )
+
+            sc_tail = copy.deepcopy(sc)
+            sc_tail.update(
+                scene_id=f"{sc.get('scene_id', 'sc')}_tail",
+                timeline_start=orig_timeline_start + used_broll_dur,
+                duration=remainder_dur,
+                source_in=orig_source_in + used_broll_dur,
+                scene_type='talking_head',
+                sound_effect='none',
+                headline='',
+                badge_text='',
+                graphic_title='',
+                graphic_items=[]
+            )
+            sc_tail.pop('visual_asset_id', None)
+            sc_tail.pop('visual_source_in', None)
+
+            scenes[index:index+1] = [sc_broll, sc_tail]
+
+            used = {u if u < index else u + 1 for u in used}
+            used.add(index)
+            used.add(index + 1)
+            for item in source:
+                if item['scene_index'] > index:
+                    item['scene_index'] += 1
+
+            source.append({'scene_index': index, 'source': 'user_uploaded', 'asset_id': bid})
+            diagnostics.append({
+                'scene_index': index,
+                'scene_id': sc_broll.get('scene_id'),
+                'selected_id': bid,
+                'source': 'user_uploaded',
+                'relevance_score': 1.0,
+                'matched_terms': kw_list,
+                'tier': 'user_specified',
+                'source_range': [b_src_in, b_src_in + used_broll_dur],
+                'used_duration': used_broll_dur,
+                'split_scene': True,
+                'remainder_duration': remainder_dur,
+                'fallback_reason': ''
+            })
+
+    interior = list(range(1, len(scenes) - 1)) if len(scenes) > 2 else list(range(len(scenes)))
     if not excluded:
 
         # Check real estate authenticity: do not add generic conceptual diagrams for real estate listings
