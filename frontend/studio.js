@@ -324,6 +324,12 @@ function choose(next) {
   if ($('input-prompt')) $('input-prompt').value = '';
   if ($('input-brand-name')) $('input-brand-name').value = '';
   if ($('input-proper-names')) $('input-proper-names').value = '';
+  if ($('input-web-url')) $('input-web-url').value = '';
+  const statusEl = $('web-fetch-status');
+  if (statusEl) {
+    statusEl.textContent = '';
+    statusEl.style.color = '';
+  }
   renderExtraAssets();
 
   if (objectURL) URL.revokeObjectURL(objectURL);
@@ -385,6 +391,18 @@ async function render() {
     }
     if (token !== epoch) return;
 
+    const webUrl = $('input-web-url')?.value.trim() || '';
+    if (webUrl) {
+      if (webUrl.length > 1500) {
+        fail('Link web tham khảo không được vượt quá 1500 ký tự.');
+        return;
+      }
+      if (!/^https?:\/\/.+/i.test(webUrl)) {
+        fail('Link web không hợp lệ. Phải bắt đầu bằng http:// hoặc https:// và có tên miền.');
+        return;
+      }
+    }
+
     const payload = {
       style_preset: style,
       motion_style: 'dynamic_explainer',
@@ -398,7 +416,7 @@ async function render() {
       music_asset_id: selectedMusicId || '',
       image_asset_ids: Array.from(selectedImageIds).slice(0, 6),
       broll_asset_ids: Array.from(selectedBrollIds).slice(0, 6),
-      web_url: $('input-web-url')?.value.trim() || ''
+      web_url: webUrl
     };
 
     project = await api(`/api/projects/${project.id}/make-video`, json(payload));
@@ -460,40 +478,71 @@ const btnFetchWeb = $('btn-fetch-web');
 if (btnFetchWeb) {
   btnFetchWeb.onclick = async () => {
     const url = $('input-web-url')?.value.trim();
+    const statusEl = $('web-fetch-status');
     if (!url) {
-      alert('Vui lòng dán link trang web cần lấy ảnh.');
+      if (statusEl) {
+        statusEl.textContent = 'Vui lòng dán link trang web cần lấy ảnh.';
+        statusEl.style.color = '#ef4444';
+      } else {
+        alert('Vui lòng dán link trang web cần lấy ảnh.');
+      }
       return;
     }
-    const statusEl = $('web-fetch-status');
+    if (url.length > 1500 || !/^https?:\/\/.+/i.test(url)) {
+      if (statusEl) {
+        statusEl.textContent = 'Link web không hợp lệ. Phải bắt đầu bằng http:// hoặc https:// (tối đa 1500 ký tự).';
+        statusEl.style.color = '#ef4444';
+      }
+      return;
+    }
+
+    const fetchEpoch = epoch;
+    const targetProjectId = project?.id;
+
     try {
       btnFetchWeb.disabled = true;
-      btnFetchWeb.textContent = 'Đang cào…';
+      btnFetchWeb.textContent = 'Đang đọc…';
       if (statusEl) {
-        statusEl.textContent = 'Đang đọc nội dung web và lọc ảnh nét…';
+        statusEl.textContent = 'Đang đọc link web và lọc ảnh nét…';
         statusEl.style.color = '#5a7b70';
       }
       await ensureProject();
       const res = await api(`/api/projects/${project.id}/ingest-web`, json({ url, max_images: 5 }));
+
+      // Late response guard: drop if user selected another video or reset
+      if (fetchEpoch !== epoch || (targetProjectId && project?.id !== targetProjectId)) {
+        console.warn('Bỏ qua kết quả lấy web do đã thay đổi video hoặc dự án.');
+        return;
+      }
+
       project = await api(`/api/projects/${project.id}`);
+      if (fetchEpoch !== epoch) return;
+
       for (const a of (res.assets || [])) {
         selectedImageIds.add(a.id);
       }
       renderExtraAssets();
+
       if (statusEl) {
-        statusEl.textContent = `✓ Đã lấy được ${res.image_count} ảnh minh họa: "${(res.title || '').slice(0, 40)}…"`;
-        statusEl.style.color = '#10b981';
-      }
-      if ($('input-prompt') && !$('input-prompt').value.trim() && res.summary) {
-        $('input-prompt').value = res.summary;
+        if (res.image_count > 0) {
+          const cacheNote = res.cached ? ' (đang dùng cache)' : '';
+          statusEl.textContent = `✓ Đã lấy được ${res.image_count} ảnh minh họa: "${(res.title || '').slice(0, 40)}…"${cacheNote}`;
+          statusEl.style.color = '#10b981';
+        } else {
+          statusEl.textContent = '⚠ Không lấy được ảnh: Trang web không có ảnh minh họa nào đạt kích thước chuẩn (>= 240×240).';
+          statusEl.style.color = '#f59e0b';
+        }
       }
     } catch (err) {
-      if (statusEl) {
-        statusEl.textContent = `✕ Lỗi: ${err.message}`;
+      if (fetchEpoch === epoch && statusEl) {
+        statusEl.textContent = `✕ Lỗi tải: ${err.message}`;
         statusEl.style.color = '#ef4444';
       }
     } finally {
-      btnFetchWeb.disabled = false;
-      btnFetchWeb.textContent = 'Lấy ảnh';
+      if (fetchEpoch === epoch) {
+        btnFetchWeb.disabled = false;
+        btnFetchWeb.textContent = 'Lấy ảnh';
+      }
     }
   };
 }
@@ -566,6 +615,18 @@ async function initialize() {
         if (b.brand_name && $('input-brand-name')) $('input-brand-name').value = b.brand_name;
         if (p.edit_plan?.proper_names && $('input-proper-names')) $('input-proper-names').value = p.edit_plan.proper_names;
         if ((p.director?.user_prompt || b.prompt) && $('input-prompt')) $('input-prompt').value = p.director?.user_prompt || b.prompt || '';
+
+        const webUrl = b.web_url || p.edit_plan?.web_reference?.url || '';
+        if (webUrl && $('input-web-url')) {
+          $('input-web-url').value = webUrl;
+          const ref = p.edit_plan?.web_reference;
+          const statusEl = $('web-fetch-status');
+          if (statusEl && ref && ref.status === 'success') {
+            const count = ref.image_count ?? ref.asset_ids?.length ?? 0;
+            statusEl.textContent = `✓ Đang dùng cache nguồn web (${count} ảnh): "${(ref.title || '').slice(0, 40)}…"`;
+            statusEl.style.color = '#10b981';
+          }
+        }
 
         const assets = p.edit_plan?.assets || [];
         if (b.logo_asset_id && assets.some(a => a.id === b.logo_asset_id)) selectedLogoId = b.logo_asset_id;
