@@ -150,8 +150,9 @@ def apply_user_overrides(plan, prompt='', options=None):
     # 4. Illustrations overrides
     if no_illustrations:
         user_images = p.get('branding', {}).get('image_asset_ids', [])
-        if user_images:
-            warnings.append('Yêu cầu không minh họa nhưng có ảnh được chọn cụ thể; ưu tiên ảnh do bạn chỉ định, bỏ minh họa tự động.')
+        user_brolls = p.get('branding', {}).get('broll_asset_ids', [])
+        if user_images or user_brolls:
+            warnings.append('Yêu cầu không minh họa nhưng có ảnh/B-roll được chọn cụ thể; ưu tiên tài nguyên do bạn chỉ định, bỏ minh họa tự động.')
             for sc in p.get('storyboard', []):
                 sc.pop('library_visual_id', None)
                 sc.pop('source_cutaway', None)
@@ -160,7 +161,7 @@ def apply_user_overrides(plan, prompt='', options=None):
                 sc.pop('library_visual_id', None)
                 sc.pop('source_cutaway', None)
                 sc.pop('visual_asset_id', None)
-                if sc.get('scene_type') in ('explainer_card', 'talking_head_pip') and not sc.get('graphic_items'):
+                if sc.get('scene_type') in ('explainer_card', 'talking_head_pip', 'broll') and not sc.get('graphic_items'):
                     sc['scene_type'] = 'talking_head'
                     sc['photo_layout'] = 'pip'
 
@@ -243,6 +244,10 @@ def apply_style_preset(plan, identifier='explainer', prompt='', music_asset_id='
         for index,sc in enumerate(source_scenes):
             budget=200-len(expanded)-(len(source_scenes)-index-1)
             count=max(1,min(budget,math.ceil(sc['duration']/2.4)))
+            v_asset = next((a for a in p.get('assets', []) if a['id'] == sc.get('visual_asset_id')), None)
+            is_video_broll = bool(v_asset and v_asset.get('type') == 'video' and sc.get('scene_type') == 'broll')
+            base_v_src_in = float(sc.get('visual_source_in', 0.0))
+            v_dur = float(v_asset.get('metadata', {}).get('duration', 0.0)) if is_video_broll else 0.0
             for n in range(count):
                 part=copy.deepcopy(sc)
                 offset = sc['duration']*n/count
@@ -250,6 +255,16 @@ def apply_style_preset(plan, identifier='explainer', prompt='', music_asset_id='
                     timeline_start=sc['timeline_start']+offset,
                     duration=sc['duration']/count,
                     source_in=sc.get('source_in', 0)+offset)
+                if is_video_broll:
+                    part_dur = sc['duration'] / count
+                    v_pos = base_v_src_in + offset
+                    if v_pos + part_dur <= v_dur + 0.02:
+                        part['visual_source_in'] = v_pos
+                        part['scene_type'] = 'broll'
+                    else:
+                        part['scene_type'] = 'talking_head'
+                        part.pop('visual_asset_id', None)
+                        part.pop('visual_source_in', None)
                 expanded.append(part)
         p['storyboard']=expanded
 
@@ -277,6 +292,12 @@ def apply_style_preset(plan, identifier='explainer', prompt='', music_asset_id='
             # Property photos fill the frame. Storytelling alternates picture/speaker.
             sc['photo_layout'] = 'full' if identifier == 'real_estate' or photos % 2 == 0 else 'pip'
             sc['scene_type'] = 'explainer_card' if sc['photo_layout'] == 'full' else 'talking_head_pip'
+            photos += 1
+        elif visual and visual['type'] == 'video':
+            # Authentic user-provided video B-roll: preserve footage, type, and source in
+            sc['scene_type'] = 'broll'
+            sc.pop('library_visual_id', None)
+            sc.pop('photo_layout', None)
             photos += 1
         elif has_grounded_items and sc.get('scene_type') in ('explainer_card', 'talking_head_pip'):
             # Valid explanatory/info graphic card grounded with speech: keep content intact!

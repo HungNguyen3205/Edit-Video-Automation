@@ -132,6 +132,10 @@ def apply_motion_style(plan, requested='clean', prompt=''):
             sc['photo_layout']='full' if photos%2==0 else 'pip'
             sc['scene_type']='explainer_card' if sc['photo_layout']=='full' else 'talking_head_pip'
             photos+=1
+        elif visual and visual.get('type')=='video':
+            sc['scene_type']='broll'
+            sc.pop('photo_layout',None)
+            photos+=1
         start=sc['timeline_start'];end=start+sc['duration']
         subs=[s for s in p.get('subtitles',[]) if s['end']>start and s['start']<end]
         timed=[w for sub in subs for w in sub.get('words',[]) if w['end']>start and w['start']<end]
