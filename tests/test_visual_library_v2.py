@@ -192,3 +192,71 @@ def test_missing_or_tampered_asset_fails_safely():
 
     with pytest.raises(ValueError):
         library_image("bad/path/injection")
+
+
+def test_image_insertion_smoothness_and_source_in_sync():
+    """Verify that inserting visuals does not create jarring 0.4s flash frames,
+    preserves minimum chunk durations >= 1.6s, and keeps source_in synchronized with timeline."""
+    plan = {
+        'schema_version': 2,
+        'assets': [
+            {'id': 'video_root', 'type': 'video', 'filename': 'root.mp4', 'metadata': {'duration': 16.6}}
+        ],
+        'video_clips': [
+            {'id': 'c1', 'asset_id': 'video_root', 'source_in': 0.0, 'source_out': 16.6, 'duration': 16.6, 'timeline_start': 0.0}
+        ],
+        'output_settings': {'width': 720, 'height': 1280, 'fps': 30},
+        'subtitles': [],
+        'branding': {'illustrations': True},
+        'director': {'topic': 'công nghệ'},
+        'storyboard': [
+            {
+                'scene_id': 'sc_open',
+                'scene_type': 'talking_head',
+                'asset_id': 'video_root',
+                'timeline_start': 0.0,
+                'source_in': 0.0,
+                'duration': 4.0,
+                'transcript_meaning': 'Xin chào các bạn đến với buổi chia sẻ.'
+            },
+            {
+                'scene_id': 'sc_ai',
+                'scene_type': 'talking_head',
+                'asset_id': 'video_root',
+                'timeline_start': 4.0,
+                'source_in': 4.0,
+                'duration': 8.6,
+                'transcript_meaning': 'Hôm nay chúng ta cùng tìm hiểu về trợ lý AI thông minh.'
+            },
+            {
+                'scene_id': 'sc_close',
+                'scene_type': 'talking_head',
+                'asset_id': 'video_root',
+                'timeline_start': 12.6,
+                'source_in': 12.6,
+                'duration': 4.0,
+                'transcript_meaning': 'Cảm ơn và hẹn gặp lại các bạn.'
+            }
+        ]
+    }
+
+    result = apply_library_visuals(plan, prompt='Tạo video giới thiệu trợ lý AI')
+    sc_ai_chunks = [s for s in result['storyboard'] if s['scene_id'].startswith('sc_ai')]
+    assert len(sc_ai_chunks) >= 1
+
+    # 1. No chunk should ever be a jarring 0.4s flash frame
+    for ch in sc_ai_chunks:
+        assert ch['duration'] >= 1.6, f"Chunk {ch['scene_id']} duration {ch['duration']} is too short (< 1.6s)"
+
+    # 2. Total duration must be preserved exactly
+    assert abs(sum(ch['duration'] for ch in sc_ai_chunks) - 8.6) < 1e-4
+
+    # 3. source_in MUST be offset correctly matching timeline_start
+    orig_start = 4.0
+    orig_source_in = 4.0
+    for ch in sc_ai_chunks:
+        expected_source_in = orig_source_in + (ch['timeline_start'] - orig_start)
+        assert abs(ch['source_in'] - expected_source_in) < 1e-4, (
+            f"Chunk {ch['scene_id']} has desynced source_in: expected {expected_source_in}, got {ch['source_in']}"
+        )
+

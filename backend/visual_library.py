@@ -367,22 +367,34 @@ def apply_library_visuals(plan, prompt='', enabled=True):
         duration = sc['duration']
         start = sc['timeline_start']
 
-        lead = 0.4 if duration > 5.4 else 0
+        orig_source_in = sc.get('source_in', start)
+        min_scene_dur = 1.6
+        if duration >= 6.8:
+            lead = 2.0
+        else:
+            lead = 0.0
+
         beat = min(4.2, duration - lead)
-        if duration - lead - beat < 0.6:
+        if duration - lead - beat < min_scene_dur:
             beat = duration - lead
 
         chunks = []
-        if lead:
-            chunks.append((0, lead, False))
+        if lead > 0:
+            chunks.append((0.0, lead, False))
         chunks.append((lead, beat, True))
-        if duration - lead - beat > 0.02:
-            chunks.append((lead + beat, duration - lead - beat, False))
+        remainder = round(duration - lead - beat, 4)
+        if remainder >= min_scene_dur:
+            chunks.append((lead + beat, remainder, False))
 
         layout = 'full' if len([s for s in result if s.get('library_visual_id')]) % 2 == 0 else 'pip'
         for n, (offset, length, is_photo) in enumerate(chunks):
             part = copy.deepcopy(sc)
-            part.update(scene_id=f"{sc['scene_id']}_photo{n}", timeline_start=start + offset, duration=length)
+            part.update(
+                scene_id=f"{sc['scene_id']}_photo{n}",
+                timeline_start=start + offset,
+                duration=length,
+                source_in=orig_source_in + offset
+            )
             part.pop('motion', None)
             if is_photo:
                 part.update(

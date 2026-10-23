@@ -650,11 +650,14 @@ async function render() {
         el.style.transform = `translateY(${(1-t)*20}px)`;
       });
 
-      if(cfg.dynamic && cfg.animate){
-        const photo=document.querySelector('.photo-image');
-        if(photo)photo.style.transform=`scale(${1+cfg.photoZoom*(.5-.5*Math.cos(Math.PI*Math.min(1,currTime/Math.max(1,cfg.duration))))})`;
-        const image=document.querySelector('.card-img');
-        if(image)image.style.transform=`scale(${1+.025*Math.min(1,currTime/Math.max(1,cfg.duration))})`;
+      if(cfg.animate){
+        const pProgress = Math.min(1, Math.max(0, currTime / Math.max(1, cfg.duration)));
+        const pEase = 1 - Math.pow(1 - pProgress, 1.8);
+        const pZoomAmt = (cfg.dynamic || cfg.photoZoom) ? (cfg.photoZoom || 0.045) : 0.035;
+        const photo = document.querySelector('.photo-image');
+        if (photo) photo.style.transform = `scale(${1 + pZoomAmt * pEase})`;
+        const image = document.querySelector('.card-img');
+        if (image) image.style.transform = `scale(${1 + 0.03 * pEase})`;
       }
       // Subtext fade
       const subT = Math.min(1, Math.max(0, (currTime - 0.6) / 0.4));
@@ -666,7 +669,7 @@ async function render() {
       document.body.style.setProperty('--op-stat', statT);
       if (cfg.animation === 'fade' || cfg.animation === 'slide_up') {
         const entry = Math.min(1, currTime / .45);
-        for (const el of document.querySelectorAll('.anim-badge, .anim-card, .anim-headline, .anim-stat, .anim-sub')) {
+        for (const el of document.querySelectorAll('.anim-badge, .anim-card, .anim-headline, .anim-stat, .anim-sub, .photo-cover, .photo-content')) {
           el.style.opacity = entry;
           el.style.transform = cfg.animation === 'slide_up' ? `translateY(${(1-entry)*28}px)` : 'none';
         }
